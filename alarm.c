@@ -12,7 +12,7 @@
 #include "usart0.h"
 #define SERIAL_SPEED 57600
 #define SYSTEM_CLOCK F_CPU
-#define TIMER_RESOLUTION_US 300UL
+#define TIMER_RESOLUTION_US 150UL
 #endif
 #include "utils.h"
 #include "ring.h"
@@ -130,7 +130,7 @@ static void pkt_parse(ring_t *ring)
 	}
 }
 #endif
-
+#if 0
 void loop()
 {
 	ring_t ring;
@@ -199,6 +199,7 @@ void loop()
 		}
 	}
 }
+#endif
 void init_streams()
 {
 	// initialize the standard streams to the user defined one
@@ -213,6 +214,14 @@ struct rf_str {
 } rt_str;
 
 #define LED PD4
+void tim_cb_led(void *arg)
+{
+	tim_t *timer = arg;
+
+	PORTD ^= (1 << LED);
+	timer_reschedule(timer, TIMER_RESOLUTION_US);
+}
+
 void tim_cb(void *arg)
 {
 	tim_t *timer = arg;
@@ -224,9 +233,7 @@ void tim_cb(void *arg)
 		PORTD |= (1 << LED);
 	}
 
-	//PORTD ^= (1 << LED);
 	timer_reschedule(timer, TIMER_RESOLUTION_US);
-	//	printf("tim_cb called\n");
 }
 
 int main(void)
@@ -259,7 +266,7 @@ int main(void)
 		timer_add(&timer, 300, tim_cb, &timer);
 	}
 	while (1) {}
-	loop();
+	//	loop();
 
 	return 0;
 }
