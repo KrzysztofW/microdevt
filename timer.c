@@ -60,15 +60,6 @@ static void timer_init_list(void)
 }
 
 #ifndef ZCHK
-static inline void timer_enable_int(void)
-{
-	TIMSK0 = (1 << TOIE0); /* Enable timer0 overflow interrupt(TOIE0) */
-}
-
-static inline void timer_disable_int(void)
-{
-	TIMSK0 = 0;
-}
 
 /* 8-bit timer 300us resolution
  * 255-0.0003/(1/(16000000/64.)) = 180
@@ -78,14 +69,11 @@ static inline void timer_disable_int(void)
  *       64 = prescaler value
  */
 #define TIM_COUNTER 180
-//#define TIM_COUNTER 217
 
 ISR(TIMER0_OVF_vect)
 {
-	timer_disable_int();
 	timer_process();
 	TCNT0 = TIM_COUNTER;
-	timer_enable_int();
 }
 
 int timer_subsystem_init(unsigned long resolution_us)
@@ -104,7 +92,7 @@ int timer_subsystem_init(unsigned long resolution_us)
 	TCNT0 = TIM_COUNTER;
 	TCCR0A = 0x00;
 	TCCR0B = (1<<CS00) | (1<<CS01);  // Timer mode with 64 prescler
-	timer_enable_int();
+	TIMSK0 = (1 << TOIE0); /* Enable timer0 overflow interrupt(TOIE0) */
 	sei();
 
 	return 0;
