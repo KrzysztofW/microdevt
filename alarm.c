@@ -5,30 +5,18 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>
+#include <string.h>
 
 #define DEBUG
 #ifdef DEBUG
 #include "usart0.h"
-#define SERIAL_SPEED 38400
+#define SERIAL_SPEED 57600
 #define SYSTEM_CLOCK F_CPU
+#define TIMER_RESOLUTION_US 300UL
 #endif
-#include "sound.h"
 #include "utils.h"
-
-enum state_type {
-	IDLE,
-	SET_PASS,
-	GETOUT,
-	GETIN,
-	WATCH,
-	ALARM,
-};
-
-int pass[6] = { 0, 7, 0, 5};
-#define PASS_LENGTH 4
-#define TIMEOUT 20
-
-enum state_type state;
+#include "ring.h"
+#include "timer.h"
 
 #ifdef DEBUG
 static int my_putchar(char c, FILE *stream)
@@ -88,201 +76,127 @@ uint16_t analogRead(uint8_t ADCchannel)
 	return ADC;
 }
 
-void print_buff(int *buffer)
+typedef enum state {
+	WAIT,
+	STARTED,
+} state_t;
+
+#define START_FRAME = 0xAA
+
+typedef struct pkt_header {
+	unsigned char  start_frame; /* 0 */
+	unsigned short from;	    /* 1 */
+	unsigned char  len;	    /* 3 */
+	unsigned short chksum;	    /* 4 */
+	unsigned char  data[];      /* 6 */
+} pkt_header_t;
+
+#if 0
+static void pkt_parse(ring_t *ring)
 {
-	int i;
-	for (i = 0; i < PASS_LENGTH; i++) {
-		printf("%d", buffer[i]);
-	}
-	printf("\n");
-}
+	unsigned short addr;
+	int len, chksum, chksum2 = 0, i;
 
-int from_keycode(int keycode)
-{
-	int key;
-	/*
-	 * 972  872  795  728
-	 * 649  608  574  543
-	 * 408  391  384  368
-	 * 358  345  335  327
-	 */
+	if (ring_is_empty(ring))
+		return;
 
-	/* first line */
-	if (keycode > 952 && keycode < 990)
-		key = 1;
-	else if (keycode > 852 && keycode < 892)
-		key = 2;
-	else if (keycode > 772 && keycode < 812)
-		key = 3;
-	else if (keycode > 708 && keycode < 748)
-		key = 0xA;
-	/* second line */
-	else if (keycode > 629 && keycode < 669)
-		key = 4;
-	else if (keycode > 588 && keycode < 628)
-		key = 5;
-	else if (keycode > 554 && keycode < 594)
-		key = 6;
-	else if (keycode > 523 && keycode < 563)
-		key = 0xB;
-	/* third line */
-	else if (keycode > 400 && keycode < 425)
-		key = 7;
-	else if (keycode > 387 && keycode < 400)
-		key = 8;
-	else if (keycode > 376 && keycode < 387)
-		key = 9;
-	else if (keycode > 364 && keycode < 376)
-		key = 0xC;
-	/* forth line */
-	else if (keycode > 350 && keycode < 364)
-		key = 0xE;
-	else if (keycode > 340 && keycode < 350)
-		key = 0;
-	else if (keycode > 330 && keycode < 340)
-		key = 0xF;
-	else if (keycode > 320 && keycode < 330)
-		key = 0xD;
-	else
-		key = 999;
-
-	return key;
-}
-
-void reset_buffer(int *buffer)
-{
-	int i;
-
-	for (i = 0; i < PASS_LENGTH; i++) {
-		buffer[i] = 0;
-	}
-}
-int check(int *buffer)
-{
-	int i;
-
-	for (i = 0; i < PASS_LENGTH; i++) {
-		if (pass[i] != buffer[i])
-			return 1;
+	if (ring_len(ring) < sizeof(pkt_head)) {
+		return;
 	}
 
-	return 0;
+	if (ring->data[ring->tail] != START_FRAME) {
+		ring_reset(ring); // maybe skip 1?
+		return;
+	}
+
+	/* check if we have enough data */
+	len = ring->data[ring->tail + 3];
+	if (len + sizeof(pkt_header_t) > MAX_SIZE) {
+		ring_reset(ring);
+		return;
+	}
+	if (ring_len(ring) < len + sizeof(pkt_head_t)) {
+		/* not enough data */
+		return;
+	}
+
+	addr = (unsigned short)ring->data[ring->tail + 1];
+	chksum = (unsigned short)ring->data[ring->tail + 4];
+	for (i = 0; i < len; i++) {
+		chksum2 += ring->data[ring->tail + 6 + i];
+	}
+	if (checksum != chksum) {
+		ring_skip(ring, len);
+	}
 }
+#endif
 
 void loop()
 {
-	int touch_count = 0;
-	int buffer[PASS_LENGTH] = {0};
-	int timeout = 0;
+	ring_t ring;
+	byte_t byte;
+	int start_frame_cpt = 0;
+
+	memset(&ring, 0, sizeof(ring));
+	memset(&byte, 0, sizeof(byte));
 
 	while (1) {
-		int light_tim;
-		int move_sensor1 = 0;
-		int move_sensor2 = 0;
-		int key, keycode;
+		int v;
+		// 180 716
+	start:
+		v = analogRead(0);
 
-		keycode = analogRead(0);
-		key = from_keycode(keycode);
-
-		if (key != 999) { /* key pressed */
-			printf("%d %d\n", key, keycode);
-
-			if (key == 0xA) {
-				if (check(buffer) == 0) {
-					reset_buffer(buffer);
-					state = GETOUT;
-					bip_alter();
-				} else
-					bip_wrong();
-
-				touch_count = 0;
-				continue;
-			} else if (key == 0xD) {
-				if (check(buffer) == 0) {
-					reset_buffer(buffer);
-					state = IDLE;
-					bip_alter();
-				} else
-					bip_wrong();
-				touch_count = 0;
-				continue;
-			} else
-				bip();
-
-
-			buffer[touch_count++] = key;
-			if (touch_count >= PASS_LENGTH) {
-				touch_count = 0;
-			}
-			printf("key=%d\n", key);
-			//printf("buffer:");
-			//print_buff(buffer);
-			//printf("pass:");
-			//print_buff(pass);
+		if (v < 170) {
+			start_frame_cpt++;
+			continue;
 		}
+		if (start_frame_cpt < 52) {
+			start_frame_cpt = 0;
+			continue;
+		}
+		while (1) {
+			if (v < 170) {
+				/* low++; */
+				/* state = STARTED; */
+				/* hi = 0; */
+				//printf("v:%d ");
+				ring_add_bit(&ring, &byte, 0);
+				//printf(" ");
+			} else if (v > 690) {
+				/* hi++; */
+				/* state = STARTED; */
+				/* low = 0; */
+				//printf("v:%d ", v);
+				ring_add_bit(&ring, &byte, 1);
+				//printf("X");
+			} else {
+				/* noise */
+				//low = hi = 0;
+				/* if (state == STARTED) { */
+				/* 	parse(&ring); */
+				/* } */
+				//state = WAIT;
+				ring_print_bits(&ring);
+				ring_reset(&ring);
+				reset_byte(&byte);
+				goto start;
+#if 0
+				{
+					int pos = (ring.head - 1) & MASK;
+					unsigned int i;
 
-		switch (state) {
-		case IDLE:
-			printf("IDLE\n");
-			light_tim = 500;
-			PORTB &= ~1; /* siren off */
-			timeout = 0;
-			break;
-		case GETOUT:
-			printf("GETOUT\n");
-			play_getout();
-			if (timeout > TIMEOUT) {
-				timeout = 0;
-				state = WATCH;
-			}
-			timeout++;
-			break;
-		case WATCH:
-			PORTB &= ~1; /* siren off */
-			printf("WATCH\n");
-			move_sensor1 = analogRead(1);
-			move_sensor2 = analogRead(2);
-
-#ifdef DEBUG
-			printf("1: %d   2: %d\n", move_sensor1, move_sensor2);
+					for (i = 0; i < 4; i++) {
+						if (ring.data[pos] != 0)
+							continue;
+						pos = (pos - 1) & MASK;
+					}
+					ring_print(&ring);
+				}
+				ring_reset(&ring);
 #endif
-			if (move_sensor1 > 100 || move_sensor2 > 100)
-				state = GETIN;
-			break;
-		case GETIN:
-			printf("GETIN\n");
-			play_getin();
-			if (timeout > TIMEOUT) {
-				timeout = 0;
-				state = ALARM;
 			}
-			timeout++;
-			break;
-		case ALARM:
-			printf("ALARM\n");
-			light_tim = 200;
-			PORTB |= 1; /* siren on */
-
-			PORTB |= 1<<3;
-			delay_ms(light_tim);
-			PORTB &= ~(1<<3);
-			//delay_ms(100);
-			if (timeout > TIMEOUT * 10) {
-				timeout = 0;
-				state = WATCH;
-			}
-			timeout++;
-
-			break;
-		default:
-			/* nothing */
-			break;
+			v = analogRead(0);
 		}
-
-		PORTB |= 1<<3;
-		delay_ms(light_tim);
-		PORTB &= ~(1<<3);
-		delay_ms(100);
 	}
 }
 void init_streams()
@@ -293,6 +207,28 @@ void init_streams()
 	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
 }
 
+struct rf_str {
+	ring_t ring;
+	byte_t byte;
+} rt_str;
+
+#define LED PD4
+void tim_cb(void *arg)
+{
+	tim_t *timer = arg;
+	int v = analogRead(0);
+
+	if (v < 170) {
+		PORTD &= ~(1 << LED);
+	} else if (v > 690) {
+		PORTD |= (1 << LED);
+	}
+
+	//PORTD ^= (1 << LED);
+	timer_reschedule(timer, TIMER_RESOLUTION_US);
+	//	printf("tim_cb called\n");
+}
+
 int main(void)
 {
 	/* led */
@@ -301,8 +237,8 @@ int main(void)
 	/* siren */
 	DDRB |= 1; // port B0, ATtiny13a pin 0
 
-	speaker_init(); // port B1 (0x2)
-	start_song();
+	//speaker_init(); // port B1 (0x2)
+	//start_song();
 
 	initADC();
 	/* set PORTC (analog) for input */
@@ -315,7 +251,14 @@ int main(void)
 	init_streams();
 	printf_P(PSTR("KW alarm v0.1\n"));
 #endif
-	state = IDLE;
+	timer_subsystem_init(TIMER_RESOLUTION_US);
+	DDRD = (0x01 << LED); //Configure the PORTD4 as output
+	{
+		tim_t timer;
+		memset(&timer, 0, sizeof(timer));
+		timer_add(&timer, 300, tim_cb, &timer);
+	}
+	while (1) {}
 	loop();
 
 	return 0;

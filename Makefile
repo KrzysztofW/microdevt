@@ -3,9 +3,9 @@ BMCU = m328p
 F_CPU = 16000000
 
 CC = avr-gcc
-LDFLAGS = -Wall -W -g -DF_CPU=${F_CPU} -mmcu=${MCU} -Os
-CFLAGS = -c $(LDFLAGS) -DF_CPU=$(F_CPU)
-SOURCES = alarm.c usart0.c sound.c
+LDFLAGS = -W -g -DF_CPU=${F_CPU} -mmcu=${MCU} -Os
+CFLAGS = -Wall -c $(LDFLAGS) -DF_CPU=$(F_CPU)
+SOURCES = alarm.c usart0.c timer.c
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = alarm
 
@@ -18,7 +18,12 @@ all: $(SOURCES) $(EXECUTABLE)
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
 
-.c.o:
+zchk: zchk.c timer.c timer.h ring.h
+	gcc -DZCHK -Wall -g -O0 -Werror timer.c -c -o timer.o
+	gcc -DZCHK -Wall -g -O0 -Werror zchk.c -c -o zchk.o
+	gcc -DZCHK -Wall -g -O0 -Werror zchk.o timer.o -o $@
+
+.c.o: ring.h
 	$(CC) $(CFLAGS) $< -o $@
 
 upload: all
@@ -26,7 +31,7 @@ upload: all
 	sudo avrdude -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
 
 clean:
-	@rm -f *.o ${EXECUTABLE} *.pdf *.hex *.srec *.elf *~
+	@rm -f *.o ${EXECUTABLE} *.pdf *.hex *.srec *.elf *~ zchk
 
 #pdf: README.rst
 #	rst2pdf $< > $(<:.rst=.pdf)
