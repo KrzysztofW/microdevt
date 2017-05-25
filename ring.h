@@ -1,7 +1,7 @@
 #ifndef _RING_H_
 #define _RING_H_
 
-#define MAX_SIZE 64
+#define MAX_SIZE 128
 #define MASK (MAX_SIZE - 1)
 
 typedef struct ring {
@@ -101,8 +101,11 @@ static inline void ring_print_bits(const ring_t *ring)
 	puts("");
 }
 
-static inline void ring_add_bit(ring_t *ring, byte_t *byte, int bit)
+static inline int ring_add_bit(ring_t *ring, byte_t *byte, int bit)
 {
+	if (ring_is_full(ring))
+		return -1;
+
 	byte->c = (byte->c << 1) | bit;
 	byte->pos++;
 
@@ -112,6 +115,7 @@ static inline void ring_add_bit(ring_t *ring, byte_t *byte, int bit)
 		byte->c = 0;
 		byte->pos = 0;
 	}
+	return 0;
 }
 
 static inline void reset_byte(byte_t *byte)
