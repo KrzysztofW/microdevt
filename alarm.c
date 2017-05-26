@@ -134,11 +134,9 @@ static void pkt_parse(ring_t *ring)
 void loop()
 {
 	ring_t ring;
-	byte_t byte;
 	int start_frame_cpt = 0;
 
 	memset(&ring, 0, sizeof(ring));
-	memset(&byte, 0, sizeof(byte));
 
 	while (1) {
 		int v;
@@ -160,14 +158,14 @@ void loop()
 				/* state = STARTED; */
 				/* hi = 0; */
 				//printf("v:%d ");
-				ring_add_bit(&ring, &byte, 0);
+				ring_add_bit(&ring, 0);
 				//printf(" ");
 			} else if (v > 690) {
 				/* hi++; */
 				/* state = STARTED; */
 				/* low = 0; */
 				//printf("v:%d ", v);
-				ring_add_bit(&ring, &byte, 1);
+				ring_add_bit(&ring, 1);
 				//printf("X");
 			} else {
 				/* noise */
@@ -178,7 +176,6 @@ void loop()
 				//state = WAIT;
 				ring_print_bits(&ring);
 				ring_reset(&ring);
-				reset_byte(&byte);
 				goto start;
 #if 0
 				{
@@ -208,10 +205,7 @@ void init_streams()
 	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
 }
 
-struct rf_str {
-	ring_t ring;
-	byte_t byte;
-} rt_str;
+ring_t ring;
 
 #define LED PD4
 void tim_cb_led(void *arg)

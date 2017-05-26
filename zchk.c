@@ -11,7 +11,6 @@
 static int ring_check(void)
 {
 	ring_t ring;
-	byte_t byte;
 	unsigned int i;
 	unsigned char bytes[] = { 0x3C, 0xFF, 0xA0, 0x00, 0x10, 0xB5, 0x99, 0x11, 0xF7 };
 	unsigned char c;
@@ -22,14 +21,13 @@ static int ring_check(void)
 		return -1;
 	}
 	memset(&ring, 0, sizeof(ring_t));
-	memset(&byte, 0, sizeof(byte_t));
 
 	for (i = 0; i < sizeof(bytes); i++) {
 		unsigned char b = bytes[i];
 
 		for (j = 0; j < 8; j++) {
 			unsigned char bit = b >> 7;
-			ring_add_bit(&ring, &byte, bit);
+			ring_add_bit(&ring, bit);
 			b = b << 1;
 		}
 	}
