@@ -17,6 +17,7 @@
 #include "utils.h"
 #include "ring.h"
 #include "timer.h"
+#include "commands.h"
 
 #ifdef DEBUG
 static int my_putchar(char c, FILE *stream)
@@ -216,17 +217,100 @@ void tim_cb_led(void *arg)
 	timer_reschedule(timer, TIMER_RESOLUTION_US);
 }
 
+#define FRAME_DELIMITER 40
+#define ANALOG_LOW_VAL 170
+#define ANALOG_HI_VAL  690
+
+static inline int decode(int bit, int count)
+{
+	static int started;
+
+	if (started && count >= 1 && count <= 5) {
+		if (ring_is_empty(&ring) && ring.byte.pos == 0 && bit == 0) {
+			goto error;
+		}
+		if (ring_add_bit(&ring, bit) < 0)
+			goto error;
+
+		if (count >= 3 &&
+		    ring_add_bit(&ring, bit) < 0)
+			goto error;
+
+		return 0;
+	error:
+		puts("ring full or invalid entries");
+		ring_print_bits(&ring);
+		ring_reset(&ring);
+		started = 0;
+		return -1;
+	}
+
+	if (count >= 36 && count <= 40) {
+		static int tmp;
+
+		if (bit) {
+			started = 0;
+			ring_reset(&ring);
+			return -1;
+		}
+#if 1
+		if (started) {
+			if (ring_cmp(&ring, remote1_btn1,
+				     sizeof(remote1_btn1)) == 0) {
+				PORTD |= (1 << LED);
+			} else if (ring_cmp(&ring, remote1_btn2,
+					    sizeof(remote1_btn2)) == 0) {
+				PORTD &= ~(1 << LED);
+			}
+		}
+#endif
+		started = 1;
+#if 1
+		if (tmp++ == 20) {
+			ring_print(&ring);
+			tmp = 0;
+		}
+#endif
+		ring_reset(&ring);
+		return FRAME_DELIMITER;
+	}
+
+	ring_reset(&ring);
+	started = 0;
+	return -1;
+}
+
+static inline void rf_sample(void)
+{
+	int v = analogRead(0);
+	static int zero_cnt;
+	static int one_cnt;
+	static int prev_val;
+
+	if (v < ANALOG_LOW_VAL) {
+		//PORTD &= ~(1 << LED);
+		if (prev_val == 1) {
+			prev_val = 0;
+			decode(1, one_cnt);
+			one_cnt = 0;
+		}
+		zero_cnt++;
+	} else if (v > ANALOG_HI_VAL) {
+		//PORTD |= (1 << LED);
+		if (prev_val == 0) {
+			prev_val = 1;
+			decode(0, zero_cnt);
+			zero_cnt = 0;
+		}
+		one_cnt++;
+	}
+}
+
 void tim_cb(void *arg)
 {
 	tim_t *timer = arg;
-	int v = analogRead(0);
-
-	if (v < 170) {
-		PORTD &= ~(1 << LED);
-	} else if (v > 690) {
-		PORTD |= (1 << LED);
-	}
-
+	//PORTD ^= (1 << LED);
+	rf_sample();
 	timer_reschedule(timer, TIMER_RESOLUTION_US);
 }
 
