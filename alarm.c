@@ -316,6 +316,8 @@ void tim_cb(void *arg)
 
 int main(void)
 {
+	tim_t timer;
+
 	/* led */
 	DDRB = 1<<3; // port B3, ATtiny13a pin 2
 
@@ -338,10 +340,11 @@ int main(void)
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
 	DDRD = (0x01 << LED); //Configure the PORTD4 as output
+
+	memset(&timer, 0, sizeof(timer));
+	timer_add(&timer, TIMER_RESOLUTION_US, tim_cb, &timer);
+
 	{
-		tim_t timer;
-		memset(&timer, 0, sizeof(timer));
-		timer_add(&timer, 300, tim_cb, &timer);
 	}
 	while (1) {}
 	//	loop();
