@@ -14,7 +14,7 @@
 #define SYSTEM_CLOCK F_CPU
 #define TIMER_RESOLUTION_US 150UL
 #endif
-#include "utils.h"
+#include "avr_utils.h"
 #include "ring.h"
 #include "timer.h"
 #include "commands.h"

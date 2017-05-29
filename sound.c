@@ -1,6 +1,6 @@
 #include <avr/io.h>
 #include "sound.h"
-#include "utils.h"
+#include "avr_utils.h"
 
 
 #define c_note 1915    // 261 Hz
