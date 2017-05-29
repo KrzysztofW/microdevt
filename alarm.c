@@ -131,73 +131,6 @@ static void pkt_parse(ring_t *ring)
 	}
 }
 #endif
-#if 0
-void loop()
-{
-	ring_t ring;
-	int start_frame_cpt = 0;
-
-	memset(&ring, 0, sizeof(ring));
-
-	while (1) {
-		int v;
-		// 180 716
-	start:
-		v = analogRead(0);
-
-		if (v < 170) {
-			start_frame_cpt++;
-			continue;
-		}
-		if (start_frame_cpt < 52) {
-			start_frame_cpt = 0;
-			continue;
-		}
-		while (1) {
-			if (v < 170) {
-				/* low++; */
-				/* state = STARTED; */
-				/* hi = 0; */
-				//printf("v:%d ");
-				ring_add_bit(&ring, 0);
-				//printf(" ");
-			} else if (v > 690) {
-				/* hi++; */
-				/* state = STARTED; */
-				/* low = 0; */
-				//printf("v:%d ", v);
-				ring_add_bit(&ring, 1);
-				//printf("X");
-			} else {
-				/* noise */
-				//low = hi = 0;
-				/* if (state == STARTED) { */
-				/* 	parse(&ring); */
-				/* } */
-				//state = WAIT;
-				ring_print_bits(&ring);
-				ring_reset(&ring);
-				goto start;
-#if 0
-				{
-					int pos = (ring.head - 1) & MASK;
-					unsigned int i;
-
-					for (i = 0; i < 4; i++) {
-						if (ring.data[pos] != 0)
-							continue;
-						pos = (pos - 1) & MASK;
-					}
-					ring_print(&ring);
-				}
-				ring_reset(&ring);
-#endif
-			}
-			v = analogRead(0);
-		}
-	}
-}
-#endif
 void init_streams()
 {
 	// initialize the standard streams to the user defined one
@@ -344,10 +277,7 @@ int main(void)
 	memset(&timer, 0, sizeof(timer));
 	timer_add(&timer, TIMER_RESOLUTION_US, tim_cb, &timer);
 
-	{
-	}
 	while (1) {}
-	//	loop();
 
 	return 0;
 }
