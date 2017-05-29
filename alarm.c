@@ -19,6 +19,9 @@
 #include "timer.h"
 #include "commands.h"
 
+ring_t *rf_ring;
+#define RF_RING_SIZE 128
+
 #ifdef DEBUG
 static int my_putchar(char c, FILE *stream)
 {
@@ -139,8 +142,6 @@ void init_streams()
 	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
 }
 
-ring_t ring;
-
 #define LED PD4
 void tim_cb_led(void *arg)
 {
@@ -159,21 +160,21 @@ static inline int decode(int bit, int count)
 	static int started;
 
 	if (started && count >= 1 && count <= 5) {
-		if (ring_is_empty(&ring) && ring.byte.pos == 0 && bit == 0) {
+		if (ring_is_empty(rf_ring) && bit == 0) {
 			goto error;
 		}
-		if (ring_add_bit(&ring, bit) < 0)
+		if (ring_add_bit(rf_ring, bit) < 0)
 			goto error;
 
 		if (count >= 3 &&
-		    ring_add_bit(&ring, bit) < 0)
+		    ring_add_bit(rf_ring, bit) < 0)
 			goto error;
 
 		return 0;
 	error:
 		puts("ring full or invalid entries");
-		ring_print_bits(&ring);
-		ring_reset(&ring);
+		ring_print_bits(rf_ring);
+		ring_reset(rf_ring);
 		started = 0;
 		return -1;
 	}
@@ -183,15 +184,15 @@ static inline int decode(int bit, int count)
 
 		if (bit) {
 			started = 0;
-			ring_reset(&ring);
+			ring_reset(rf_ring);
 			return -1;
 		}
 #if 1
 		if (started) {
-			if (ring_cmp(&ring, remote1_btn1,
+			if (ring_cmp(rf_ring, remote1_btn1,
 				     sizeof(remote1_btn1)) == 0) {
 				PORTD |= (1 << LED);
-			} else if (ring_cmp(&ring, remote1_btn2,
+			} else if (ring_cmp(rf_ring, remote1_btn2,
 					    sizeof(remote1_btn2)) == 0) {
 				PORTD &= ~(1 << LED);
 			}
@@ -200,15 +201,15 @@ static inline int decode(int bit, int count)
 		started = 1;
 #if 1
 		if (tmp++ == 20) {
-			ring_print(&ring);
+			ring_print(rf_ring);
 			tmp = 0;
 		}
 #endif
-		ring_reset(&ring);
+		ring_reset(rf_ring);
 		return FRAME_DELIMITER;
 	}
 
-	ring_reset(&ring);
+	ring_reset(rf_ring);
 	started = 0;
 	return -1;
 }
@@ -274,10 +275,15 @@ int main(void)
 	timer_subsystem_init(TIMER_RESOLUTION_US);
 	DDRD = (0x01 << LED); //Configure the PORTD4 as output
 
+	if ((rf_ring = ring_create(RF_RING_SIZE)) == NULL) {
+		printf_P(PSTR("can't create RF ring\n"));
+		return -1;
+	}
 	memset(&timer, 0, sizeof(timer));
 	timer_add(&timer, TIMER_RESOLUTION_US, tim_cb, &timer);
 
 	while (1) {}
+	free(rf_ring);
 
 	return 0;
 }

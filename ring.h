@@ -1,8 +1,8 @@
 #ifndef _RING_H_
 #define _RING_H_
 
-#define MAX_SIZE 128
-#define MASK (MAX_SIZE - 1)
+#include <stdlib.h>
+#include "utils.h"
 
 typedef struct byte {
 	unsigned char c;
@@ -13,7 +13,8 @@ typedef struct ring {
 	int head;
 	int tail;
 	byte_t byte;
-	unsigned char data[MAX_SIZE];
+	int mask;
+	unsigned char data[];
 } ring_t;
 
 /*
@@ -24,16 +25,33 @@ size = 3
 
 */
 
+static inline ring_t *ring_create(int size)
+{
+	ring_t *ring;
+	int total_size;
+
+	if (!POWEROF2(size))
+		return NULL;
+
+	total_size = sizeof(ring_t) + size;
+	if ((ring = malloc(total_size)) == NULL)
+		return NULL;
+
+	memset(ring, 0, total_size);
+	ring->mask = size - 1;
+	return ring;
+}
+
 static inline int ring_is_full(const ring_t *ring)
 {
-	if (((MASK + ring->tail - ring->head) & MASK) == 0)
+	if (((ring->mask + ring->tail - ring->head) & ring->mask) == 0)
 		return 1;
 	return 0;
 }
 
 static inline int ring_is_empty(const ring_t *ring)
 {
-	return ring->tail == ring->head;
+	return ring->tail == ring->head && ring->byte.pos == 0;
 }
 
 static inline int ring_is_empty2(const ring_t *ring)
@@ -43,7 +61,7 @@ static inline int ring_is_empty2(const ring_t *ring)
 
 static inline int ring_len(const ring_t *ring)
 {
-	return MASK - ((MASK + ring->tail - ring->head) & MASK);
+	return ring->mask - ((ring->mask + ring->tail - ring->head) & ring->mask);
 }
 
 static inline void reset_byte(byte_t *byte)
@@ -63,7 +81,7 @@ static inline int ring_addc(ring_t *ring, unsigned char c)
 	if (ring_is_full(ring))
 		return -1;
 	ring->data[ring->head] = c;
-	ring->head = (ring->head + 1) & MASK;
+	ring->head = (ring->head + 1) & ring->mask;
 	return 0;
 }
 
@@ -73,7 +91,7 @@ static inline int ring_getc(ring_t *ring, unsigned char *c)
 		return -1;
 	}
 	*c = (unsigned char)ring->data[ring->tail];
-	ring->tail = (ring->tail + 1) & MASK;
+	ring->tail = (ring->tail + 1) & ring->mask;
 	return 0;
 }
 
@@ -99,7 +117,7 @@ static inline void ring_print(const ring_t *ring)
 		return;
 
 	for (i = 0; i < ring_len(ring); i++) {
-		int pos = (ring->tail + i) & MASK;
+		int pos = (ring->tail + i) & ring->mask;
 
 		printf("0x%X ", ring->data[pos]);
 	}
@@ -114,7 +132,7 @@ static inline void ring_print_bits(const ring_t *ring)
 		return;
 
 	for (i = 0; i < ring_len(ring); i++) {
-		int pos = (ring->tail + i) & MASK;
+		int pos = (ring->tail + i) & ring->mask;
 		unsigned char byte = ring->data[pos];
 		int j;
 
@@ -145,7 +163,8 @@ static inline int ring_add_bit(ring_t *ring, int bit)
 	return 0;
 }
 
-static inline int ring_cmp(const ring_t *ring, const unsigned char *str, int len)
+static inline int
+ring_cmp(const ring_t *ring, const unsigned char *str, int len)
 {
 	int i;
 
@@ -153,7 +172,7 @@ static inline int ring_cmp(const ring_t *ring, const unsigned char *str, int len
 		return -1;
 
 	for (i = 0; i < len; i++) {
-		int pos = (ring->tail + i) & MASK;
+		int pos = (ring->tail + i) & ring->mask;
 
 		if (ring->data[pos] != str[i])
 			return -1;

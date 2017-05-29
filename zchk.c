@@ -10,77 +10,83 @@
 
 static int ring_check(void)
 {
-	ring_t ring;
+	ring_t *ring;
 	unsigned int i;
 	unsigned char bytes[] = { 0x3C, 0xFF, 0xA0, 0x00, 0x10, 0xB5, 0x99, 0x11, 0xF7 };
 	unsigned char c;
 	int j;
 
-	if (MAX_SIZE != 64) {
-		fprintf(stderr, "the ring size must be 64\n");
+	if ((ring = ring_create(64)) == NULL) {
+		fprintf(stderr, "can't create ring\n");
 		return -1;
 	}
-	memset(&ring, 0, sizeof(ring_t));
 
 	for (i = 0; i < sizeof(bytes); i++) {
 		unsigned char b = bytes[i];
 
 		for (j = 0; j < 8; j++) {
 			unsigned char bit = b >> 7;
-			ring_add_bit(&ring, bit);
+			ring_add_bit(ring, bit);
 			b = b << 1;
 		}
 	}
 	printf("ring content:\n");
-	ring_print(&ring);
+	ring_print(ring);
 	i = 0;
-	while (ring_getc(&ring, &c) == 0) {
+	while (ring_getc(ring, &c) == 0) {
 		if (c != bytes[i]) {
 			fprintf(stderr, "ring checks failed. Got: 0x%X should be: 0x%X\n",
 				c, bytes[i]);
+			free(ring);
 			return -1;
 		}
 		i++;
 	}
 
 	/* fill up the whole ring */
-	ring_reset(&ring);
+	ring_reset(ring);
 	j = 0;
 	for (i = 0; i < 63; i++) {
-		if (ring_addc(&ring, bytes[j]) < 0) {
+		if (ring_addc(ring, bytes[j]) < 0) {
 			printf("ring content:\n");
-			ring_print(&ring);
+			ring_print(ring);
 			fprintf(stderr, "failed adding %dth element to ring (len:%d)\n", i,
-				ring_len(&ring));
+				ring_len(ring));
+			free(ring);
 			return -1;
 		}
 		j = (j + 1) % sizeof(bytes);
 	}
-	if (ring_addc(&ring, bytes[0]) == 0) {
+	if (ring_addc(ring, bytes[0]) == 0) {
 		fprintf(stderr, "ring overloaded\n");
+		free(ring);
 		return -1;
 	}
-	if (ring_getc(&ring, &c) < 0) {
+	if (ring_getc(ring, &c) < 0) {
 		fprintf(stderr, "cannot take elements\n");
+		free(ring);
 		return -1;
 	}
 	if (c != bytes[0]) {
 		fprintf(stderr, "elements mismatch\n");
+		free(ring);
 		return -1;
 	}
 	j = 1;
-	ring_print(&ring);
-	ring_print_bits(&ring);
+	ring_print(ring);
+	ring_print_bits(ring);
 	for (i = 1; i < 63; i++) {
-		if (ring_getc(&ring, &c) < 0 || c != bytes[j]) {
+		if (ring_getc(ring, &c) < 0 || c != bytes[j]) {
 			printf("ring content:\n");
-			ring_print(&ring);
+			ring_print(ring);
 			fprintf(stderr, "failed getting %dth element from ring (len:%d)\n", i,
-				ring_len(&ring));
+				ring_len(ring));
+			free(ring);
 			return -1;
 		}
 		j = (j + 1) % sizeof(bytes);
 	}
+	free(ring);
 	return 0;
 }
 
