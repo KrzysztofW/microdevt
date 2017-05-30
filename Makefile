@@ -3,13 +3,13 @@ BMCU = m328p
 F_CPU = 16000000
 
 CC = avr-gcc
-LDFLAGS = -W -g -DF_CPU=${F_CPU} -mmcu=${MCU} -Os
-CFLAGS = -Wall -Werror -c $(LDFLAGS) -DF_CPU=$(F_CPU) -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
+LDFLAGS = -W -DF_CPU=${F_CPU} -mmcu=${MCU}
+CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS) -DF_CPU=$(F_CPU)
+CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
 SOURCES = alarm.c usart0.c timer.c network.c enc28j60.c
 
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = alarm
-
 
 all: $(SOURCES) $(EXECUTABLE)
 	avr-size $(EXECUTABLE)
