@@ -258,6 +258,7 @@
                # Replace Windows newlines with Unix newlinesuint16_t ENC28J60_PacketReceive(uint16_t maxlen, uint8_t* packet);
                # Replace Windows newlines with Unix newlinesuint8_t ENC28J60_GetRev(void);
                # Replace Windows newlines with Unix newlinesuint8_t ENC28J60_LinkUp(void);
+               # Replace Windows newlines with Unix newlinesvoid ENC28J60_reset(void);
                # Replace Windows newlines with Unix newlines
                # Replace Windows newlines with Unix newlines#endif
                # Replace Windows newlines with Unix newlines

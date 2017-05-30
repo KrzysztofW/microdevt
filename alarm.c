@@ -18,6 +18,11 @@
 #include "ring.h"
 #include "timer.h"
 #include "commands.h"
+#include "config.h"
+#include "network.h"
+#include "enc28j60.h"
+
+int net_wd;
 
 ring_t *rf_ring;
 #define RF_RING_SIZE 128
@@ -37,7 +42,7 @@ static int my_putchar(char c, FILE *stream)
 static int my_getchar(FILE * stream)
 {
 	(void)stream;
-	return  usart0_get();
+	return usart0_get();
 }
 
 /*
@@ -134,9 +139,10 @@ static void pkt_parse(ring_t *ring)
 	}
 }
 #endif
+
 void init_streams()
 {
-	// initialize the standard streams to the user defined one
+	/* initialize the standard streams to the user defined one */
 	stdout = &my_stream;
 	stdin = &my_stream;
 	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
@@ -240,7 +246,7 @@ static inline void rf_sample(void)
 	}
 }
 
-void tim_cb(void *arg)
+void tim_cb_rf(void *arg)
 {
 	tim_t *timer = arg;
 	//PORTD ^= (1 << LED);
@@ -248,18 +254,153 @@ void tim_cb(void *arg)
 	timer_reschedule(timer, TIMER_RESOLUTION_US);
 }
 
+static uint8_t mymac[6] = {0x62,0x5F,0x70,0x72,0x61,0x79};
+static uint8_t myip[4] = {192,168,0,99};
+static uint16_t mywwwport = 80;
+
+#define BUFFER_SIZE 900UL
+uint8_t buf[BUFFER_SIZE + 1],browser;
+uint16_t plen;
+
+void testpage(void) {
+	plen=make_tcp_data_pos(buf,0,PSTR("HTTP/1.0 200 OK\r\nContent-Type: "
+					  "text/html\r\n\r\n"));
+	plen=make_tcp_data_pos(buf,plen,PSTR("<html><body><h1>It Works!"
+					     "</h1></body></html>"));
+}
+
+void sendpage(void) {
+	tcp_ack(buf);
+	tcp_ack_with_data(buf,plen);
+}
+
+static void net_reset(void)
+{
+	CLKPR = (1<<CLKPCE);
+	CLKPR = 0;
+	_delay_loop_1(50);
+	ENC28J60_Init(mymac);
+	ENC28J60_ClkOut(2);
+	_delay_loop_1(50);
+	ENC28J60_PhyWrite(PHLCON,0x0476);
+	_delay_loop_1(50);
+}
+
+ISR (PCINT0_vect)
+{
+        uint8_t eint = ENC28J60_Read(EIR);
+	uint16_t dat_p;
+	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
+	net_wd = 0;
+
+	if (eint == 0)
+		return;
+
+	erxwrpt = ENC28J60_Read(ERXWRPTL);
+	erxwrpt |= ENC28J60_Read(ERXWRPTH) << 8;
+
+	erxrdpt = ENC28J60_Read(ERXRDPTL);
+	erxrdpt |= ENC28J60_Read(ERXRDPTH) << 8;
+
+	erxnd = ENC28J60_Read(ERXNDL);
+	erxnd |= ENC28J60_Read(ERXNDH) << 8;
+
+	erxst = ENC28J60_Read(ERXSTL);
+	erxst |= ENC28J60_Read(ERXSTH) << 8;
+
+	if (erxwrpt > erxrdpt) {
+		freespace = (erxnd - erxst) - (erxwrpt - erxrdpt);
+	} else if (erxwrpt == erxrdpt) {
+		freespace = erxnd - erxst;
+	} else {
+		freespace = erxrdpt - erxwrpt - 1;
+	}
+	printf("int:0x%X freespace:%u\n", eint, freespace);
+	if (eint & TXERIF) {
+		ENC28J60_WriteOp(BFC, EIE, TXERIF);
+	}
+
+	if (eint & RXERIF) {
+		ENC28J60_WriteOp(BFC, EIE, RXERIF);
+	}
+
+	if (!(eint & PKTIF)) {
+		return;
+	}
+
+	plen = ENC28J60_PacketReceive(BUFFER_SIZE,buf);
+	if (plen == 0)
+		return;
+
+	if(eth_is_arp(buf,plen)) {
+		//			puts("about to reply");
+		arp_reply(buf);
+		//			puts("replied");
+		//net_reset();
+		return;
+	}
+
+	if(eth_is_ip(buf,plen)==0) return;
+	if(buf[IP_PROTO]==IP_ICMP && buf[ICMP_TYPE]==ICMP_REQUEST) {
+		icmp_reply(buf,plen);
+		//net_reset();
+		return;
+	}
+	if (buf[IP_PROTO]==IP_TCP && buf[TCP_DST_PORT]==0
+	   && buf[TCP_DST_PORT+1]==mywwwport) {
+		if(buf[TCP_FLAGS] & TCP_SYN) {
+			tcp_synack(buf);
+			net_reset();
+			return;
+		}
+		if(buf[TCP_FLAGS] & TCP_ACK) {
+			init_len_info(buf);
+			dat_p = get_tcp_data_ptr();
+			if(dat_p==0) {
+				if(buf[TCP_FLAGS] & TCP_FIN) tcp_ack(buf);
+				net_reset();
+				return;
+			}
+
+			if(strstr((char*)&(buf[dat_p]),"User Agent")) browser=0;
+			else if(strstr((char*)&(buf[dat_p]),"MSIE")) browser=1;
+			else browser=2;
+
+			if(strncmp("/ ",(char*)&(buf[dat_p+4]),2)==0){
+				testpage();
+				sendpage();
+				net_reset();
+				return;
+			}
+		}
+	}
+#if 0
+	for (i = 0; i < plen; i++) {
+		printf("0x%X ", buf[i]);
+	}
+	puts("");
+#endif
+}
+
+void tim_cb_wd(void *arg)
+{
+	tim_t *timer = arg;
+	puts("bip");
+	if (net_wd > 0) {
+		puts("resetting net");
+		ENC28J60_reset();
+		net_reset();
+		init_network(mymac,myip,mywwwport);
+
+	}
+	net_wd++;
+	timer_reschedule(timer, 10000000UL);
+}
+
 int main(void)
 {
-	tim_t timer;
-
-	/* led */
-	DDRB = 1<<3; // port B3, ATtiny13a pin 2
-
-	/* siren */
-	DDRB |= 1; // port B0, ATtiny13a pin 0
-
-	//speaker_init(); // port B1 (0x2)
-	//start_song();
+	tim_t timer_rf;
+	tim_t timer_wd;
 
 	initADC();
 	/* set PORTC (analog) for input */
@@ -279,8 +420,18 @@ int main(void)
 		printf_P(PSTR("can't create RF ring\n"));
 		return -1;
 	}
-	memset(&timer, 0, sizeof(timer));
-	timer_add(&timer, TIMER_RESOLUTION_US, tim_cb, &timer);
+
+	memset(&timer_wd, 0, sizeof(tim_t));
+	memset(&timer_rf, 0, sizeof(tim_t));
+	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
+	timer_add(&timer_rf, TIMER_RESOLUTION_US, tim_cb_rf, &timer_rf);
+
+	PCICR |= _BV(PCIE0);
+	PCMSK0 |= _BV(PCINT0);
+
+	sei();
+	net_reset();
+	init_network(mymac,myip,mywwwport);
 
 	while (1) {}
 	free(rf_ring);

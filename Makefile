@@ -4,8 +4,9 @@ F_CPU = 16000000
 
 CC = avr-gcc
 LDFLAGS = -W -g -DF_CPU=${F_CPU} -mmcu=${MCU} -Os
-CFLAGS = -Wall -Werror -c $(LDFLAGS) -DF_CPU=$(F_CPU)
-SOURCES = alarm.c usart0.c timer.c
+CFLAGS = -Wall -Werror -c $(LDFLAGS) -DF_CPU=$(F_CPU) -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
+SOURCES = alarm.c usart0.c timer.c network.c enc28j60.c
+
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = alarm
 
@@ -28,7 +29,7 @@ zchk: zchk.c timer.c timer.h ring.h
 
 upload: all
 	avr-objcopy -O srec $(EXECUTABLE) $(EXECUTABLE).srec
-	sudo avrdude -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
+	sudo avrdude -V -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
 
 clean:
 	@rm -f *.o ${EXECUTABLE} *.pdf *.hex *.srec *.elf *~ zchk
