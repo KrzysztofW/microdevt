@@ -4,7 +4,7 @@
 #include "config.h"
 
 static uint8_t ENC28J60_Bank;
-static uint16_t gNextPacketPtr;
+static int16_t gNextPacketPtr;
 
 void cs_on(void)
 {
