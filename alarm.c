@@ -17,7 +17,7 @@
 #include "avr_utils.h"
 #include "ring.h"
 #include "timer.h"
-#include "commands.h"
+#include "rf_commands.h"
 #include "config.h"
 #include "network.h"
 #include "enc28j60.h"
