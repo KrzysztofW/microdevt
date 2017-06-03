@@ -9,6 +9,7 @@
 
 #define DEBUG
 #ifdef DEBUG
+//#define NET
 #include "usart0.h"
 #define SERIAL_SPEED 57600
 #define SYSTEM_CLOCK F_CPU
@@ -22,10 +23,22 @@
 #include "network.h"
 #include "enc28j60.h"
 
-int net_wd;
-
 ring_t *rf_ring;
-#define RF_RING_SIZE 128
+#define RF_RING_SIZE 32
+
+#ifdef NET
+int net_wd;
+#define NET_TX_SIZE  512
+#define NET_RX_SIZE  256
+#define NET_MAX_NB_PKTS 10
+
+struct net_buf {
+	ring_t *tx;
+	ring_t *txaddr;
+	ring_t *rx;
+	ring_t *rxaddr;
+} net_buf;
+#endif
 
 #ifdef DEBUG
 static int my_putchar(char c, FILE *stream)
@@ -53,6 +66,13 @@ static FILE my_stream =
 	FDEV_SETUP_STREAM (my_putchar, my_getchar, _FDEV_SETUP_RW);
 #endif
 
+void init_streams()
+{
+	/* initialize the standard streams to the user defined one */
+	stdout = &my_stream;
+	stdin = &my_stream;
+	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
+}
 
 void initADC()
 {
@@ -85,11 +105,7 @@ uint16_t analogRead(uint8_t ADCchannel)
 	return ADC;
 }
 
-typedef enum state {
-	WAIT,
-	STARTED,
-} state_t;
-
+#if 0
 #define START_FRAME = 0xAA
 
 typedef struct pkt_header {
@@ -100,7 +116,6 @@ typedef struct pkt_header {
 	unsigned char  data[];      /* 6 */
 } pkt_header_t;
 
-#if 0
 static void pkt_parse(ring_t *ring)
 {
 	unsigned short addr;
@@ -140,14 +155,6 @@ static void pkt_parse(ring_t *ring)
 }
 #endif
 
-void init_streams()
-{
-	/* initialize the standard streams to the user defined one */
-	stdout = &my_stream;
-	stdin = &my_stream;
-	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
-}
-
 #define LED PD4
 void tim_cb_led(void *arg)
 {
@@ -157,67 +164,63 @@ void tim_cb_led(void *arg)
 	timer_reschedule(timer, TIMER_RESOLUTION_US);
 }
 
-#define FRAME_DELIMITER 40
 #define ANALOG_LOW_VAL 170
 #define ANALOG_HI_VAL  690
+static int started;
 
-static inline int decode(int bit, int count)
+static void decode_rf_cmds(void)
 {
-	static int started;
+	if (ring_len(rf_ring) < CMD_SIZE)
+		return;
 
+	ring_print(rf_ring);
+
+	if (ring_cmp(rf_ring, remote1_btn1,
+		     sizeof(remote1_btn1)) == 0) {
+		PORTD |= (1 << LED);
+	} else if (ring_cmp(rf_ring, remote1_btn2,
+			    sizeof(remote1_btn2)) == 0) {
+		PORTD &= ~(1 << LED);
+	}
+	ring_skip(rf_ring, CMD_SIZE);
+	ring_cons_finish(rf_ring);
+}
+
+static void fill_cmd_ring(int bit, int count)
+{
 	if (started && count >= 1 && count <= 5) {
-		if (ring_is_empty(rf_ring) && bit == 0) {
+		if (started == 1 && bit == 0)
 			goto error;
-		}
+
 		if (ring_add_bit(rf_ring, bit) < 0)
 			goto error;
 
 		if (count >= 3 &&
 		    ring_add_bit(rf_ring, bit) < 0)
 			goto error;
-
-		return 0;
-	error:
-		puts("ring full or invalid entries");
-		ring_print_bits(rf_ring);
-		ring_reset(rf_ring);
-		started = 0;
-		return -1;
+		started = 2;
+		return;
 	}
 
 	if (count >= 36 && count <= 40) {
-		static int tmp;
+		/* frame delimiter is only made of low values */
+		if (bit)
+			goto error;
 
-		if (bit) {
-			started = 0;
-			ring_reset(rf_ring);
-			return -1;
-		}
-#if 1
 		if (started) {
-			if (ring_cmp(rf_ring, remote1_btn1,
-				     sizeof(remote1_btn1)) == 0) {
-				PORTD |= (1 << LED);
-			} else if (ring_cmp(rf_ring, remote1_btn2,
-					    sizeof(remote1_btn2)) == 0) {
-				PORTD &= ~(1 << LED);
-			}
+			if (ring_prod_len(rf_ring) == CMD_SIZE) {
+				ring_prod_finish(rf_ring);
+			} else
+				goto error;
 		}
-#endif
 		started = 1;
-#if 1
-		if (tmp++ == 20) {
-			ring_print(rf_ring);
-			tmp = 0;
-		}
-#endif
-		ring_reset(rf_ring);
-		return FRAME_DELIMITER;
+		return;
 	}
 
-	ring_reset(rf_ring);
+ error:
+	ring_prod_reset(rf_ring);
+	ring_reset_byte(rf_ring);
 	started = 0;
-	return -1;
 }
 
 static inline void rf_sample(void)
@@ -227,18 +230,16 @@ static inline void rf_sample(void)
 	static int prev_val;
 
 	if (v < ANALOG_LOW_VAL) {
-		//PORTD &= ~(1 << LED);
 		if (prev_val == 1) {
 			prev_val = 0;
-			decode(1, cnt);
+			fill_cmd_ring(1, cnt);
 			cnt = 0;
 		}
 		cnt++;
 	} else if (v > ANALOG_HI_VAL) {
-		//PORTD |= (1 << LED);
 		if (prev_val == 0) {
 			prev_val = 1;
-			decode(0, cnt);
+			fill_cmd_ring(0, cnt);
 			cnt = 0;
 		}
 		cnt++;
@@ -248,11 +249,11 @@ static inline void rf_sample(void)
 void tim_cb_rf(void *arg)
 {
 	tim_t *timer = arg;
-	//PORTD ^= (1 << LED);
+
 	rf_sample();
 	timer_reschedule(timer, TIMER_RESOLUTION_US);
 }
-
+#ifdef NET
 static uint8_t mymac[6] = {0x62,0x5F,0x70,0x72,0x61,0x79};
 static uint8_t myip[4] = {192,168,0,99};
 static uint16_t mywwwport = 80;
@@ -285,9 +286,9 @@ static void net_reset(void)
 	_delay_loop_1(50);
 }
 
-ISR (PCINT0_vect)
+ISR(PCINT0_vect)
 {
-        uint8_t eint = ENC28J60_Read(EIR);
+	uint8_t eint = ENC28J60_Read(EIR);
 	uint16_t dat_p;
 	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
 	net_wd = 0;
@@ -332,17 +333,13 @@ ISR (PCINT0_vect)
 		return;
 
 	if(eth_is_arp(buf,plen)) {
-		//			puts("about to reply");
 		arp_reply(buf);
-		//			puts("replied");
-		//net_reset();
 		return;
 	}
 
 	if(eth_is_ip(buf,plen)==0) return;
 	if(buf[IP_PROTO]==IP_ICMP && buf[ICMP_TYPE]==ICMP_REQUEST) {
 		icmp_reply(buf,plen);
-		//net_reset();
 		return;
 	}
 	if (buf[IP_PROTO]==IP_TCP && buf[TCP_DST_PORT]==0
@@ -373,20 +370,15 @@ ISR (PCINT0_vect)
 			}
 		}
 	}
-#if 0
-	for (i = 0; i < plen; i++) {
-		printf("0x%X ", buf[i]);
-	}
-	puts("");
-#endif
 }
 
 void tim_cb_wd(void *arg)
 {
 	tim_t *timer = arg;
+
 	puts("bip");
 	if (net_wd > 0) {
-		puts("resetting net");
+		puts("resetting net device");
 		ENC28J60_reset();
 		net_reset();
 		init_network(mymac,myip,mywwwport);
@@ -396,10 +388,34 @@ void tim_cb_wd(void *arg)
 	timer_reschedule(timer, 10000000UL);
 }
 
+static int init_trx_buffers(void)
+{
+	if ((net_buf.tx = ring_create(NET_TX_SIZE)) == NULL) {
+		printf_P(PSTR("can't create TX ring\n"));
+		return -1;
+	}
+	if ((net_buf.txaddr = ring_create(NET_MAX_NB_PKTS)) == NULL) {
+		printf_P(PSTR("can't create TX addr ring\n"));
+		return -1;
+	}
+	if ((net_buf.rx = ring_create(NET_RX_SIZE)) == NULL) {
+		printf_P(PSTR("can't create RX ring\n"));
+		return -1;
+	}
+	if ((net_buf.rxaddr = ring_create(NET_MAX_NB_PKTS)) == NULL) {
+		printf_P(PSTR("can't create RX addr ring\n"));
+		return -1;
+	}
+	return 0;
+}
+#endif
+
 int main(void)
 {
 	tim_t timer_rf;
+#ifdef NET
 	tim_t timer_wd;
+#endif
 
 	initADC();
 	/* set PORTC (analog) for input */
@@ -413,17 +429,18 @@ int main(void)
 	printf_P(PSTR("KW alarm v0.2\n"));
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
-	DDRD = (0x01 << LED); //Configure the PORTD4 as output
+	DDRD = (0x01 << LED); /* Configure the PORTD4 as output */
 
 	if ((rf_ring = ring_create(RF_RING_SIZE)) == NULL) {
 		printf_P(PSTR("can't create RF ring\n"));
 		return -1;
 	}
 
-	memset(&timer_wd, 0, sizeof(tim_t));
 	memset(&timer_rf, 0, sizeof(tim_t));
-	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
 	timer_add(&timer_rf, TIMER_RESOLUTION_US, tim_cb_rf, &timer_rf);
+#ifdef NET
+	memset(&timer_wd, 0, sizeof(tim_t));
+	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
 
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
@@ -432,7 +449,18 @@ int main(void)
 	net_reset();
 	init_network(mymac,myip,mywwwport);
 
-	while (1) {}
+	if (init_trx_buffers() < 0) {
+		printf_P(PSTR("can't initialize network buffers\n"));
+		return -1;
+	}
+#endif
+	while (1) {
+		/* slow functions */
+		decode_rf_cmds();
+
+		/* XXX if omitted, the while() content does not get executed */
+		delay_ms(100);
+	}
 	free(rf_ring);
 
 	return 0;
