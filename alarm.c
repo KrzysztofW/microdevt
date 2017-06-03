@@ -223,26 +223,25 @@ static inline int decode(int bit, int count)
 static inline void rf_sample(void)
 {
 	int v = analogRead(0);
-	static int zero_cnt;
-	static int one_cnt;
+	static int cnt;
 	static int prev_val;
 
 	if (v < ANALOG_LOW_VAL) {
 		//PORTD &= ~(1 << LED);
 		if (prev_val == 1) {
 			prev_val = 0;
-			decode(1, one_cnt);
-			one_cnt = 0;
+			decode(1, cnt);
+			cnt = 0;
 		}
-		zero_cnt++;
+		cnt++;
 	} else if (v > ANALOG_HI_VAL) {
 		//PORTD |= (1 << LED);
 		if (prev_val == 0) {
 			prev_val = 1;
-			decode(0, zero_cnt);
-			zero_cnt = 0;
+			decode(0, cnt);
+			cnt = 0;
 		}
-		one_cnt++;
+		cnt++;
 	}
 }
 
@@ -411,7 +410,7 @@ int main(void)
 
 #ifdef DEBUG
 	init_streams();
-	printf_P(PSTR("KW alarm v0.1\n"));
+	printf_P(PSTR("KW alarm v0.2\n"));
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
 	DDRD = (0x01 << LED); //Configure the PORTD4 as output
