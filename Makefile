@@ -6,7 +6,7 @@ CC = avr-gcc
 LDFLAGS = -W -DF_CPU=${F_CPU} -mmcu=${MCU}
 CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS) -DF_CPU=$(F_CPU)
 CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
-SOURCES = alarm.c usart0.c timer.c network.c enc28j60.c
+SOURCES = alarm.c usart0.c timer.c network.c enc28j60.c rf.c adc.c
 
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = alarm

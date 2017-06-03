@@ -13,18 +13,15 @@
 #include "usart0.h"
 #define SERIAL_SPEED 57600
 #define SYSTEM_CLOCK F_CPU
-#define TIMER_RESOLUTION_US 150UL
 #endif
 #include "avr_utils.h"
 #include "ring.h"
 #include "timer.h"
-#include "rf_commands.h"
+#include "rf.h"
+#include "adc.h"
 #include "config.h"
 #include "network.h"
 #include "enc28j60.h"
-
-ring_t *rf_ring;
-#define RF_RING_SIZE 32
 
 #ifdef NET
 int net_wd;
@@ -74,185 +71,6 @@ void init_streams()
 	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
 }
 
-void initADC()
-{
-	/* Select Vref=AVcc */
-	ADMUX |= (1<<REFS0);
-
-	/* set prescaller to 128 and enable ADC */
-	/* ADCSRA |= (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0)|(1<<ADEN); */
-
-	/* set prescaller to 64 and enable ADC */
-	ADCSRA |= (1<<ADPS1)|(1<<ADPS0);
-}
-
-uint16_t analogRead(uint8_t ADCchannel)
-{
-	/* enable ADC */
-	ADCSRA |= (1<<ADEN);
-
-	/* select ADC channel with safety mask */
-	ADMUX = (ADMUX & 0xF0) | (ADCchannel & 0x0F);
-
-	/* single conversion mode */
-	ADCSRA |= (1<<ADSC);
-
-	// wait until ADC conversion is complete
-	while (ADCSRA & (1<<ADSC));
-
-	/* shutdown the ADC */
-	ADCSRA &= ~(1<<ADEN);
-	return ADC;
-}
-
-#if 0
-#define START_FRAME = 0xAA
-
-typedef struct pkt_header {
-	unsigned char  start_frame; /* 0 */
-	unsigned short from;	    /* 1 */
-	unsigned char  len;	    /* 3 */
-	unsigned short chksum;	    /* 4 */
-	unsigned char  data[];      /* 6 */
-} pkt_header_t;
-
-static void pkt_parse(ring_t *ring)
-{
-	unsigned short addr;
-	int len, chksum, chksum2 = 0, i;
-
-	if (ring_is_empty(ring))
-		return;
-
-	if (ring_len(ring) < sizeof(pkt_head)) {
-		return;
-	}
-
-	if (ring->data[ring->tail] != START_FRAME) {
-		ring_reset(ring); // maybe skip 1?
-		return;
-	}
-
-	/* check if we have enough data */
-	len = ring->data[ring->tail + 3];
-	if (len + sizeof(pkt_header_t) > MAX_SIZE) {
-		ring_reset(ring);
-		return;
-	}
-	if (ring_len(ring) < len + sizeof(pkt_head_t)) {
-		/* not enough data */
-		return;
-	}
-
-	addr = (unsigned short)ring->data[ring->tail + 1];
-	chksum = (unsigned short)ring->data[ring->tail + 4];
-	for (i = 0; i < len; i++) {
-		chksum2 += ring->data[ring->tail + 6 + i];
-	}
-	if (checksum != chksum) {
-		ring_skip(ring, len);
-	}
-}
-#endif
-
-#define LED PD4
-void tim_cb_led(void *arg)
-{
-	tim_t *timer = arg;
-
-	PORTD ^= (1 << LED);
-	timer_reschedule(timer, TIMER_RESOLUTION_US);
-}
-
-#define ANALOG_LOW_VAL 170
-#define ANALOG_HI_VAL  690
-static int started;
-
-static void decode_rf_cmds(void)
-{
-	if (ring_len(rf_ring) < CMD_SIZE)
-		return;
-
-	ring_print(rf_ring);
-
-	if (ring_cmp(rf_ring, remote1_btn1,
-		     sizeof(remote1_btn1)) == 0) {
-		PORTD |= (1 << LED);
-	} else if (ring_cmp(rf_ring, remote1_btn2,
-			    sizeof(remote1_btn2)) == 0) {
-		PORTD &= ~(1 << LED);
-	}
-	ring_skip(rf_ring, CMD_SIZE);
-	ring_cons_finish(rf_ring);
-}
-
-static void fill_cmd_ring(int bit, int count)
-{
-	if (started && count >= 1 && count <= 5) {
-		if (started == 1 && bit == 0)
-			goto error;
-
-		if (ring_add_bit(rf_ring, bit) < 0)
-			goto error;
-
-		if (count >= 3 &&
-		    ring_add_bit(rf_ring, bit) < 0)
-			goto error;
-		started = 2;
-		return;
-	}
-
-	if (count >= 36 && count <= 40) {
-		/* frame delimiter is only made of low values */
-		if (bit)
-			goto error;
-
-		if (started) {
-			if (ring_prod_len(rf_ring) == CMD_SIZE) {
-				ring_prod_finish(rf_ring);
-			} else
-				goto error;
-		}
-		started = 1;
-		return;
-	}
-
- error:
-	ring_prod_reset(rf_ring);
-	ring_reset_byte(rf_ring);
-	started = 0;
-}
-
-static inline void rf_sample(void)
-{
-	int v = analogRead(0);
-	static int cnt;
-	static int prev_val;
-
-	if (v < ANALOG_LOW_VAL) {
-		if (prev_val == 1) {
-			prev_val = 0;
-			fill_cmd_ring(1, cnt);
-			cnt = 0;
-		}
-		cnt++;
-	} else if (v > ANALOG_HI_VAL) {
-		if (prev_val == 0) {
-			prev_val = 1;
-			fill_cmd_ring(0, cnt);
-			cnt = 0;
-		}
-		cnt++;
-	}
-}
-
-void tim_cb_rf(void *arg)
-{
-	tim_t *timer = arg;
-
-	rf_sample();
-	timer_reschedule(timer, TIMER_RESOLUTION_US);
-}
 #ifdef NET
 static uint8_t mymac[6] = {0x62,0x5F,0x70,0x72,0x61,0x79};
 static uint8_t myip[4] = {192,168,0,99};
@@ -412,32 +230,21 @@ static int init_trx_buffers(void)
 
 int main(void)
 {
-	tim_t timer_rf;
 #ifdef NET
 	tim_t timer_wd;
 #endif
-
-	initADC();
-	/* set PORTC (analog) for input */
-	DDRC &= 0xFB; // pin 2 b1111 1011
-	DDRC &= 0xFD; // pin 1 b1111 1101
-	DDRC &= 0xFE; // pin 0 b1111 1110
-	PORTC = 0xFF; // pullup resistors
+	init_adc();
 
 #ifdef DEBUG
 	init_streams();
 	printf_P(PSTR("KW alarm v0.2\n"));
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
-	DDRD = (0x01 << LED); /* Configure the PORTD4 as output */
-
-	if ((rf_ring = ring_create(RF_RING_SIZE)) == NULL) {
-		printf_P(PSTR("can't create RF ring\n"));
+	if (rf_init() < 0) {
+		printf_P(PSTR("can't initialize RF\n"));
 		return -1;
 	}
 
-	memset(&timer_rf, 0, sizeof(tim_t));
-	timer_add(&timer_rf, TIMER_RESOLUTION_US, tim_cb_rf, &timer_rf);
 #ifdef NET
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
@@ -461,7 +268,7 @@ int main(void)
 		/* XXX if omitted, the while() content does not get executed */
 		delay_ms(100);
 	}
-	free(rf_ring);
+	rf_shutdown();
 
 	return 0;
 }
