@@ -2,37 +2,42 @@ MCU = atmega328p
 BMCU = m328p
 F_CPU = 16000000
 
-CC = avr-gcc
-LDFLAGS = -W -DF_CPU=${F_CPU} -mmcu=${MCU}
-CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS) -DF_CPU=$(F_CPU)
-CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
 SOURCES = alarm.c usart0.c timer.c network.c enc28j60.c rf.c adc.c
+TEST_SOURCES = timer.c tests.c
 
-OBJECTS = $(SOURCES:.c=.o)
-EXECUTABLE = alarm
+ifeq ($(TEST), 1)
+	CC = gcc
+	EXECUTABLE = tests
+	OBJECTS = $(TEST_SOURCES:.c=.o)
+	CFLAGS = -DTEST
+else
+	CC = avr-gcc
+	EXECUTABLE = alarm
+	OBJECTS = $(SOURCES:.c=.o)
+	LDFLAGS = -DF_CPU=${F_CPU} -mmcu=${MCU}
+	CFLAGS = -DF_CPU=$(F_CPU)
+	CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
+endif
+
+LDFLAGS += -W
+CFLAGS += -Wall -Werror -Os -g -c $(LDFLAGS)
 
 all: $(SOURCES) $(EXECUTABLE)
-	avr-size $(EXECUTABLE)
-	avr-objcopy -j .text -j .data -O ihex $(EXECUTABLE) $(EXECUTABLE).hex
-
 
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
-
-zchk: zchk.c timer.c timer.h ring.h
-	gcc -DZCHK -Wall -g -O0 -Werror timer.c -c -o timer.o
-	gcc -DZCHK -Wall -g -O0 -Werror zchk.c -c -o zchk.o
-	gcc -DZCHK -Wall -g -O0 -Werror zchk.o timer.o -o $@
 
 .c.o: ring.h
 	$(CC) $(CFLAGS) $< -o $@
 
 upload: all
+	avr-size $(EXECUTABLE)
+	avr-objcopy -j .text -j .data -O ihex $(EXECUTABLE) $(EXECUTABLE).hex
 	avr-objcopy -O srec $(EXECUTABLE) $(EXECUTABLE).srec
 	sudo avrdude -V -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
 
 clean:
-	@rm -f *.o ${EXECUTABLE} *.pdf *.hex *.srec *.elf *~ zchk
+	@rm -f *.o *.pdf *.hex *.srec *.elf *~ tests alarm
 
 #pdf: README.rst
 #	rst2pdf $< > $(<:.rst=.pdf)

@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdlib.h>
-#ifndef ZCHK
+#ifndef TEST
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #endif
@@ -75,7 +75,7 @@ static void timer_init_list(void)
 		INIT_LIST_HEAD(&timer_state.timer_list[i]);
 }
 
-#ifndef ZCHK
+#ifndef TEST
 
 #if 0
 ISR(TIMER0_OVF_vect)

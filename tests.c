@@ -33,7 +33,8 @@ static int ring_check(void)
 {
 	ring_t *ring;
 	unsigned int i;
-	unsigned char bytes[] = { 0x3C, 0xFF, 0xA0, 0x00, 0x10, 0xB5, 0x99, 0x11, 0xF7 };
+	unsigned char bytes[] = { 0x3C, 0xFF, 0xA0, 0x00, 0x10, 0xB5, 0x99,
+				  0x11, 0xF7 };
 	unsigned char c;
 	int j;
 
@@ -210,6 +211,8 @@ static int timer_check(void)
 
 int main(int argc, char **argv)
 {
+	(void)argc;
+	(void)argv;
 	if (ring_check() < 0) {
 		fprintf(stderr, "  ==> ring checks failed\n");
 		return -1;
