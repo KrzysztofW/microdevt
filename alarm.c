@@ -27,7 +27,7 @@
 int net_wd;
 #define NET_TX_SIZE  512
 #define NET_RX_SIZE  256
-#define NET_MAX_NB_PKTS 10
+#define NET_MAX_NB_PKTS 16
 
 struct net_buf {
 	ring_t *tx;
