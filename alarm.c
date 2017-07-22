@@ -8,8 +8,9 @@
 #include <string.h>
 
 #define DEBUG
+#define NET
+
 #ifdef DEBUG
-//#define NET
 #include "usart0.h"
 #define SERIAL_SPEED 57600
 #define SYSTEM_CLOCK F_CPU
@@ -19,22 +20,31 @@
 #include "timer.h"
 #include "rf.h"
 #include "adc.h"
-#include "config.h"
-#include "network.h"
+#include "net/config.h"
 #include "enc28j60.h"
 
 #ifdef NET
 int net_wd;
-#define NET_TX_SIZE  512
-#define NET_RX_SIZE  256
+#define NET_TX_SIZE  256
+#define NET_RX_SIZE  128
 #define NET_MAX_NB_PKTS 16
+uint8_t rx_data[NET_RX_SIZE];
+uint8_t tx_data[NET_TX_SIZE];
+buf_t rx_buf = {
+	.size = NET_RX_SIZE,
+	.data = rx_data,
+};
+buf_t tx_buf = {
+	.size = NET_TX_SIZE,
+	.data = tx_data,
+};
 
-struct net_buf {
-	ring_t *tx;
-	ring_t *txaddr;
-	ring_t *rx;
-	ring_t *rxaddr;
-} net_buf;
+iface_t eth0 = {
+	.flags = IFF_UP|IFF_RUNNING,
+	.mac_addr = { 0x62, 0x5F, 0x70, 0x72, 0x61, 0x79 },
+	.ip4_addr = { 192, 168, 0, 99 },
+	.recv = &ENC28J60_PacketReceive,
+};
 #endif
 
 #ifdef DEBUG
@@ -72,32 +82,13 @@ void init_streams()
 }
 
 #ifdef NET
-static uint8_t mymac[6] = {0x62,0x5F,0x70,0x72,0x61,0x79};
-static uint8_t myip[4] = {192,168,0,99};
-static uint16_t mywwwport = 80;
-
-#define BUFFER_SIZE 900UL
-uint8_t buf[BUFFER_SIZE + 1],browser;
-uint16_t plen;
-
-void testpage(void) {
-	plen=make_tcp_data_pos(buf,0,PSTR("HTTP/1.0 200 OK\r\nContent-Type: "
-					  "text/html\r\n\r\n"));
-	plen=make_tcp_data_pos(buf,plen,PSTR("<html><body><h1>It Works!"
-					     "</h1></body></html>"));
-}
-
-void sendpage(void) {
-	tcp_ack(buf);
-	tcp_ack_with_data(buf,plen);
-}
 
 static void net_reset(void)
 {
 	CLKPR = (1<<CLKPCE);
 	CLKPR = 0;
 	_delay_loop_1(50);
-	ENC28J60_Init(mymac);
+	ENC28J60_Init(eth0.mac_addr);
 	ENC28J60_ClkOut(2);
 	_delay_loop_1(50);
 	ENC28J60_PhyWrite(PHLCON,0x0476);
@@ -107,13 +98,13 @@ static void net_reset(void)
 ISR(PCINT0_vect)
 {
 	uint8_t eint = ENC28J60_Read(EIR);
-	uint16_t dat_p;
-	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
+	uint16_t plen;
+//	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
 	net_wd = 0;
 
 	if (eint == 0)
 		return;
-
+#if 0
 	erxwrpt = ENC28J60_Read(ERXWRPTL);
 	erxwrpt |= ENC28J60_Read(ERXWRPTH) << 8;
 
@@ -134,6 +125,7 @@ ISR(PCINT0_vect)
 		freespace = erxrdpt - erxwrpt - 1;
 	}
 	printf("int:0x%X freespace:%u\n", eint, freespace);
+#endif
 	if (eint & TXERIF) {
 		ENC28J60_WriteOp(BFC, EIE, TXERIF);
 	}
@@ -146,48 +138,11 @@ ISR(PCINT0_vect)
 		return;
 	}
 
-	plen = ENC28J60_PacketReceive(BUFFER_SIZE,buf);
+	plen = eth0.recv(&rx_buf);
+	printf("len:%d\n", plen);
 	if (plen == 0)
 		return;
-
-	if(eth_is_arp(buf,plen)) {
-		arp_reply(buf);
-		return;
-	}
-
-	if(eth_is_ip(buf,plen)==0) return;
-	if(buf[IP_PROTO]==IP_ICMP && buf[ICMP_TYPE]==ICMP_REQUEST) {
-		icmp_reply(buf,plen);
-		return;
-	}
-	if (buf[IP_PROTO]==IP_TCP && buf[TCP_DST_PORT]==0
-	   && buf[TCP_DST_PORT+1]==mywwwport) {
-		if(buf[TCP_FLAGS] & TCP_SYN) {
-			tcp_synack(buf);
-			net_reset();
-			return;
-		}
-		if(buf[TCP_FLAGS] & TCP_ACK) {
-			init_len_info(buf);
-			dat_p = get_tcp_data_ptr();
-			if(dat_p==0) {
-				if(buf[TCP_FLAGS] & TCP_FIN) tcp_ack(buf);
-				net_reset();
-				return;
-			}
-
-			if(strstr((char*)&(buf[dat_p]),"User Agent")) browser=0;
-			else if(strstr((char*)&(buf[dat_p]),"MSIE")) browser=1;
-			else browser=2;
-
-			if(strncmp("/ ",(char*)&(buf[dat_p+4]),2)==0){
-				testpage();
-				sendpage();
-				net_reset();
-				return;
-			}
-		}
-	}
+	eth_input(rx_buf, &eth0);
 }
 
 void tim_cb_wd(void *arg)
@@ -199,32 +154,9 @@ void tim_cb_wd(void *arg)
 		puts("resetting net device");
 		ENC28J60_reset();
 		net_reset();
-		init_network(mymac,myip,mywwwport);
-
 	}
 	net_wd++;
 	timer_reschedule(timer, 10000000UL);
-}
-
-static int init_trx_buffers(void)
-{
-	if ((net_buf.tx = ring_create(NET_TX_SIZE)) == NULL) {
-		printf_P(PSTR("can't create TX ring\n"));
-		return -1;
-	}
-	if ((net_buf.txaddr = ring_create(NET_MAX_NB_PKTS)) == NULL) {
-		printf_P(PSTR("can't create TX addr ring\n"));
-		return -1;
-	}
-	if ((net_buf.rx = ring_create(NET_RX_SIZE)) == NULL) {
-		printf_P(PSTR("can't create RX ring\n"));
-		return -1;
-	}
-	if ((net_buf.rxaddr = ring_create(NET_MAX_NB_PKTS)) == NULL) {
-		printf_P(PSTR("can't create RX addr ring\n"));
-		return -1;
-	}
-	return 0;
 }
 #endif
 
@@ -239,12 +171,13 @@ int main(void)
 	init_streams();
 	printf_P(PSTR("KW alarm v0.2\n"));
 #endif
+#ifdef RF
 	timer_subsystem_init(TIMER_RESOLUTION_US);
 	if (rf_init() < 0) {
 		printf_P(PSTR("can't initialize RF\n"));
 		return -1;
 	}
-
+#endif
 #ifdef NET
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
@@ -254,13 +187,10 @@ int main(void)
 
 	sei();
 	net_reset();
-	init_network(mymac,myip,mywwwport);
 
-	if (init_trx_buffers() < 0) {
-		printf_P(PSTR("can't initialize network buffers\n"));
-		return -1;
-	}
+	while (1) {}
 #endif
+#ifdef RF
 	while (1) {
 		/* slow functions */
 		decode_rf_cmds();
@@ -269,6 +199,6 @@ int main(void)
 		delay_ms(100);
 	}
 	rf_shutdown();
-
+#endif
 	return 0;
 }

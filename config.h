@@ -2,6 +2,7 @@
                # Replace Windows newlines with Unix newlines#define CONFIG_H
                # Replace Windows newlines with Unix newlines
                # Replace Windows newlines with Unix newlines#include <avr/io.h>
+               # Replace Windows newlines with Unix newlines#include "sys/buf.h"
                # Replace Windows newlines with Unix newlines
                # Replace Windows newlines with Unix newlines#define SPI_DDR  DDRB
                # Replace Windows newlines with Unix newlines#define SPI_PORT PORTB

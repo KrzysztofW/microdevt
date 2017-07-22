@@ -1,8 +1,9 @@
 MCU = atmega328p
 BMCU = m328p
 F_CPU = 16000000
+NET_SRC = net/eth.c
+SOURCES = alarm.c usart0.c timer.c enc28j60.c rf.c adc.c $(NET_SRC)
 
-SOURCES = alarm.c usart0.c timer.c network.c enc28j60.c rf.c adc.c
 TEST_SOURCES = timer.c tests.c
 
 ifeq ($(TEST), 1)
@@ -37,7 +38,7 @@ upload: all
 	sudo avrdude -V -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
 
 clean:
-	@rm -f *.o *.pdf *.hex *.srec *.elf *~ tests alarm
+	@rm -f *.o net/*.o *.pdf *.hex *.srec *.elf *~ tests alarm
 
 #pdf: README.rst
 #	rst2pdf $< > $(<:.rst=.pdf)

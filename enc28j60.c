@@ -49,7 +49,7 @@ void ENC28J60_ReadBuffer(uint16_t len,uint8_t* data) {
     cs_on();
     SPDR = RBM;
     wait_spi();
-    while(len) {
+    while (len) {
         len--;
         SPDR = 0x00;
         wait_spi();
@@ -57,6 +57,21 @@ void ENC28J60_ReadBuffer(uint16_t len,uint8_t* data) {
         data++;
     }
     *data='\0';
+    cs_off();
+}
+
+static void ENC28J60_read_buf(unsigned len, buf_t *buf) {
+    int ret = 0;
+
+    cs_on();
+    SPDR = RBM;
+    wait_spi();
+    while (len && ret == 0) {
+	    len--;
+	    SPDR = 0x00;
+	    wait_spi();
+	    ret = buf_addc(buf, SPDR);
+    }
     cs_off();
 }
 
@@ -177,22 +192,31 @@ uint8_t ENC28J60_HasRxPkt(void) {
     return(1);
 }
 
-uint16_t ENC28J60_PacketReceive(uint16_t maxlen,uint8_t* packet) {
+uint16_t ENC28J60_PacketReceive(buf_t *buf) {
     uint16_t rxstat;
     uint16_t len;
-    if(ENC28J60_Read(EPKTCNT)==0) return(0);
+
+    if (ENC28J60_Read(EPKTCNT) == 0)
+	    return 0;
+
     ENC28J60_Write(ERDPTL,(gNextPacketPtr & 0xFF));
     ENC28J60_Write(ERDPTH,(gNextPacketPtr)>>8);
-    gNextPacketPtr  = ENC28J60_ReadOp(RBM,0);
+    gNextPacketPtr = ENC28J60_ReadOp(RBM,0);
     gNextPacketPtr |= ENC28J60_ReadOp(RBM,0)<<8;
-    len  = ENC28J60_ReadOp(RBM,0);
+    len = ENC28J60_ReadOp(RBM,0);
     len |= ENC28J60_ReadOp(RBM,0)<<8;
-    len-=4;
-    rxstat  = ENC28J60_ReadOp(RBM,0);
+    len -= 4;
+    rxstat = ENC28J60_ReadOp(RBM,0);
     rxstat |= ((uint16_t)ENC28J60_ReadOp(RBM,0))<<8;
-    if (len>maxlen-1) len=maxlen-1;
-    if ((rxstat & 0x80)==0) len=0;
-    else ENC28J60_ReadBuffer(len,packet);
+
+    if (len > buf->size)
+	    len = buf->size;
+
+    if ((rxstat & 0x80) == 0) {
+    	    len = 0;
+    } else
+	    ENC28J60_read_buf(len, buf);
+
     ENC28J60_Write(ERXRDPTL,(gNextPacketPtr &0xFF));
     ENC28J60_Write(ERXRDPTH,(gNextPacketPtr)>>8);
     if ((gNextPacketPtr-1 < RXSTART_INIT)||(gNextPacketPtr-1 > RXSTOP_INIT)) {
@@ -204,7 +228,7 @@ uint16_t ENC28J60_PacketReceive(uint16_t maxlen,uint8_t* packet) {
         ENC28J60_Write(ERXRDPTH,(gNextPacketPtr-1)>>8);
     }
     ENC28J60_WriteOp(BFS,ECON2,PKTDEC);
-    return(len);
+    return len;
 }
 
 void ENC28J60_PacketSend(uint16_t len,uint8_t* packet) {

@@ -1,5 +1,6 @@
 #ifndef ENC28J60_H
 #define ENC28J60_H
+#include "sys/buf.h"
 
 // Register Masks
 #define ADDR_MASK 0x1F
@@ -244,7 +245,6 @@
 //Functions
 uint8_t ENC28J60_ReadOp(uint8_t op, uint8_t address);
 void ENC28J60_WriteOp(uint8_t op, uint8_t address, uint8_t data);
-void ENC28J60_ReadBuffer(uint16_t len, uint8_t* data);
 void ENC28J60_WriteBuffer(uint16_t len, uint8_t* data);
 void ENC28J60_SetBank(uint8_t address);
 uint8_t ENC28J60_Read(uint8_t address);
@@ -255,7 +255,8 @@ void ENC28J60_ClkOut(uint8_t clk);
 void ENC28J60_Init(uint8_t* macaddr);
 void ENC28J60_PacketSend(uint16_t len, uint8_t* packet);
 uint8_t ENC28J60_HasRxPkt(void);
-uint16_t ENC28J60_PacketReceive(uint16_t maxlen, uint8_t* packet);
+uint16_t ENC28J60_PacketReceive(buf_t *buf);
+
 uint8_t ENC28J60_GetRev(void);
 uint8_t ENC28J60_LinkUp(void);
 void ENC28J60_reset(void);
