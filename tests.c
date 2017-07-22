@@ -29,6 +29,33 @@ static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 
 #define ZCHK_RSIZE 64
 
+static int ring_check_full(ring_t *ring)
+{
+	int i;
+	unsigned char c;
+
+	for (i = 0; i < ZCHK_RSIZE - 1; i++) {
+		ring_addc(ring, 1);
+	}
+	ring_prod_finish(ring);
+	if (ring_len(ring) != ZCHK_RSIZE - 1) {
+		return -1;
+	}
+	ring_getc(ring, &c);
+	ring_cons_finish(ring);
+	if (ring_len(ring) != ZCHK_RSIZE - 2) {
+		return -1;
+	}
+	if (ring_addc(ring, 1) < 0)
+		return -1;
+	ring_prod_finish(ring);
+	if (ring_len(ring) != ZCHK_RSIZE - 1) {
+		return -1;
+	}
+
+	return 0;
+}
+
 static int ring_check(void)
 {
 	ring_t *ring;
@@ -40,9 +67,17 @@ static int ring_check(void)
 
 	if ((ring = ring_create(ZCHK_RSIZE)) == NULL) {
 		fprintf(stderr, "can't create ring\n");
+		free(ring);
 		return -1;
 	}
 
+	if (ring_check_full(ring) < 0) {
+		fprintf(stderr, "check full failed\n");
+		free(ring);
+		return -1;
+	}
+
+	ring_reset(ring);
 	fill_ring(ring, bytes, sizeof(bytes));
 
 	/* printf("ring content:\n"); */

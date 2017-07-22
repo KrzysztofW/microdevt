@@ -2,6 +2,8 @@
 #define _RING_H_
 
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include "sys/utils.h"
 
 typedef struct byte {
@@ -46,7 +48,7 @@ static inline ring_t *ring_create(int size)
 
 static inline int ring_is_full(const ring_t *ring)
 {
-	if (((ring->mask + ring->prod_tail - ring->prod_head) & ring->mask) == 0)
+	if (((ring->prod_head + 1) & ring->mask) == ring->prod_tail)
 		return 1;
 	return 0;
 }
@@ -63,12 +65,17 @@ static inline int ring_is_empty2(const ring_t *ring)
 
 static inline int ring_len(const ring_t *ring)
 {
-	return ring->mask - ((ring->mask + ring->cons_tail - ring->cons_head) & ring->mask);
+	return ring->mask - ((ring->mask + ring->cons_tail
+			      - ring->cons_head) & ring->mask);
+}
+
+static inline int ring_free_entries(const ring_t *ring)
+{
+	return ring->mask - ring_len(ring);
 }
 
 static inline void reset_byte(byte_t *byte)
 {
-	/* byte->c = 0; */
 	byte->pos = 0;
 }
 
@@ -79,17 +86,35 @@ static inline void ring_reset_byte(ring_t *ring)
 
 static inline void ring_reset(ring_t *ring)
 {
-	ring->prod_tail = ring->cons_tail = ring->prod_head = ring->cons_head;
 	reset_byte(&ring->byte);
+	ring->prod_tail = ring->cons_tail = ring->prod_head = ring->cons_head;
+}
+
+static inline void __ring_addc(ring_t *ring, unsigned char c)
+{
+	ring->data[ring->prod_head] = c;
+	ring->prod_head = (ring->prod_head + 1) & ring->mask;
 }
 
 static inline int ring_addc(ring_t *ring, unsigned char c)
 {
 	if (ring_is_full(ring))
 		return -1;
-	ring->data[ring->prod_head] = c;
-	ring->prod_head = (ring->prod_head + 1) & ring->mask;
+	__ring_addc(ring, c);
 	return 0;
+}
+
+static inline int ring_add(ring_t *ring, unsigned char *data, int len)
+{
+	int i;
+
+	if (ring->mask - ring_len(ring) <= 0) {
+		return -1;
+	}
+	for (i = 0; i < len; i++) {
+		__ring_addc(ring, data[0]);
+		data++;
+	}
 }
 
 static inline void ring_prod_finish(ring_t *ring)
@@ -126,7 +151,8 @@ static inline void ring_skip(ring_t *ring, int len)
 
 static inline int ring_prod_len(const ring_t *ring)
 {
-	return ring->mask - ((ring->mask + ring->cons_head - ring->prod_head) & ring->mask);
+	return ring->mask - ((ring->mask + ring->cons_head
+			      - ring->prod_head) & ring->mask);
 }
 
 static inline void ring_prod_reset(ring_t *ring)
