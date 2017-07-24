@@ -1,6 +1,6 @@
 #ifndef _IF_H_
 #define _IF_H_
-#include "ip.h"
+#include "../sys/buf.h"
 
 #define IFF_UP      (1 << 0)
 #define IFF_RUNNING (1 << 1)
@@ -27,7 +27,14 @@ typedef struct iface {
 	uint16_t rx_errors;
 	uint16_t rx_dropped;
 #endif
+	buf_t rx_buf;
+	buf_t tx_buf;
 } iface_t;
+
+int if_init(iface_t *ifce, int rx_size, int tx_size,
+	    uint16_t (*send)(const buf_t *out),
+	    uint16_t (*recv)(buf_t *in));
+void if_shutdown(iface_t *ifce);
 
 #endif
 

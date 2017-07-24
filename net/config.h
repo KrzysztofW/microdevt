@@ -4,6 +4,7 @@
 #include <avr/io.h>
 #include "../sys/buf.h"
 #include "../sys/utils.h"
+#include "ip.h"
 #include "eth.h"
 #include "if.h"
 

@@ -27,23 +27,11 @@
 int net_wd;
 #define NET_TX_SIZE  256
 #define NET_RX_SIZE  128
-#define NET_MAX_NB_PKTS 16
-uint8_t rx_data[NET_RX_SIZE];
-uint8_t tx_data[NET_TX_SIZE];
-buf_t rx_buf = {
-	.size = NET_RX_SIZE,
-	.data = rx_data,
-};
-buf_t tx_buf = {
-	.size = NET_TX_SIZE,
-	.data = tx_data,
-};
 
 iface_t eth0 = {
 	.flags = IFF_UP|IFF_RUNNING,
 	.mac_addr = { 0x62, 0x5F, 0x70, 0x72, 0x61, 0x79 },
 	.ip4_addr = { 192, 168, 0, 99 },
-	.recv = &ENC28J60_PacketReceive,
 };
 #endif
 
@@ -138,11 +126,11 @@ ISR(PCINT0_vect)
 		return;
 	}
 
-	plen = eth0.recv(&rx_buf);
+	plen = eth0.recv(&eth0.rx_buf);
 	printf("len:%d\n", plen);
 	if (plen == 0)
 		return;
-	eth_input(rx_buf, &eth0);
+	eth_input(eth0.rx_buf, &eth0);
 }
 
 void tim_cb_wd(void *arg)
@@ -185,6 +173,8 @@ int main(void)
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
 
+	if_init(&eth0, NET_RX_SIZE, NET_TX_SIZE, NULL,
+		ENC28J60_PacketReceive);
 	sei();
 	net_reset();
 
