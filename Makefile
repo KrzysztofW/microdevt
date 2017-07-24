@@ -4,12 +4,13 @@ F_CPU = 16000000
 NET_SRC = net/eth.c net/if.c
 SOURCES = alarm.c usart0.c timer.c enc28j60.c rf.c adc.c $(NET_SRC)
 
-TEST_SOURCES = timer.c tests.c
+TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC}
 
 ifeq ($(TEST), 1)
 	CC = gcc
 	EXECUTABLE = tests
-	OBJECTS = $(TEST_SOURCES:.c=.o)
+	SOURCES = ${TEST_SOURCES}
+	OBJECTS = $(SOURCES:.c=.o)
 	CFLAGS = -DTEST
 else
 	CC = avr-gcc

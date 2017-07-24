@@ -7,6 +7,7 @@
 #include "ring.h"
 #include "list.h"
 #include "timer.h"
+#include "net/tests.h"
 
 static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 {
@@ -252,16 +253,21 @@ int main(int argc, char **argv)
 		fprintf(stderr, "  ==> ring checks failed\n");
 		return -1;
 	}
-	printf("  ==> ring checks succeded\n");
+	printf("  ==> ring checks succeeded\n");
 	if (list_check() < 0) {
 		fprintf(stderr, "  ==> list checks failed\n");
 		return -1;
 	}
-	printf("  ==> list checks succeded\n");
+	printf("  ==> list checks succeeded\n");
 	if (timer_check() < 0) {
 		fprintf(stderr, "  ==> timer checks failed\n");
 		return -1;
 	}
-	printf("  ==> timer checks succeded\n");
+	printf("  ==> timer checks succeeded\n");
+	if (net_tests() < 0) {
+		fprintf(stderr, "  ==> net tests failed\n");
+		return -1;
+	}
+	printf("  ==> net tests succeeded\n");
 	return 0;
 }

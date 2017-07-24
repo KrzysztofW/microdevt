@@ -6,7 +6,6 @@ void eth_input(buf_t buf, const iface_t *iface)
 	eth_hdr_t *eh;
 
 	if (buf.len == 0) {
-		//		buf_free(buf);
 		return;
 	}
 	if ((iface->flags & IFF_UP) == 0) {
@@ -48,7 +47,7 @@ void eth_output(buf_t *out, const iface_t *iface, const uint8_t *mac_dst)
 		return;
 	}
 
-	buf_adj(out, -sizeof(eth_hdr_t));
+	buf_adj(out, -(int)sizeof(eth_hdr_t));
 	eh = btod(out, eth_hdr_t *);
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		eh->dst[i] = mac_dst[i];
