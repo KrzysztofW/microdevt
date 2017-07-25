@@ -14,7 +14,6 @@ typedef struct buf {
 
 static inline int buf_alloc(buf_t *buf, int len)
 {
-	memset(buf, 0, len);
 	buf->data = malloc(len);
 	if (buf->data == NULL)
 		return -1;

@@ -21,6 +21,10 @@ else
 	CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
 endif
 
+ifeq ($(DEBUG), 1)
+	CFLAGS += -DDEBUG
+endif
+
 LDFLAGS += -W
 CFLAGS += -Wall -Werror -Os -g -c $(LDFLAGS)
 

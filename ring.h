@@ -165,6 +165,7 @@ static inline void ring_cons_reset(ring_t *ring)
 	ring->cons_tail = ring->prod_tail;
 }
 
+#ifdef DEBUG
 static inline void print_byte(const byte_t *byte)
 {
 	int j;
@@ -210,6 +211,20 @@ static inline void ring_print_bits(const ring_t *ring)
 	print_byte(&ring->byte);
 	puts("");
 }
+#else
+static inline void print_byte(const byte_t *byte)
+{
+	(void)byte;
+}
+static inline void ring_print(const ring_t *ring)
+{
+	(void)ring;
+}
+static inline void ring_print_bits(const ring_t *ring)
+{
+	(void)ring;
+}
+#endif
 
 static inline int ring_add_bit(ring_t *ring, int bit)
 {

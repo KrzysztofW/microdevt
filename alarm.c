@@ -7,7 +7,6 @@
 #include <avr/wdt.h>
 #include <string.h>
 
-#define DEBUG
 #define NET
 
 #ifdef DEBUG
@@ -59,18 +58,17 @@ static int my_getchar(FILE * stream)
  */
 static FILE my_stream =
 	FDEV_SETUP_STREAM (my_putchar, my_getchar, _FDEV_SETUP_RW);
-#endif
 
-void init_streams()
+static void init_streams(void)
 {
 	/* initialize the standard streams to the user defined one */
 	stdout = &my_stream;
 	stdin = &my_stream;
 	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
 }
+#endif
 
 #ifdef NET
-
 static void net_reset(void)
 {
 	CLKPR = (1<<CLKPCE);
@@ -127,7 +125,7 @@ ISR(PCINT0_vect)
 	}
 
 	plen = eth0.recv(&eth0.rx_buf);
-	printf("len:%d\n", plen);
+	printf("len:%u\n", plen);
 	if (plen == 0)
 		return;
 	eth_input(eth0.rx_buf, &eth0);
@@ -137,9 +135,13 @@ void tim_cb_wd(void *arg)
 {
 	tim_t *timer = arg;
 
+#ifdef DEBUG
 	puts("bip");
+#endif
 	if (net_wd > 0) {
+#ifdef DEBUG
 		puts("resetting net device");
+#endif
 		ENC28J60_reset();
 		net_reset();
 	}
@@ -159,25 +161,24 @@ int main(void)
 	init_streams();
 	printf_P(PSTR("KW alarm v0.2\n"));
 #endif
-#ifdef RF
 	timer_subsystem_init(TIMER_RESOLUTION_US);
+#ifdef RF
 	if (rf_init() < 0) {
+#ifdef DEBUG
 		printf_P(PSTR("can't initialize RF\n"));
+#endif
 		return -1;
 	}
 #endif
 #ifdef NET
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
-
+	if_init(&eth0, NET_RX_SIZE, NET_TX_SIZE, NULL,
+		&ENC28J60_PacketReceive);
+	net_reset();
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
-
-	if_init(&eth0, NET_RX_SIZE, NET_TX_SIZE, NULL,
-		ENC28J60_PacketReceive);
 	sei();
-	net_reset();
-
 	while (1) {}
 #endif
 #ifdef RF
