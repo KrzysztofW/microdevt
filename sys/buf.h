@@ -37,7 +37,7 @@ static inline int buf_has_room(buf_t *buf, int len)
 
 static inline void buf_adj(buf_t *buf, int len)
 {
-	if (buf->len + len >= buf->size) {
+	if (buf->skip + len >= buf->size) {
 		buf->len = 0;
 		return;
 	}

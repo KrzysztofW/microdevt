@@ -1,7 +1,7 @@
 #include <string.h>
 #include "config.h"
 
-void eth_input(buf_t buf, const iface_t *iface)
+void eth_input(buf_t buf, iface_t *iface)
 {
 	eth_hdr_t *eh;
 
@@ -21,7 +21,7 @@ void eth_input(buf_t buf, const iface_t *iface)
 
 	switch (eh->type) {
 	case ETHERTYPE_ARP:
-		//arp_input(buf, iface);
+		arp_input(buf, iface);
 		break;
 
 	case ETHERTYPE_IP:
@@ -38,7 +38,7 @@ void eth_input(buf_t buf, const iface_t *iface)
 	}
 }
 
-void eth_output(buf_t *out, const iface_t *iface, const uint8_t *mac_dst)
+void eth_output(buf_t *out, iface_t *iface, const uint8_t *mac_dst)
 {
 	eth_hdr_t *eh;
 	int i;

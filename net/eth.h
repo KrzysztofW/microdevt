@@ -28,6 +28,6 @@ struct eth_hdr {
 typedef struct eth_hdr eth_hdr_t;
 
 struct iface;
-void eth_input(buf_t buf, const struct iface *iface);
+void eth_input(buf_t buf, struct iface *iface);
 
 #endif

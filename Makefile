@@ -1,23 +1,26 @@
 MCU = atmega328p
 BMCU = m328p
 F_CPU = 16000000
-NET_SRC = net/eth.c net/if.c
+NET_SRC = net/eth.c net/if.c net/arp.c
 SOURCES = alarm.c usart0.c timer.c enc28j60.c rf.c adc.c $(NET_SRC)
 
 TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC}
+
+LDFLAGS += -W
+CFLAGS = -Wall -Os -g -c $(LDFLAGS)
 
 ifeq ($(TEST), 1)
 	CC = gcc
 	EXECUTABLE = tests
 	SOURCES = ${TEST_SOURCES}
 	OBJECTS = $(SOURCES:.c=.o)
-	CFLAGS = -DTEST
+	CFLAGS += -DTEST -O0
 else
 	CC = avr-gcc
 	EXECUTABLE = alarm
 	OBJECTS = $(SOURCES:.c=.o)
 	LDFLAGS = -DF_CPU=${F_CPU} -mmcu=${MCU}
-	CFLAGS = -DF_CPU=$(F_CPU)
+	CFLAGS += -DF_CPU=$(F_CPU)
 	CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
 endif
 
