@@ -53,6 +53,7 @@ void eth_output(buf_t *out, iface_t *iface, const uint8_t *mac_dst)
 		eh->dst[i] = mac_dst[i];
 		eh->src[i] = iface->mac_addr[i];
 	}
+	eh->type = ETHERTYPE_ARP;
 	iface->send(out);
 	/* TODO update iface stats */
 }

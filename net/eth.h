@@ -11,7 +11,7 @@
 /* supported ethertypes */
 #if BYTE_ORDER == LITTLE_ENDIAN
 #define	ETHERTYPE_ARP  0x0608  /* Address resolution protocol */
-#define	ETHERTYPE_IP   0x0080  /* IP protocol */
+#define	ETHERTYPE_IP   0x0008  /* IP protocol */
 #define	ETHERTYPE_IPV6 0xDD86  /* IP protocol version 6 */
 #else
 #define	ETHERTYPE_ARP  0x0806  /* Address resolution protocol */
@@ -29,5 +29,6 @@ typedef struct eth_hdr eth_hdr_t;
 
 struct iface;
 void eth_input(buf_t buf, struct iface *iface);
+void eth_output(buf_t *buf, struct iface *iface, const uint8_t *mac_dst);
 
 #endif

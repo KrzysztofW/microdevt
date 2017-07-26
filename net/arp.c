@@ -59,31 +59,37 @@ static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 }
 #endif
 
+static void arp_serialize_data(buf_t *out, uint32_t data, int len)
+{
+	const uint8_t *d = (uint8_t *)&data;
+	buf_add(out, d, len);
+}
+
 void arp_reply(iface_t *iface, uint8_t *tha, uint8_t *tpa)
 {
 	int i;
 	buf_t *out = &iface->tx_buf;
 
-	buf_addc(out, ARPHRD_ETHER >> 8);
-	buf_addc(out, ARPHRD_ETHER && 0xff);
-	buf_addc(out, ETHERTYPE_IP >> 8);
-	buf_addc(out, ETHERTYPE_IP && 0xff);
+	buf_adj(out, (int)sizeof(eth_hdr_t));
+	arp_serialize_data(out, ARPHRD_ETHER, 2);
+	arp_serialize_data(out, ETHERTYPE_IP, 2);
 	buf_addc(out, ETHER_ADDR_LEN);
 	buf_addc(out, IP_ADDR_LEN);
-	buf_addc(out, ARPOP_REPLY >> 8);
-	buf_addc(out, ARPOP_REPLY && 0xff);
-	for (i = 0; i < ETHER_ADDR_LEN; i++) {
-		buf_addc(out, tha[i]);
-	}
-	for (i = 0; i < IP_ADDR_LEN; i++) {
-		buf_addc(out, tpa[i]);
-	}
+
+	arp_serialize_data(out, ARPOP_REPLY, 2);
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		buf_addc(out, iface->mac_addr[i]);
 	}
 	for (i = 0; i < IP_ADDR_LEN; i++) {
 		buf_addc(out, iface->ip4_addr[i]);
 	}
+	for (i = 0; i < ETHER_ADDR_LEN; i++) {
+		buf_addc(out, tha[i]);
+	}
+	for (i = 0; i < IP_ADDR_LEN; i++) {
+		buf_addc(out, tpa[i]);
+	}
+	eth_output(out, iface, tha);
 }
 
 void arp_input(buf_t buf, iface_t *iface)
@@ -125,13 +131,14 @@ void arp_input(buf_t buf, iface_t *iface)
 			return;
 		}
 #endif
+		/* assuming that MAC address has been checked by the NIC */
 		for (i = 0; i < IP_ADDR_LEN; i++) {
-			if (iface->ip4_addr[i] != tha[i]) {
+			if (iface->ip4_addr[i] != tpa[i]) {
 				goto error;
 			}
 		}
 		arp_add_entry(sha, spa, iface);
-		arp_reply(iface, tha, tpa);
+		arp_reply(iface, sha, spa);
 		return;
 
 	case ARPOP_REPLY:
@@ -149,8 +156,8 @@ void arp_input(buf_t buf, iface_t *iface)
 		/* unsupported ARP opcode */
 	}
  error:
-	buf_free(&buf);
 	/* inc stats */
+	return;
 }
 
 void arp_output()

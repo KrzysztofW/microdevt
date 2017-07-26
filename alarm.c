@@ -129,6 +129,8 @@ ISR(PCINT0_vect)
 	if (plen == 0)
 		return;
 	eth_input(eth0.rx_buf, &eth0);
+	buf_reset(&eth0.rx_buf);
+	buf_reset(&eth0.tx_buf);
 }
 
 void tim_cb_wd(void *arg)
@@ -173,7 +175,7 @@ int main(void)
 #ifdef NET
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
-	if_init(&eth0, NET_RX_SIZE, NET_TX_SIZE, NULL,
+	if_init(&eth0, NET_RX_SIZE, NET_TX_SIZE, &ENC28J60_PacketSend,
 		&ENC28J60_PacketReceive);
 	net_reset();
 	PCICR |= _BV(PCIE0);

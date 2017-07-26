@@ -231,7 +231,7 @@ uint16_t ENC28J60_PacketReceive(buf_t *buf) {
     return len;
 }
 
-void ENC28J60_PacketSend(uint16_t len,uint8_t* packet) {
+uint16_t ENC28J60_PacketSend(const buf_t *buf) {
     while (ENC28J60_ReadOp(RCR,ECON1) & TXRTS) {
         if(ENC28J60_Read(EIR) & TXERIF) {
             ENC28J60_WriteOp(BFS,ECON1,TXRST);
@@ -240,11 +240,12 @@ void ENC28J60_PacketSend(uint16_t len,uint8_t* packet) {
     }
     ENC28J60_Write(EWRPTL,TXSTART_INIT&0xFF);
     ENC28J60_Write(EWRPTH,TXSTART_INIT>>8);
-    ENC28J60_Write(ETXNDL,(TXSTART_INIT+len)&0xFF);
-    ENC28J60_Write(ETXNDH,(TXSTART_INIT+len)>>8);
+    ENC28J60_Write(ETXNDL,(TXSTART_INIT+buf->len)&0xFF);
+    ENC28J60_Write(ETXNDH,(TXSTART_INIT+buf->len)>>8);
     ENC28J60_WriteOp(WBM,0,0x00);
-    ENC28J60_WriteBuffer(len,packet);
+    ENC28J60_WriteBuffer(buf->len, buf->data);
     ENC28J60_WriteOp(BFS,ECON1,TXRTS);
+    return 0;
 }
 
 uint8_t ENC28J60_GetRev(void) {

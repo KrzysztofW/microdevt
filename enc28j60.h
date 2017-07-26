@@ -253,9 +253,9 @@ uint16_t ENC28J60_PhyRead(uint8_t address);
 void ENC28J60_PhyWrite(uint8_t address, uint16_t data);
 void ENC28J60_ClkOut(uint8_t clk);
 void ENC28J60_Init(uint8_t* macaddr);
-void ENC28J60_PacketSend(uint16_t len, uint8_t* packet);
 uint8_t ENC28J60_HasRxPkt(void);
 uint16_t ENC28J60_PacketReceive(buf_t *buf);
+uint16_t ENC28J60_PacketSend(const buf_t *buf);
 
 uint8_t ENC28J60_GetRev(void);
 uint8_t ENC28J60_LinkUp(void);

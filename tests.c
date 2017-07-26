@@ -264,10 +264,10 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	printf("  ==> timer checks succeeded\n");
-	if (net_tests() < 0) {
-		fprintf(stderr, "  ==> net tests failed\n");
+	if (net_arp_tests() < 0) {
+		fprintf(stderr, "  ==> net arp tests failed\n");
 		return -1;
 	}
-	printf("  ==> net tests succeeded\n");
+	printf("  ==> net arp tests succeeded\n");
 	return 0;
 }
