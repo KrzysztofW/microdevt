@@ -77,7 +77,7 @@ typedef struct arp6_entries {
 
 void arp_input(buf_t buf, iface_t *iface);
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface);
-void arp_reply(iface_t *iface, uint8_t *tha, uint8_t *tpa);
+void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa);
 #ifdef TEST
 arp_entries_t *arp_get_entries(void);
 #endif

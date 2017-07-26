@@ -65,7 +65,7 @@ static void arp_serialize_data(buf_t *out, uint32_t data, int len)
 	buf_add(out, d, len);
 }
 
-void arp_reply(iface_t *iface, uint8_t *tha, uint8_t *tpa)
+void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 {
 	int i;
 	buf_t *out = &iface->tx_buf;
@@ -76,7 +76,7 @@ void arp_reply(iface_t *iface, uint8_t *tha, uint8_t *tpa)
 	buf_addc(out, ETHER_ADDR_LEN);
 	buf_addc(out, IP_ADDR_LEN);
 
-	arp_serialize_data(out, ARPOP_REPLY, 2);
+	arp_serialize_data(out, op, 2);
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		buf_addc(out, iface->mac_addr[i]);
 	}
@@ -84,7 +84,10 @@ void arp_reply(iface_t *iface, uint8_t *tha, uint8_t *tpa)
 		buf_addc(out, iface->ip4_addr[i]);
 	}
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
-		buf_addc(out, tha[i]);
+		if (tha[0] == 0xFF)
+			buf_addc(out, 0);
+		else
+			buf_addc(out, tha[i]);
 	}
 	for (i = 0; i < IP_ADDR_LEN; i++) {
 		buf_addc(out, tpa[i]);
@@ -127,7 +130,7 @@ void arp_input(buf_t buf, iface_t *iface)
 				}
 			}
 			arp6_add_entry(sha, spa, iface);
-			arp6_reply(out, iface, tha, tpa);
+			arp6_output(out, ARPOP_REPLY, iface, tha, tpa);
 			return;
 		}
 #endif
@@ -138,7 +141,7 @@ void arp_input(buf_t buf, iface_t *iface)
 			}
 		}
 		arp_add_entry(sha, spa, iface);
-		arp_reply(iface, sha, spa);
+		arp_output(iface, ARPOP_REPLY, sha, spa);
 		return;
 
 	case ARPOP_REPLY:
@@ -158,11 +161,6 @@ void arp_input(buf_t buf, iface_t *iface)
  error:
 	/* inc stats */
 	return;
-}
-
-void arp_output()
-{
-
 }
 
 #ifdef CONFIG_ARP_EXPIRY
