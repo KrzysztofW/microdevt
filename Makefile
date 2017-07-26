@@ -7,7 +7,7 @@ SOURCES = alarm.c usart0.c timer.c enc28j60.c rf.c adc.c $(NET_SRC)
 TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC}
 
 LDFLAGS += -W
-CFLAGS = -Wall -Os -g -c $(LDFLAGS)
+CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
 
 ifeq ($(TEST), 1)
 	CC = gcc
@@ -27,9 +27,6 @@ endif
 ifeq ($(DEBUG), 1)
 	CFLAGS += -DDEBUG
 endif
-
-LDFLAGS += -W
-CFLAGS += -Wall -Werror -Os -g -c $(LDFLAGS)
 
 all: $(SOURCES) $(EXECUTABLE)
 
