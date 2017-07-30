@@ -1,5 +1,6 @@
 #include "ip.h"
 #include "icmp.h"
+#include "chksum.h"
 
 void ip_input(buf_t buf, const iface_t *iface)
 {
@@ -14,8 +15,12 @@ void ip_input(buf_t buf, const iface_t *iface)
 
 	if (ip->v != 4 || ip->dst != *ip_addr || ip->ttl == 0)
 		goto error;
+
 	if (ip->off & IP_MF) {
 		/* ip fragmentation is unsupported */
+		goto error;
+	}
+	if (cksum(ip, sizeof(ip_hdr_t)) != 0) {
 		goto error;
 	}
 
