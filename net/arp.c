@@ -1,4 +1,5 @@
 #include "arp.h"
+#include "eth.h"
 #include "../timer.h"
 
 arp_entries_t arp_entries;
@@ -59,39 +60,49 @@ static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 }
 #endif
 
-static void arp_serialize_data(buf_t *out, uint32_t data, int len)
-{
-	const uint8_t *d = (uint8_t *)&data;
-	buf_add(out, d, len);
-}
+/* static void arp_serialize_data(buf_t *out, uint32_t data, int len) */
+/* { */
+/* 	const uint8_t *d = (uint8_t *)&data; */
+/* 	buf_add(out, d, len); */
+/* } */
 
 void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 {
 	int i;
 	buf_t *out = &iface->tx_buf;
+	arp_hdr_t *ah;
+	uint8_t *data;
 
 	buf_adj(out, (int)sizeof(eth_hdr_t));
-	arp_serialize_data(out, ARPHRD_ETHER, 2);
-	arp_serialize_data(out, ETHERTYPE_IP, 2);
-	buf_addc(out, ETHER_ADDR_LEN);
-	buf_addc(out, IP_ADDR_LEN);
-
-	arp_serialize_data(out, op, 2);
+	ah = btod(out, arp_hdr_t *);
+	buf_adj(out, (int)sizeof(arp_hdr_t));
+	ah->hrd = ARPHRD_ETHER;
+	ah->proto = ETHERTYPE_IP;
+	ah->hln = ETHER_ADDR_LEN;
+	ah->pln = IP_ADDR_LEN;
+	ah->op = op;
+	data = ah->data;
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
-		buf_addc(out, iface->mac_addr[i]);
+		*data = iface->mac_addr[i];
+		data++;
 	}
 	for (i = 0; i < IP_ADDR_LEN; i++) {
-		buf_addc(out, iface->ip4_addr[i]);
+		*data = iface->ip4_addr[i];
+		data++;
 	}
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		if (tha[0] == 0xFF)
-			buf_addc(out, 0);
+			*data = 0;
 		else
-			buf_addc(out, tha[i]);
+			*data = tha[i];
+		data++;
 	}
 	for (i = 0; i < IP_ADDR_LEN; i++) {
-		buf_addc(out, tpa[i]);
+		*data = tpa[i];
+		data++;
 	}
+	buf_adj(out, data - ah->data);
+	buf_adj(out, -((int)sizeof(arp_hdr_t) + (data - ah->data)));
 	eth_output(out, iface, tha);
 }
 

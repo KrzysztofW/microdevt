@@ -3,10 +3,14 @@
 
 #ifndef TEST
 #include <avr/io.h>
-#define BYTE_ORDER LITTLE_ENDIAN
 #else
 #include <stdint.h>
 #endif
+
+#include "../sys/buf.h"
+#include "../sys/utils.h"
+#include "proto_defs.h"
+#include "if.h"
 
 /* #define CONFIG_IPV6 */
 /* #define CONFIG_STATS */
@@ -15,12 +19,5 @@
 /* #define CONFIG_ARP_EXPIRY 10 */
 /* #define CONFIG_DHCP */
 /* #define CONFIG_IP_CHKSUM */
-
-#include "../sys/buf.h"
-#include "../sys/utils.h"
-#include "ip.h"
-#include "eth.h"
-#include "if.h"
-#include "arp.h"
 
 #endif

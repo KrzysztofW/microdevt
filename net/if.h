@@ -2,6 +2,8 @@
 #define _IF_H_
 #include "../sys/buf.h"
 
+#include "config.h"
+
 #define IFF_UP      (1 << 0)
 #define IFF_RUNNING (1 << 1)
 #define IFF_PROMISC (1 << 2)

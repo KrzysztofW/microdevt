@@ -1,5 +1,8 @@
 #include <string.h>
-#include "config.h"
+#include "eth.h"
+#include "arp.h"
+#include "ip.h"
+#include "icmp.h"
 
 void eth_input(buf_t buf, iface_t *iface)
 {
@@ -25,7 +28,7 @@ void eth_input(buf_t buf, iface_t *iface)
 		break;
 
 	case ETHERTYPE_IP:
-		//ip_input(buf, iface);
+		ip_input(buf, iface);
 		break;
 
 	case ETHERTYPE_IPV6:

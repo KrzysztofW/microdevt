@@ -20,6 +20,7 @@
 #include "rf.h"
 #include "adc.h"
 #include "net/config.h"
+#include "net/eth.h"
 #include "enc28j60.h"
 
 #ifdef NET

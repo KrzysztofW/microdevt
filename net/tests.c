@@ -49,7 +49,7 @@ static void net_arp_print_entries(void)
 int net_arp_request_test(iface_t ifa)
 {
 	uint8_t dst_mac[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-#if BYTE_ORDER == BIG_ENDIAN
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	uint32_t dst_ip = 0xC0A80220;
 #else
 	uint32_t dst_ip = 0x2002A8C0;
@@ -82,7 +82,7 @@ int net_arp_tests(void)
 	int ret = 0, i;
 	buf_t out;
 	/* ip addr 192.168.2.163 */
-#if BYTE_ORDER == BIG_ENDIAN
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	uint32_t ip = 0xC0A802A3;
 #else
 	uint32_t ip = 0xA302A8C0;
@@ -101,10 +101,10 @@ int net_arp_tests(void)
 	eth_input(iface.rx_buf, &iface);
 	(void)net_arp_print_entries;
 
-	/* printf("out pkt:\n"); */
-	/* buf_print(iface.tx_buf); */
 	buf_init(&out, arp_reply_data, sizeof(arp_reply_data));
 	if (buf_cmp(&iface.tx_buf, &out) < 0) {
+		printf("out pkt:\n");
+		buf_print(iface.tx_buf);
 		printf("expected:\n");
 		buf_print(out);
 		ret = -1;
