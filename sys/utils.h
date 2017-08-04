@@ -8,4 +8,6 @@
 	__builtin_choose_expr(cond, (void)0,                            \
 			      __error__("static assertion failed: "#cond""))
 
+#define htons(x) (x >> 8 | x << 8)
+#define ntohs(x) htons(x)
 #endif
