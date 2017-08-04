@@ -29,6 +29,7 @@ struct ip_hdr {
 
 typedef struct ip_hdr ip_hdr_t;
 
-void ip_input(buf_t buf, const iface_t *iface);
+void ip_input(buf_t buf, iface_t *iface);
+void ip_output(buf_t *out, iface_t *iface);
 
 #endif
