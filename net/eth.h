@@ -13,6 +13,7 @@ typedef struct eth_hdr eth_hdr_t;
 
 struct iface;
 void eth_input(buf_t buf, struct iface *iface);
-void eth_output(buf_t *buf, struct iface *iface, const uint8_t *mac_dst);
+void eth_output(buf_t *out, iface_t *iface, const uint8_t *mac_dst,
+		uint16_t type);
 
 #endif

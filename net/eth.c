@@ -8,9 +8,6 @@ void eth_input(buf_t buf, iface_t *iface)
 {
 	eth_hdr_t *eh;
 
-	if (buf.len == 0) {
-		return;
-	}
 	if ((iface->flags & IFF_UP) == 0) {
 		return;
 	}
@@ -41,7 +38,8 @@ void eth_input(buf_t buf, iface_t *iface)
 	}
 }
 
-void eth_output(buf_t *out, iface_t *iface, const uint8_t *mac_dst)
+void eth_output(buf_t *out, iface_t *iface, const uint8_t *mac_dst,
+		uint16_t type)
 {
 	eth_hdr_t *eh;
 	int i;
@@ -56,7 +54,7 @@ void eth_output(buf_t *out, iface_t *iface, const uint8_t *mac_dst)
 		eh->dst[i] = mac_dst[i];
 		eh->src[i] = iface->mac_addr[i];
 	}
-	eh->type = ETHERTYPE_ARP;
+	eh->type = type;
 	iface->send(out);
 	/* TODO update iface stats */
 }

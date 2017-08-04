@@ -19,7 +19,6 @@ struct arp_hdr {
 typedef struct arp_hdr arp_hdr_t;
 
 typedef struct arp_entry {
-	//	uint8_t ip[IP_ADDR_LEN];
 	uint32_t ip;
 	uint8_t mac[ETHER_ADDR_LEN];
 	iface_t *iface;
@@ -49,6 +48,11 @@ typedef struct arp6_entries {
 void arp_input(buf_t buf, iface_t *iface);
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface);
 void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa);
+void arp_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface);
+#ifdef CONFIG_IPV6
+static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface);
+#endif
+
 #ifdef TEST
 arp_entries_t *arp_get_entries(void);
 #endif

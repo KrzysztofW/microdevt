@@ -15,6 +15,7 @@ int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 {
 	int i;
 
+	/* linear search ... that's bad */
 	for (i = 0; i < CONFIG_ARP_TABLE_SIZE; i++) {
 		if (arp_entries.entries[i].ip == ip) {
 			*mac = arp_entries.entries[i].mac;
@@ -25,7 +26,7 @@ int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 	return -1;
 }
 
-static void arp_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
+void arp_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 {
 	int i;
 	arp_entry_t *e = &arp_entries.entries[arp_entries.pos];
@@ -103,7 +104,7 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	}
 	buf_adj(out, data - ah->data);
 	buf_adj(out, -((int)sizeof(arp_hdr_t) + (data - ah->data)));
-	eth_output(out, iface, tha);
+	eth_output(out, iface, tha, ETHERTYPE_ARP);
 }
 
 void arp_input(buf_t buf, iface_t *iface)
