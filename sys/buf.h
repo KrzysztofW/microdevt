@@ -1,12 +1,12 @@
 #ifndef _BUF_H_
 #define _BUF_H_
-
+#include <assert.h>
 #include "../ring.h"
 
 typedef struct buf {
-	unsigned int len;
-	unsigned int size;
-	unsigned int skip;
+	int len;
+	int size;
+	int skip;
 	unsigned char *data;
 } buf_t;
 
@@ -19,9 +19,14 @@ static inline void buf_init(buf_t *buf, unsigned char *data, int len)
 	buf->data = data;
 }
 
+static inline int buf_len(const buf_t *buf)
+{
+	return buf->len;
+}
+
 static inline int buf_cmp(const buf_t *buf1, const buf_t *buf2)
 {
-	unsigned int i;
+	int i;
 
 	if (buf1->len != buf2->len)
 		return -1;
@@ -38,6 +43,7 @@ static inline int buf_alloc(buf_t *buf, int len)
 	if (buf->data == NULL)
 		return -1;
 	buf->size = len;
+	buf->len = buf->skip = 0;
 	return 0;
 }
 
@@ -64,21 +70,17 @@ static inline int buf_has_room(buf_t *buf, int len)
 
 static inline void buf_adj(buf_t *buf, int len)
 {
+#ifdef DEBUG
 	if (len < 0) {
-		if (len + (int)buf->skip < 0) {
-			buf->len = 0;
-			return;
-		}
+		assert(buf->skip >= -len);
 	} else {
-		if (buf->skip + len >= buf->size) {
-			buf->len = 0;
-			return;
-		}
+		assert(buf->skip + len <= buf->size);
 	}
+#endif
+	buf->len -= len;
+	if (buf->len < 0)
+		buf->len = 0;
 	buf->skip += len;
-	if (len < 0) {
-		buf->len += -len;
-	}
 }
 
 static inline unsigned char *buf_data(const buf_t *buf)
@@ -99,6 +101,11 @@ static inline int buf_add(buf_t *buf, const uint8_t *data, int len)
 static inline int buf_addc(buf_t *buf, uint8_t c)
 {
 	return buf_add(buf, &c, 1);
+}
+
+static inline int buf_addbuf(buf_t *dst, const buf_t *src)
+{
+	return buf_add(dst, src->data + src->skip, src->len - src->skip);
 }
 
 #ifdef TEST
@@ -127,7 +134,8 @@ static inline int buf_read_file(buf_t *buf, const char *filename)
 
 static inline void buf_print(buf_t buf)
 {
-	unsigned i;
+	int i;
+
 	for (i = 0; i < buf.len; i++) {
 		printf(" 0x%02X", buf.data[i]);
 	}
