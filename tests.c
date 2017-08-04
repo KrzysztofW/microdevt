@@ -269,5 +269,12 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	printf("  ==> net arp tests succeeded\n");
+
+	if (net_icmp_tests() < 0) {
+		fprintf(stderr, "  ==> net icmp tests failed\n");
+		return -1;
+	}
+	printf("  ==> net icmp tests succeeded\n");
+
 	return 0;
 }
