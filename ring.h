@@ -29,21 +29,27 @@ size = 3
 
 */
 
+static inline void ring_init(ring_t *ring, int size)
+{
+	ring->mask = size - 1;
+}
+
 static inline ring_t *ring_create(int size)
 {
 	ring_t *ring;
-	int total_size;
 
 	if (!POWEROF2(size))
 		return NULL;
 
-	total_size = sizeof(ring_t) + size;
-	if ((ring = malloc(total_size)) == NULL)
+	if ((ring = calloc(1, sizeof(ring_t) + size)) == NULL)
 		return NULL;
-
-	memset(ring, 0, total_size);
-	ring->mask = size - 1;
+	ring_init(ring, size);
 	return ring;
+}
+
+static inline void ring_free(ring_t *ring)
+{
+	free(ring);
 }
 
 static inline int ring_is_full(const ring_t *ring)
@@ -115,11 +121,25 @@ static inline int ring_add(ring_t *ring, unsigned char *data, int len)
 		__ring_addc(ring, data[0]);
 		data++;
 	}
+	return 0;
 }
 
 static inline void ring_prod_finish(ring_t *ring)
 {
 	ring->cons_head = ring->prod_head;
+}
+
+static inline int ring_addc_finish(ring_t *ring, unsigned char data)
+{
+	int ret;
+
+	if (ring_is_full(ring))
+		return -1;
+
+	ret = ring_addc(ring, data);
+	if (ret == 0)
+		ring_prod_finish(ring);
+	return ret;
 }
 
 static inline int ring_getc(ring_t *ring, unsigned char *c)
@@ -135,6 +155,15 @@ static inline int ring_getc(ring_t *ring, unsigned char *c)
 static inline void ring_cons_finish(ring_t *ring)
 {
 	ring->prod_tail = ring->cons_tail;
+}
+
+static inline int ring_getc_finish(ring_t *ring, unsigned char *data)
+{
+	int ret = ring_getc(ring, data);
+
+	if (ret == 0)
+		ring_cons_finish(ring);
+	return ret;
 }
 
 static inline void ring_skip(ring_t *ring, int len)
