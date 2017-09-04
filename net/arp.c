@@ -11,6 +11,8 @@ arp6_entries_t arp6_entries;
 tim_t arp_timer;
 #endif
 
+uint8_t broadcast_mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 {
 	int i;
@@ -61,28 +63,27 @@ static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 }
 #endif
 
-/* static void arp_serialize_data(buf_t *out, uint32_t data, int len) */
-/* { */
-/* 	const uint8_t *d = (uint8_t *)&data; */
-/* 	buf_add(out, d, len); */
-/* } */
-
 void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 {
 	int i;
-	buf_t *out = &iface->tx_buf;
+	pkt_t *out = pkt_alloc();
 	arp_hdr_t *ah;
 	uint8_t *data;
 
-	buf_adj(out, (int)sizeof(eth_hdr_t));
+	if (out == NULL) {
+		/* inc stats */
+		return;
+	}
+	pkt_adj(out, (int)sizeof(eth_hdr_t));
 	ah = btod(out, arp_hdr_t *);
-	buf_adj(out, (int)sizeof(arp_hdr_t));
+	pkt_adj(out, (int)sizeof(arp_hdr_t));
 	ah->hrd = ARPHRD_ETHER;
 	ah->proto = ETHERTYPE_IP;
 	ah->hln = ETHER_ADDR_LEN;
 	ah->pln = IP_ADDR_LEN;
 	ah->op = op;
 	data = ah->data;
+
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		*data = iface->mac_addr[i];
 		data++;
@@ -102,15 +103,15 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 		*data = tpa[i];
 		data++;
 	}
-	buf_adj(out, data - ah->data);
-	buf_adj(out, -((int)sizeof(arp_hdr_t) + (data - ah->data)));
+	pkt_adj(out, data - ah->data);
+	pkt_adj(out, -((int)sizeof(arp_hdr_t) + (data - ah->data)));
 	eth_output(out, iface, tha, ETHERTYPE_ARP);
 }
 
-void arp_input(buf_t buf, iface_t *iface)
+void arp_input(pkt_t *pkt, iface_t *iface)
 {
 	uint8_t *sha, *spa, *tha, *tpa;
-	arp_hdr_t *ah = btod(&buf, arp_hdr_t *);
+	arp_hdr_t *ah = btod(pkt, arp_hdr_t *);
 	int i;
 
 	if (ah->hrd != ARPHRD_ETHER) {
@@ -143,7 +144,7 @@ void arp_input(buf_t buf, iface_t *iface)
 			}
 			arp6_add_entry(sha, spa, iface);
 			arp6_output(out, ARPOP_REPLY, iface, tha, tpa);
-			return;
+			break;
 		}
 #endif
 		/* assuming that MAC address has been checked by the NIC */
@@ -154,23 +155,27 @@ void arp_input(buf_t buf, iface_t *iface)
 		}
 		arp_add_entry(sha, spa, iface);
 		arp_output(iface, ARPOP_REPLY, sha, spa);
-		return;
+		break;
 
 	case ARPOP_REPLY:
 #ifdef CONFIG_IPV6
 		if (ah->pln == IP6_ADDR_LEN) {
 			arp6_add_entry(sha, spa, iface);
-			return;
+			break;
 		}
 #endif
 		arp_add_entry(sha, spa, iface);
-		return;
+		break;
 
 	default:
-		break;
+		goto error;
 		/* unsupported ARP opcode */
 	}
+
+	pkt_free(pkt);
+	return;
  error:
+	pkt_free(pkt);
 	/* inc stats */
 	return;
 }
@@ -188,4 +193,3 @@ arp_entries_t *arp_get_entries(void)
 	return &arp_entries;
 }
 #endif
-

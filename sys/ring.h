@@ -2,9 +2,8 @@
 #define _RING_H_
 
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-#include "sys/utils.h"
+#include "utils.h"
 
 typedef struct byte {
 	unsigned char c;

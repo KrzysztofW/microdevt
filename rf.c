@@ -3,7 +3,7 @@
 #include <string.h>
 #include <avr/pgmspace.h>
 #include "rf.h"
-#include "ring.h"
+#include "sys/ring.h"
 #include "timer.h"
 #include "rf_commands.h"
 #include "adc.h"

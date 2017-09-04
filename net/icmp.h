@@ -14,9 +14,8 @@ struct icmp {
 
 typedef struct icmp icmp_hdr_t;
 
-void icmp_input(buf_t buf, iface_t *iface);
-void icmp_output(buf_t *out, iface_t *iface, int type, uint16_t id, uint16_t seq,
-		 const buf_t *id_data);
-
+void icmp_input(pkt_t *pkt, iface_t *iface);
+void icmp_output(pkt_t *out, iface_t *iface, int type,
+		 uint16_t id, uint16_t seq, const buf_t *id_data);
 
 #endif

@@ -1,6 +1,7 @@
 #ifndef _IF_H_
 #define _IF_H_
 #include "../sys/buf.h"
+#include "../sys/list.h"
 
 #include "config.h"
 
@@ -29,14 +30,12 @@ typedef struct iface {
 	uint16_t rx_errors;
 	uint16_t rx_dropped;
 #endif
-	buf_t rx_buf;
-	buf_t tx_buf;
+	struct list_head rx;
+	struct list_head tx;
 } iface_t;
 
-int if_init(iface_t *ifce, int rx_size, int tx_size,
-	    uint16_t (*send)(const buf_t *out),
+int if_init(iface_t *ifce, uint16_t (*send)(const buf_t *out),
 	    uint16_t (*recv)(buf_t *in));
 void if_shutdown(iface_t *ifce);
 
 #endif
-

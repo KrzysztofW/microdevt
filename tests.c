@@ -175,6 +175,7 @@ static int list_check(void)
 	int i;
 	list_el_t *e;
 	struct list_head list_head;
+	struct list_head *node, *tmp;
 
 	INIT_LIST_HEAD(&list_head);
 	for (i = 0; i < LIST_ELEMS; i++) {

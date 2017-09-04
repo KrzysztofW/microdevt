@@ -5,7 +5,6 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>
-#include <string.h>
 
 #define NET
 
@@ -15,7 +14,7 @@
 #define SYSTEM_CLOCK F_CPU
 #endif
 #include "avr_utils.h"
-#include "ring.h"
+#include "sys/ring.h"
 #include "timer.h"
 #include "rf.h"
 #include "adc.h"
@@ -25,8 +24,6 @@
 
 #ifdef NET
 int net_wd;
-#define NET_TX_SIZE  256
-#define NET_RX_SIZE  128
 
 iface_t eth0 = {
 	.flags = IFF_UP|IFF_RUNNING,
@@ -86,6 +83,7 @@ ISR(PCINT0_vect)
 {
 	uint8_t eint = ENC28J60_Read(EIR);
 	uint16_t plen;
+	pkt_t *pkt;
 //	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
 	net_wd = 0;
 
@@ -125,13 +123,23 @@ ISR(PCINT0_vect)
 		return;
 	}
 
-	plen = eth0.recv(&eth0.rx_buf);
+	if ((pkt = pkt_alloc()) == NULL) {
+		printf("out of packets\n");
+		return;
+	}
+
+	plen = eth0.recv(&pkt->buf);
 	printf("len:%u\n", plen);
 	if (plen == 0)
-		return;
-	eth_input(eth0.rx_buf, &eth0);
-	buf_reset(&eth0.rx_buf);
-	buf_reset(&eth0.tx_buf);
+		goto end;
+
+	if (pkt_put(&eth0.rx, pkt) < 0) {
+		printf("can't put rx pkt\n");
+		pkt_free(pkt);
+	}
+	return;
+ end:
+	pkt_free(pkt);
 }
 
 void tim_cb_wd(void *arg)
@@ -176,13 +184,30 @@ int main(void)
 #ifdef NET
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
-	if_init(&eth0, NET_RX_SIZE, NET_TX_SIZE, &ENC28J60_PacketSend,
-		&ENC28J60_PacketReceive);
+	if (if_init(&eth0, &ENC28J60_PacketSend, &ENC28J60_PacketReceive) < 0) {
+		printf_P(PSTR("can't initialize interface\n"));
+		return -1;
+	}
+	if (pkt_mempool_init() < 0) {
+		printf(PSTR("can't initialize pkt pool\n"));
+		return -1;
+	}
 	net_reset();
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
 	sei();
-	while (1) {}
+	while (1) {
+		pkt_t *pkt;
+
+		if ((pkt = pkt_get(&eth0.rx)) != NULL) {
+			eth_input(pkt, &eth0);
+		}
+		if ((pkt = pkt_get(&eth0.tx)) != NULL) {
+			eth0.send(&pkt->buf);
+			pkt_free(pkt);
+		}
+		delay_ms(10);
+	}
 #endif
 #ifdef RF
 	while (1) {
