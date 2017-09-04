@@ -1,7 +1,14 @@
 #ifndef _BUF_H_
 #define _BUF_H_
 #include <assert.h>
-#include "../ring.h"
+#include <string.h>
+#include "ring.h"
+#include "utils.h"
+
+typedef struct static_buf {
+	int len;
+	const unsigned char *data;
+} sbuf_t;
 
 typedef struct buf {
 	int len;
@@ -10,9 +17,16 @@ typedef struct buf {
 	unsigned char *data;
 } buf_t;
 
-#define btod(buf, type) (type)((buf)->data + (buf)->skip)
+#define buf2staticbuf(buf) (sbuf_t) { .len = buf->len, .data = buf->data }
 
-static inline void buf_init(buf_t *buf, unsigned char *data, int len)
+static inline void sbuf_init(sbuf_t *sbuf, const void *data,
+			     unsigned len)
+{
+	sbuf->data = data;
+	sbuf->len = len;
+}
+
+static inline void buf_init(buf_t *buf, void *data, unsigned len)
 {
 	buf->size = buf->len = len;
 	buf->skip = 0;
@@ -24,7 +38,7 @@ static inline int buf_len(const buf_t *buf)
 	return buf->len;
 }
 
-static inline int buf_cmp(const buf_t *buf1, const buf_t *buf2)
+static inline int sbuf_cmp(const sbuf_t *buf1, const sbuf_t *buf2)
 {
 	int i;
 
@@ -35,6 +49,14 @@ static inline int buf_cmp(const buf_t *buf1, const buf_t *buf2)
 			return -1;
 	}
 	return 0;
+}
+
+static inline int buf_cmp(const buf_t *buf1, const buf_t *buf2)
+{
+	sbuf_t sbuf1 = buf2staticbuf(buf1);
+	sbuf_t sbuf2 = buf2staticbuf(buf2);
+
+	return sbuf_cmp(&sbuf1, &sbuf2);
 }
 
 static inline int buf_alloc(buf_t *buf, int len)
@@ -90,9 +112,9 @@ static inline unsigned char *buf_data(const buf_t *buf)
 
 static inline int buf_add(buf_t *buf, const uint8_t *data, int len)
 {
-	if (buf_has_room(buf, len) < 0) {
+	if (buf_has_room(buf, len) < 0)
 		return -1;
-	}
+
 	memcpy(buf->data + buf->len + buf->skip, data, len);
 	buf->len += len;
 	return 0;
@@ -101,6 +123,15 @@ static inline int buf_add(buf_t *buf, const uint8_t *data, int len)
 static inline int buf_addc(buf_t *buf, uint8_t c)
 {
 	return buf_add(buf, &c, 1);
+}
+
+static inline int buf_get_lastc(buf_t *buf, uint8_t *c)
+{
+	if (buf_len(buf) < 1)
+		return -1;
+	*c = buf->data[buf->skip + buf->len - 1];
+	buf->len--;
+	return 0;
 }
 
 static inline int buf_addbuf(buf_t *dst, const buf_t *src)
