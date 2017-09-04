@@ -10,4 +10,10 @@
 
 #define htons(x) (x >> 8 | x << 8)
 #define ntohs(x) htons(x)
+#define htonl(l) ((l<<24) | ((l&0x00FF0000l)>>8) | ((l&0x0000FF00l)<<8) | (l>>24))
+#define ntohl(x) htonl(x)
+
+#define MIN(a, b) (((a) > (b)) ? (b) : (a))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+
 #endif
