@@ -43,6 +43,10 @@ upload: all
 	avr-objcopy -O srec $(EXECUTABLE) $(EXECUTABLE).srec
 	sudo avrdude -V -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
 
+size: all
+	avr-size -C --mcu=${MCU} alarm
+
+
 clean:
 	@rm -f *.o net/*.o sys/*.o *.pdf *.hex *.srec *.elf *~ tests alarm
 
