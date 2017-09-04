@@ -14,8 +14,13 @@ struct icmp {
 
 typedef struct icmp icmp_hdr_t;
 
+#define ALLOWED_ICMP_MAX_DATA_SIZE 586
+/* MAX_ICMP_DATA_SIZE should not exceed ALLOWED_ICMP_MAX_DATA_SIZE bytes */
+#define MAX_ICMP_DATA_SIZE (int)(PKT_SIZE - sizeof(eth_hdr_t) - sizeof(ip_hdr_t) \
+				 - sizeof(icmp_hdr_t))
+
 void icmp_input(pkt_t *pkt, iface_t *iface);
-void icmp_output(pkt_t *out, iface_t *iface, int type,
+void icmp_output(pkt_t *out, iface_t *iface, int type, int code,
 		 uint16_t id, uint16_t seq, const buf_t *id_data);
 
 #endif

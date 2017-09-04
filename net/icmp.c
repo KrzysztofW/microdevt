@@ -3,23 +3,33 @@
 #include "ip.h"
 #include "chksum.h"
 
-void icmp_output(pkt_t *out, iface_t *iface, int type, uint16_t id,
+void icmp_output(pkt_t *out, iface_t *iface, int type, int code, uint16_t id,
 		 uint16_t seq, const buf_t *id_data)
 {
 	icmp_hdr_t *icmp_hdr;
+	unsigned int icmp_hdr_len;
 
+	STATIC_ASSERT(MAX_ICMP_DATA_SIZE <= ALLOWED_ICMP_MAX_DATA_SIZE);
 	icmp_hdr = btod(out, icmp_hdr_t *);
 	icmp_hdr->type = type;
-	icmp_hdr->code = 0;
-	icmp_hdr->id = id;
-	icmp_hdr->seq = seq;
+	icmp_hdr->code = code;
 	icmp_hdr->cksum = 0;
-	pkt_adj(out, (int)sizeof(icmp_hdr_t));
+	if (type == ICMP_ECHOREPLY || type == ICMP_ECHO) {
+		icmp_hdr_len = sizeof(icmp_hdr_t);
+		icmp_hdr->id = id;
+		icmp_hdr->seq = seq;
+		/* XXX check if out->data does not point to one byte more than it should */
+	} else {
+		icmp_hdr_len = sizeof(icmp_hdr->type) +
+			sizeof(icmp_hdr->code) +
+			sizeof(icmp_hdr->cksum);
+	}
+	pkt_adj(out, (int)icmp_hdr_len);
 	buf_addbuf(&out->buf, id_data);
-	pkt_adj(out, -(int)sizeof(icmp_hdr_t));
+	pkt_adj(out, -(int)icmp_hdr_len);
 	icmp_hdr->cksum = cksum(icmp_hdr, sizeof(icmp_hdr_t) + id_data->len);
 	pkt_adj(out, -(int)sizeof(ip_hdr_t));
-	ip_output(out, iface);
+	ip_output(out, iface, 0);
 }
 
 void icmp_input(pkt_t *pkt, iface_t *iface)
@@ -51,7 +61,7 @@ void icmp_input(pkt_t *pkt, iface_t *iface)
 		ip_out->p = IPPROTO_ICMP;
 		/* XXX adj */
 		pkt_adj(out, (int)sizeof(ip_hdr_t));
-		icmp_output(out, iface, ICMP_ECHOREPLY, icmp_hdr->id,
+		icmp_output(out, iface, ICMP_ECHOREPLY, 0, icmp_hdr->id,
 			    icmp_hdr->seq, &id_data);
 		break;
 	case ICMP_ECHOREPLY:
