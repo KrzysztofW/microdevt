@@ -28,9 +28,26 @@ size = 3
 
 */
 
+static inline void reset_byte(byte_t *byte)
+{
+	byte->pos = 0;
+}
+
+static inline void ring_reset_byte(ring_t *ring)
+{
+	reset_byte(&ring->byte);
+}
+
+static inline void ring_reset(ring_t *ring)
+{
+	reset_byte(&ring->byte);
+	ring->prod_tail = ring->cons_tail = ring->prod_head = ring->cons_head;
+}
+
 static inline void ring_init(ring_t *ring, int size)
 {
 	ring->mask = size - 1;
+	ring_reset(ring);
 }
 
 static inline ring_t *ring_create(int size)
@@ -42,6 +59,7 @@ static inline ring_t *ring_create(int size)
 
 	if ((ring = calloc(1, sizeof(ring_t) + size)) == NULL)
 		return NULL;
+
 	ring_init(ring, size);
 	return ring;
 }
@@ -77,22 +95,6 @@ static inline int ring_len(const ring_t *ring)
 static inline int ring_free_entries(const ring_t *ring)
 {
 	return ring->mask - ring_len(ring);
-}
-
-static inline void reset_byte(byte_t *byte)
-{
-	byte->pos = 0;
-}
-
-static inline void ring_reset_byte(ring_t *ring)
-{
-	reset_byte(&ring->byte);
-}
-
-static inline void ring_reset(ring_t *ring)
-{
-	reset_byte(&ring->byte);
-	ring->prod_tail = ring->cons_tail = ring->prod_head = ring->cons_head;
 }
 
 static inline void __ring_addc(ring_t *ring, unsigned char c)
