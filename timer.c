@@ -137,7 +137,8 @@ int timer_subsystem_init(unsigned long resolution_us)
 }
 #endif
 
-void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *), void *arg)
+void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
+	       void *arg)
 {
 	int idx;
 	unsigned long ticks = expiry_us / timer_resolution_us;
