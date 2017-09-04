@@ -12,6 +12,7 @@ static tim_t timer_rf;
 
 ring_t *rf_ring;
 #define RF_RING_SIZE 32
+#define LED PD4
 
 #if 0
 #define START_FRAME = 0xAA
@@ -61,10 +62,7 @@ static void pkt_parse(ring_t *ring)
 		ring_skip(ring, len);
 	}
 }
-#endif
 
-#define LED PD4
-#if 0
 static void tim_cb_led(void *arg)
 {
 	tim_t *timer = arg;
