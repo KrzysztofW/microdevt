@@ -33,6 +33,6 @@ typedef struct ip_hdr ip_hdr_t;
 #define IP_MAX_HDR_LEN 15
 
 void ip_input(pkt_t *pkt, iface_t *iface);
-void ip_output(pkt_t *out, iface_t *iface);
+void ip_output(pkt_t *out, iface_t *iface, uint8_t retries);
 
 #endif

@@ -1,5 +1,6 @@
 #include "arp.h"
 #include "eth.h"
+#include "ip.h"
 #include "../timer.h"
 
 arp_entries_t arp_entries;
@@ -11,17 +12,40 @@ arp6_entries_t arp6_entries;
 tim_t arp_timer;
 #endif
 
-uint8_t broadcast_mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+/* only the first byte is actually checked */
+uint8_t broadcast_mac[] = { 0xFF };
+
+#define ARP_RETRY_TIMEOUT 3 /* seconds */
+#define ARP_RETRIES 3
+
+typedef struct arp_res {
+	tim_t tim;
+	pkt_t *pkt;
+	iface_t *iface;
+	uint8_t retries;
+	uint32_t ip;
+} arp_res_t;
+/* TODO check if arp_res doesn't overwrite ip->src, ip->dst */
+
+struct list_head arp_wait_list;
+
+void arp_init(void)
+{
+	INIT_LIST_HEAD(&arp_wait_list);
+}
 
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 {
 	int i;
-
-	/* linear search ... that's bad */
+	/* linear search ... that's but saves space */
 	for (i = 0; i < CONFIG_ARP_TABLE_SIZE; i++) {
 		if (arp_entries.entries[i].ip == ip) {
 			*mac = arp_entries.entries[i].mac;
+#ifdef CONFIG_MORE_THAN_ONE_INTERFACE
 			*iface = arp_entries.entries[i].iface;
+#else
+			(void)iface;
+#endif
 			return 0;
 		}
 	}
@@ -36,14 +60,18 @@ void arp_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 
 	STATIC_ASSERT(POWEROF2(CONFIG_ARP_TABLE_SIZE));
 
-	for (i = 0; i < IP_ADDR_LEN; i++) {
+	for (i = 0; i < IP_ADDR_LEN; i++)
 		ip[i] = spa[i];
-	}
-	for (i = 0; i < ETHER_ADDR_LEN; i++) {
+
+	for (i = 0; i < ETHER_ADDR_LEN; i++)
 		e->mac[i] = sha[i];
-	}
+
+#ifdef CONFIG_MORE_THAN_ONE_INTERFACE
 	e->iface = iface;
-	arp_entries.pos = (arp_entries.pos + 1) & (CONFIG_ARP_TABLE_SIZE-1);
+#else
+	(void)iface;
+#endif
+	arp_entries.pos = (arp_entries.pos + 1) & (CONFIG_ARP_TABLE_SIZE - 1);
 }
 
 #ifdef CONFIG_IPV6
@@ -52,13 +80,15 @@ static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 	int i;
 	arp6_entry_t *e = arp6_entries.entries[arp6_entries.pos];
 
-	for (i = 0; i < IP6_ADDR_LEN; i++) {
+	for (i = 0; i < IP6_ADDR_LEN; i++)
 		e->ip[i] = spa[i];
-	}
-	for (i = 0; i < ETHER_ADDR_LEN; i++) {
+
+	for (i = 0; i < ETHER_ADDR_LEN; i++)
 		e->mac[i] = sha[i];
-	}
+
+#ifdef CONFIG_MORE_THAN_ONE_INTERFACE
 	e->iface = iface;
+#endif
 	arp6_entries.pos = (arp6_entries.pos + 1) & (CONFIG_ARP_TABLE_SIZE-1);
 }
 #endif
@@ -69,11 +99,14 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	pkt_t *out = pkt_alloc();
 	arp_hdr_t *ah;
 	uint8_t *data;
+	uint8_t arp_hdr_len;
 
 	if (out == NULL) {
 		/* inc stats */
 		return;
 	}
+	arp_hdr_len = ETHER_ADDR_LEN * 2 + IP_ADDR_LEN * 2;
+
 	pkt_adj(out, (int)sizeof(eth_hdr_t));
 	ah = btod(out, arp_hdr_t *);
 	pkt_adj(out, (int)sizeof(arp_hdr_t));
@@ -85,28 +118,22 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	data = ah->data;
 
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
-		*data = iface->mac_addr[i];
-		data++;
-	}
-	for (i = 0; i < IP_ADDR_LEN; i++) {
-		*data = iface->ip4_addr[i];
-		data++;
-	}
-	for (i = 0; i < ETHER_ADDR_LEN; i++) {
+		*(data + i) = iface->mac_addr[i];
+		if (i < IP_ADDR_LEN) {
+			*(data + i + ETHER_ADDR_LEN) = iface->ip4_addr[i];
+			*(data + i + ETHER_ADDR_LEN * 2 + IP_ADDR_LEN) = tpa[i];
+		}
 		if (tha[0] == 0xFF)
-			*data = 0;
+			*(data + i + ETHER_ADDR_LEN + IP_ADDR_LEN) = 0;
 		else
-			*data = tha[i];
-		data++;
+			*(data + i + ETHER_ADDR_LEN + IP_ADDR_LEN) = tha[i];
 	}
-	for (i = 0; i < IP_ADDR_LEN; i++) {
-		*data = tpa[i];
-		data++;
-	}
-	pkt_adj(out, data - ah->data);
-	pkt_adj(out, -((int)sizeof(arp_hdr_t) + (data - ah->data)));
+	pkt_adj(out, arp_hdr_len);
+	pkt_adj(out, -((int)sizeof(arp_hdr_t) + arp_hdr_len));
 	eth_output(out, iface, tha, ETHERTYPE_ARP);
 }
+
+static void arp_process_wait_list(uint32_t ip);
 
 void arp_input(pkt_t *pkt, iface_t *iface)
 {
@@ -116,16 +143,16 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 
 	if (ah->hrd != ARPHRD_ETHER) {
 		/* unsupported ether hw address */
-		goto error;
+		goto end;
 	}
 	if (ah->proto != ETHERTYPE_IP) {
 		/* unsupported protocol */
-		goto error;
+		goto end;
 	}
 #ifndef CONFIG_IPV6
 	if (ah->pln != IP_ADDR_LEN) {
 		/* unsupported protocol address length */
-		goto error;
+		goto end;
 	}
 #endif
 	sha = ah->data;
@@ -135,12 +162,12 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 
 	switch (ah->op) {
 	case ARPOP_REQUEST:
+		printf("%s:%d arp request\n", __func__, __LINE__);
 #ifdef CONFIG_IPV6
 		if (ah->pln == IP6_ADDR_LEN) {
 			for (i = 0; i < IP6_ADDR_LEN; i++) {
-				if (iface->ip6_addr[i] != tha[i]) {
-					goto error;
-				}
+				if (iface->ip6_addr[i] != tha[i])
+					goto end;
 			}
 			arp6_add_entry(sha, spa, iface);
 			arp6_output(out, ARPOP_REPLY, iface, tha, tpa);
@@ -149,9 +176,8 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 #endif
 		/* assuming that MAC address has been checked by the NIC */
 		for (i = 0; i < IP_ADDR_LEN; i++) {
-			if (iface->ip4_addr[i] != tpa[i]) {
-				goto error;
-			}
+			if (iface->ip4_addr[i] != tpa[i])
+				goto end;
 		}
 		arp_add_entry(sha, spa, iface);
 		arp_output(iface, ARPOP_REPLY, sha, spa);
@@ -165,19 +191,60 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 		}
 #endif
 		arp_add_entry(sha, spa, iface);
+		arp_process_wait_list(*(uint32_t *)tpa);
 		break;
 
 	default:
-		goto error;
+		goto end;
 		/* unsupported ARP opcode */
 	}
 
+ end:
 	pkt_free(pkt);
-	return;
- error:
-	pkt_free(pkt);
-	/* inc stats */
-	return;
+}
+
+void arp_retry_cb(void *arg)
+{
+	arp_res_t *arp_res = arg;
+
+	if (arp_res->retries >= ARP_RETRIES) {
+		pkt_free(arp_res->pkt);
+		return;
+	}
+	ip_output(arp_res->pkt, arp_res->iface, arp_res->retries);
+}
+
+void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
+		 uint8_t retries)
+{
+	arp_res_t *arp_res = (arp_res_t *)pkt->buf.data;
+
+	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)&ip_dst);
+	memset(&arp_res->tim, 0, sizeof(tim_t));
+	arp_res->pkt = pkt;
+	arp_res->iface = iface;
+	arp_res->retries = retries;
+	arp_res->ip = ip_dst;
+	timer_add(&arp_res->tim, ARP_RETRY_TIMEOUT * 1000000, arp_retry_cb,
+		  arp_res);
+	/* add a hash table on ip_dst if we have more RAM */
+	list_add_tail(&pkt->list, &arp_wait_list);
+}
+
+static void arp_process_wait_list(uint32_t ip)
+{
+	struct list_head *node, *tmp;
+
+	list_for_each_safe(node, tmp, &arp_wait_list) {
+		pkt_t *pkt = list_entry(node, pkt_t, list);
+		arp_res_t *arp_res = (arp_res_t *)pkt->buf.data;
+
+		if (arp_res->ip == ip) {
+			timer_del(&arp_res->tim);
+			list_del(node);
+			ip_output(pkt, arp_res->iface, arp_res->retries + 1);
+		}
+	}
 }
 
 #ifdef CONFIG_ARP_EXPIRY

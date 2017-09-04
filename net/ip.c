@@ -3,18 +3,23 @@
 #include "arp.h"
 #include "eth.h"
 #include "chksum.h"
+#include "route.h"
 #include <assert.h>
 
-void ip_output(pkt_t *out, iface_t *iface)
+void ip_output(pkt_t *out, iface_t *iface, uint8_t retries)
 {
 	ip_hdr_t *ip = btod(out, ip_hdr_t *);
 	uint8_t *mac_addr;
+	uint32_t ip_dst;
+	uint32_t *mask = (uint32_t *)iface->ip4_mask;
+	uint32_t *ip_addr = (uint32_t *)iface->ip4_addr;
 
 	/* XXX check for buf_adj coherency with other layers */
 	if (ip->dst == 0) {
 		/* no dest ip address set. Drop the packet */
 		return;
 	}
+
 	if (ip->src == 0) {
 		uint32_t *ip_addr = (uint32_t *)iface->ip4_addr;
 		ip->src = *ip_addr;
@@ -31,9 +36,13 @@ void ip_output(pkt_t *out, iface_t *iface)
 	ip->chksum = 0;
 	ip->chksum = cksum(ip, sizeof(ip_hdr_t));
 
-	if (arp_find_entry(ip->dst, &mac_addr, &iface) < 0) {
-		arp_output(iface, ARPOP_REQUEST, broadcast_mac,
-			   (uint8_t *)&ip->dst);
+	if ((ip->dst & *mask) != (*ip_addr & *mask))
+		ip_dst = dft_route.ip;
+	else
+		ip_dst = ip->dst;
+
+	if (arp_find_entry(ip_dst, &mac_addr, &iface) < 0) {
+		arp_resolve(out, ip_dst, iface, retries);
 		return;
 	}
 
@@ -79,7 +88,7 @@ void ip_input(pkt_t *pkt, iface_t *iface)
 #endif
 	case IPPROTO_TCP:
 		//tcp_input(pkt, iface);
-		return;
+		break;
 
 	case IPPROTO_UDP:
 		//udp_input(pkt, iface);

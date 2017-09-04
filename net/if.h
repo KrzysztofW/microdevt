@@ -16,7 +16,9 @@ typedef struct iface {
 	uint8_t mac_addr[ETHER_ADDR_LEN];
 
 	/* only one ip address allowed (network endianess) */
+
 	uint8_t ip4_addr[IP_ADDR_LEN];
+	uint8_t ip4_mask[IP_ADDR_LEN];
 #ifdef IPV6
 	uint8_t ip6_addr[IP6_ADDR_LEN];
 #endif

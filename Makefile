@@ -2,7 +2,7 @@ MCU = atmega328p
 BMCU = m328p
 F_CPU = 16000000
 NET_SRC = net/eth.c net/if.c net/arp.c net/ip.c net/icmp.c net/chksum.c
-NET_SRC += net/pkt-mempool.c
+NET_SRC += net/pkt-mempool.c net/route.c
 SOURCES = alarm.c usart0.c timer.c enc28j60.c rf.c adc.c $(NET_SRC)
 
 TEST_SOURCES = timer.c sys/hash-tables.c tests.c net/tests.c ${NET_SRC}

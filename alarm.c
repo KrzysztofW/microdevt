@@ -20,6 +20,7 @@
 #include "adc.h"
 #include "net/config.h"
 #include "net/eth.h"
+#include "net/arp.h"
 #include "enc28j60.h"
 
 #define RF
@@ -197,6 +198,7 @@ int main(void)
 		printf(PSTR("can't initialize pkt pool\n"));
 		return -1;
 	}
+	arp_init();
 	net_reset();
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);

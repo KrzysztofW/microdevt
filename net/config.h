@@ -20,5 +20,6 @@
 /* #define CONFIG_ARP_EXPIRY 10 */
 /* #define CONFIG_DHCP */
 /* #define CONFIG_IP_CHKSUM */
+/* #define CONFIG_MORE_THAN_ONE_INTERFACE */
 
 #endif

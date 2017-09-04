@@ -23,7 +23,7 @@ iface_t iface = {
 	.send = &send,
 };
 
-unsigned char arp_request_data[] = {
+unsigned char arp_request_pkt[] = {
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x48, 0x4D, 0x7E,
 	0xE4, 0xDA, 0x65, 0x08, 0x06, 0x00, 0x01, 0x08, 0x00,
 	0x06, 0x04, 0x00, 0x01, 0x48, 0x4D, 0x7E, 0xE4, 0xDA,
@@ -32,7 +32,7 @@ unsigned char arp_request_data[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-unsigned char arp_reply_data[] = {
+unsigned char arp_reply_pkt[] = {
 	0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65, 0x54, 0x52, 0x00,
 	0x02, 0x00, 0x40, 0x08, 0x06, 0x00, 0x01, 0x08, 0x00,
 	0x06, 0x04, 0x00, 0x02, 0x54, 0x52, 0x00, 0x02, 0x00,
@@ -84,7 +84,7 @@ static void net_arp_print_entries(void)
 	}
 }
 
-int net_arp_request_test(pkt_t *pkt, iface_t ifa)
+static int net_arp_request_test(pkt_t *pkt, iface_t ifa)
 {
 	uint8_t dst_mac[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -122,6 +122,7 @@ int net_arp_request_test(pkt_t *pkt, iface_t ifa)
 			return -1;
 		}
 	}
+	pkt_free(out);
 	return 0;
 }
 
@@ -153,9 +154,9 @@ int net_arp_tests(void)
 		fprintf(stderr, "can't alloc a packet\n");
 		return -1;
 	}
+	arp_init();
 	memset(pkt->buf.data, 0, pkt->buf.size);
-	buf_init(&pkt->buf, arp_request_data, sizeof(arp_request_data));
-	in = pkt->buf;
+	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
 	/* printf("in pkt:\n"); */
 	/* buf_print(pkt->buf); */
@@ -171,7 +172,7 @@ int net_arp_tests(void)
 	eth_input(pkt, &iface);
 	(void)net_arp_print_entries;
 
-	buf_init(&out, arp_reply_data, sizeof(arp_reply_data));
+	buf_init(&out, arp_reply_pkt, sizeof(arp_reply_pkt));
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
 		fprintf(stderr, "can't get tx packet\n");
 		return -1;
@@ -190,12 +191,13 @@ int net_arp_tests(void)
 		ret = -1;
 		goto end;
 	}
+#ifdef CONFIG_MORE_THAN_ONE_INTERFACE
 	if (interface != &iface) {
 		fprintf(stderr, "bad interface\n");
 		ret = -1;
 		goto end;
 	}
-
+#endif
 	if (mac == NULL) {
 		fprintf(stderr, "mac address is null\n");
 		ret = -1;
