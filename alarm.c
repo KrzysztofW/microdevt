@@ -22,6 +22,7 @@
 #include "net/eth.h"
 #include "enc28j60.h"
 
+#define RF
 #ifdef NET
 int net_wd;
 
@@ -79,14 +80,14 @@ static void net_reset(void)
 	_delay_loop_1(50);
 }
 
-ISR(PCINT0_vect)
+static void enc28j60_get_pkts(void)
 {
 	uint8_t eint = ENC28J60_Read(EIR);
 	uint16_t plen;
 	pkt_t *pkt;
 //	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
-	net_wd = 0;
 
+	net_wd = 0;
 	if (eint == 0)
 		return;
 #if 0
@@ -142,6 +143,11 @@ ISR(PCINT0_vect)
 	pkt_free(pkt);
 }
 
+ISR(PCINT0_vect)
+{
+	enc28j60_get_pkts();
+}
+
 void tim_cb_wd(void *arg)
 {
 	tim_t *timer = arg;
@@ -167,7 +173,6 @@ int main(void)
 	tim_t timer_wd;
 #endif
 	init_adc();
-
 #ifdef DEBUG
 	init_streams();
 	printf_P(PSTR("KW alarm v0.2\n"));
@@ -205,6 +210,7 @@ int main(void)
 		if ((pkt = pkt_get(&eth0.tx)) != NULL) {
 			eth0.send(&pkt->buf);
 			pkt_free(pkt);
+			enc28j60_get_pkts();
 		}
 		delay_ms(10);
 	}
