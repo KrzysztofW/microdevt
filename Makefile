@@ -5,7 +5,7 @@ NET_SRC = net/eth.c net/if.c net/arp.c net/ip.c net/icmp.c net/chksum.c
 NET_SRC += net/pkt-mempool.c
 SOURCES = alarm.c usart0.c timer.c enc28j60.c rf.c adc.c $(NET_SRC)
 
-TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC}
+TEST_SOURCES = timer.c sys/hash-tables.c tests.c net/tests.c ${NET_SRC}
 
 LDFLAGS += -W
 CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
@@ -44,7 +44,7 @@ upload: all
 	sudo avrdude -V -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
 
 clean:
-	@rm -f *.o net/*.o *.pdf *.hex *.srec *.elf *~ tests alarm
+	@rm -f *.o net/*.o sys/*.o *.pdf *.hex *.srec *.elf *~ tests alarm
 
 #pdf: README.rst
 #	rst2pdf $< > $(<:.rst=.pdf)

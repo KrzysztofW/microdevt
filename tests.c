@@ -4,8 +4,9 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "ring.h"
-#include "list.h"
+#include "sys/ring.h"
+#include "sys/list.h"
+#include "sys/hash-tables.h"
 #include "timer.h"
 #include "net/tests.h"
 
@@ -204,6 +205,167 @@ static int list_check(void)
 		fprintf(stderr, "%s:%d failed i:%d\n", __func__, __LINE__, i);
 		return -1;
 	}
+	list_for_each_safe(node, tmp, &list_head) {
+		e = list_entry(node, list_el_t, list);
+		list_del(node);
+		free(e);
+	}
+	return 0;
+}
+
+static int htable_check(int htable_size)
+{
+	hash_table_t *htable = htable_create(htable_size);
+	unsigned i;
+	const char *keys[] = {
+		"key1", "key2", "fdsa", "fewsfesf", "feafse",
+	};
+	const char *vals[] = {
+		"val1", "val2", "rerere", "eeeee", "wwww",
+	};
+	unsigned count = sizeof(keys) / sizeof(char *);
+
+	if (htable == NULL)
+		return -1;
+
+	for (i = 0; i < count; i++) {
+		sbuf_t key, val, *val2;
+
+		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
+		sbuf_init(&val, (unsigned char *)vals[i], strlen(vals[i]));
+
+		if (htable->len != (int)i) {
+			fprintf(stderr, "wrong htable length %d. Should be %d (0)\n",
+				htable->len, i);
+			return -1;
+		}
+
+		if (htable_add(htable, &key, &val) < 0) {
+			fprintf(stderr, "htable: can't add entry\n");
+			return -1;
+		}
+		if (htable_lookup(htable, &key, &val2) < 0) {
+			fprintf(stderr, "can't find key: %*s\n",
+				key.len, key.data);
+			return -1;
+		}
+	}
+
+	for (i = 0; i < count; i++) {
+		sbuf_t key, val, *val2;
+
+		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
+		sbuf_init(&val, (unsigned char *)vals[i], strlen(vals[i]));
+
+		if (htable_lookup(htable, &key, &val2) < 0) {
+			fprintf(stderr, "can't find key: %*s\n",
+				key.len, key.data);
+			return -1;
+		}
+		if (sbuf_cmp(&val, val2) < 0) {
+			fprintf(stderr, "found val: `%*s' (expected: `%*s'\n",
+				val.len, val.data, val2->len, val2->data);
+			return -1;
+		}
+	}
+
+	for (i = 0; i < count; i++) {
+		sbuf_t key, *val2;
+
+		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
+
+		if (htable->len != (int)(count - i)) {
+			fprintf(stderr, "wrong htable length %d. Should be %d (1)\n",
+				htable->len, i);
+			return -1;
+		}
+
+		if (htable_del(htable, &key) < 0) {
+			fprintf(stderr, "can't delete key: %*s\n",
+				key.len, key.data);
+		}
+
+		if (htable_lookup(htable, &key, &val2) >= 0) {
+			fprintf(stderr, "key: %*s should not be present\n",
+				key.len, key.data);
+			return -1;
+		}
+	}
+
+	/* check htable_del_val() */
+	for (i = 0; i < count; i++) {
+		sbuf_t key, val, *val2 = NULL;
+
+		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
+		sbuf_init(&val, (unsigned char *)vals[i], strlen(vals[i]));
+
+		if (htable->len != (int)i) {
+			fprintf(stderr, "wrong htable length %d. Should be %d (2)\n",
+				htable->len, i);
+			return -1;
+		}
+
+		if (htable_add(htable, &key, &val) < 0) {
+			fprintf(stderr, "htable: can't add entry\n");
+			return -1;
+		}
+		if (htable_lookup(htable, &key, &val2) < 0) {
+			fprintf(stderr, "can't find key: %*s\n",
+				key.len, key.data);
+			return -1;
+		}
+	}
+
+	for (i = 0; i < count; i++) {
+		sbuf_t key, *val2;
+
+		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
+
+		if (htable->len != (int)(count - i)) {
+			fprintf(stderr, "wrong htable length %d. Should be %d (2)\n",
+				htable->len, i);
+			return -1;
+		}
+
+		if (htable_lookup(htable, &key, &val2) < 0) {
+			fprintf(stderr, "can't find key: %*s\n",
+				key.len, key.data);
+			return -1;
+		}
+		htable_del_val(htable, val2);
+		if (htable_lookup(htable, &key, &val2) >= 0) {
+			fprintf(stderr, "found key: `%*s' but shouldn't\n",
+				key.len, key.data);
+			return -1;
+		}
+	}
+
+	{
+		int k = 12;
+		uint16_t v = 3, *v2;
+		sbuf_t key, val, *val2;
+
+		sbuf_init(&key, &k, sizeof(k));
+		sbuf_init(&val, &v, sizeof(v));
+
+		if (htable_add(htable, &key, &val) < 0) {
+			fprintf(stderr, "htable: can't add entry\n");
+			return -1;
+		}
+		if (htable_lookup(htable, &key, &val2) < 0) {
+			fprintf(stderr, "can't find key: %*s\n",
+				key.len, key.data);
+			return -1;
+		}
+		v2 = (uint16_t *)val2->data;
+		if (v != *v2) {
+			fprintf(stderr, "can't find key: %*s\n",
+				key.len, key.data);
+			return -1;
+		}
+	}
+
+	htable_free(htable);
 
 	return 0;
 }
@@ -260,6 +422,18 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	printf("  ==> list checks succeeded\n");
+
+	if (htable_check(1024) < 0) {
+		fprintf(stderr, "  ==> htable checks failed (htable size: 1024)\n");
+		return -1;
+	}
+	if (htable_check(4) < 0) {
+		fprintf(stderr, "  ==> htable checks failed (htable size: 4)\n");
+		return -1;
+	}
+
+	printf("  ==> htable checks succeeded\n");
+
 	if (timer_check() < 0) {
 		fprintf(stderr, "  ==> timer checks failed\n");
 		return -1;
