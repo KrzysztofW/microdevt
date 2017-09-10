@@ -9,7 +9,7 @@ struct ip_hdr {
 	uint8_t  v:4;		/* version */
 #endif
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	uint8_T   v:4;		/* version */
+	uint8_t   v:4;		/* version */
 	uint8_t  hl:4;		/* header length */
 #endif
 	uint8_t  tos;		/* type of service */

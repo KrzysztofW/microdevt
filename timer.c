@@ -46,7 +46,8 @@ static void timer_process(void)
 	int idx;
 	struct list_head *pos, *n;
 
-	timer_state.current_idx = idx = (timer_state.current_idx + 1) & TIMER_TABLE_MASK;
+	timer_state.current_idx = idx = (timer_state.current_idx + 1)
+		& TIMER_TABLE_MASK;
 	list_for_each_safe(pos, n, &timer_state.timer_list[idx]) {
 		tim_t *timer = list_entry(pos, tim_t, list);
 
@@ -147,25 +148,21 @@ void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
 	assert(timer->cb || cb);
 	assert(timer->arg || arg);
 
-	if (cb != NULL) {
+	if (cb != NULL)
 		timer->cb = cb;
-	}
-	if (arg != NULL) {
+	if (arg != NULL)
 		timer->arg = arg;
-	}
 
 	/* don't schedule at current idx */
-	if (ticks == 0) {
+	if (ticks == 0)
 		ticks = 1;
-	}
 
 	idx = (timer_state.current_idx + ticks) & TIMER_TABLE_MASK;
 	timer->remaining_loops = ticks / TIMER_TABLE_SIZE; /* >> TIMER_TABLE_ORDER */
 
 	/* current_idx will be processed one loop later */
-	if (timer_state.current_idx == idx && timer->remaining_loops) {
+	if (timer_state.current_idx == idx && timer->remaining_loops)
 		timer->remaining_loops--;
-	}
 
 	list_add_tail(&timer->list, &timer_state.timer_list[idx]);
 	timer->status = TIMER_SCHEDULED;

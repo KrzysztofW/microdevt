@@ -80,7 +80,6 @@ static inline pkt_t *__pkt_alloc(const char *func, int line)
 
 	pkt = pkt_get(pkt_pool);
 	if (pkt) {
-		printf("pkt alloc %s:%d (%d)\n", func, line, pkt->pkt_nb);
 		pkt->refcnt = 0;
 	}
 	return pkt;
@@ -91,7 +90,6 @@ static inline int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
 	if (pkt->refcnt == 0) {
 		buf_reset(&pkt->buf);
-		printf("pkt free %s:%d (%d)\n", func, line, pkt->pkt_nb);
 		return pkt_put(pkt_pool, pkt);
 	}
 	pkt->refcnt--;
@@ -121,7 +119,6 @@ static inline int pkt_free(pkt_t *pkt)
 
 static inline void pkt_retain(pkt_t *pkt)
 {
-	printf("pkt retain\n");
 	pkt->refcnt++;
 }
 

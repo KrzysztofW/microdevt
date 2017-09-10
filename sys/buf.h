@@ -79,25 +79,22 @@ static inline void buf_reset(buf_t *buf)
 {
 	buf->len = 0;
 	buf->skip = 0;
-	buf->data -= buf->skip;
 }
 
 static inline int buf_has_room(buf_t *buf, int len)
 {
-	if (buf->len + buf->skip + len >= buf->size) {
+	if (buf->len + buf->skip + len >= buf->size)
 		return -1;
-	}
 	return 0;
 }
 
 static inline void buf_adj(buf_t *buf, int len)
 {
 #ifdef DEBUG
-	if (len < 0) {
+	if (len < 0)
 		assert(buf->skip >= -len);
-	} else {
+	else
 		assert(buf->skip + len <= buf->size);
-	}
 #endif
 	buf->len -= len;
 	if (buf->len < 0)
