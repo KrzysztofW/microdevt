@@ -162,7 +162,6 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 
 	switch (ah->op) {
 	case ARPOP_REQUEST:
-		printf("%s:%d arp request\n", __func__, __LINE__);
 #ifdef CONFIG_IPV6
 		if (ah->pln == IP6_ADDR_LEN) {
 			for (i = 0; i < IP6_ADDR_LEN; i++) {

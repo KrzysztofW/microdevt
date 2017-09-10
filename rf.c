@@ -167,7 +167,9 @@ int rf_init(void)
 {
 	DDRD = (0x01 << LED); /* Configure the PORTD4 as output */
 	if ((rf_ring = ring_create(RF_RING_SIZE)) == NULL) {
+#ifdef DEBUG
 		printf_P(PSTR("can't create RF ring\n"));
+#endif
 		return -1;
 	}
 

@@ -75,11 +75,10 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	}
 
 	pkt_adj(pkt, sizeof(udp_hdr_t));
-	if (udp_hdr->checksum && udp_cksum(ip_hdr, udp_hdr) != 0) {
-		printf("bad udp checksum\n");
+	if (udp_hdr->checksum && udp_cksum(ip_hdr, udp_hdr) != 0)
 		goto error;
-	}
 
+#ifdef DEBUG
 	{
 		unsigned int i;
 		uint8_t *data = (uint8_t *)(udp_hdr + 1);
@@ -90,7 +89,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 		}
 		puts("");
 	}
-
+#endif
  error:
 	pkt_free(pkt);
 	/* inc stats */

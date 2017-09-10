@@ -97,8 +97,8 @@ int timer_subsystem_init(unsigned long resolution_us)
 	TIMER_PRINTF("timer initialization\n");
 
 	if (resolution_us < MIN_TIMER_RES) {
-		printf("timer resolution cannot be smaller than %lu",
-		       MIN_TIMER_RES);
+		TIMER_PRINTF("timer resolution cannot be smaller than %lu",
+			     MIN_TIMER_RES);
 		return -1;
 	}
 

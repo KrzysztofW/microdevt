@@ -126,19 +126,22 @@ static void enc28j60_get_pkts(void)
 	}
 
 	if ((pkt = pkt_alloc()) == NULL) {
+#ifdef DEBUG
 		printf("out of packets\n");
+#endif
 		return;
 	}
 
 	plen = eth0.recv(&pkt->buf);
+#ifdef DEBUG
 	printf("len:%u\n", plen);
+#endif
 	if (plen == 0)
 		goto end;
 
-	if (pkt_put(&eth0.rx, pkt) < 0) {
-		printf("can't put rx pkt\n");
+	if (pkt_put(&eth0.rx, pkt) < 0)
 		pkt_free(pkt);
-	}
+
 	return;
  end:
 	pkt_free(pkt);
@@ -192,11 +195,15 @@ int main(void)
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
 	if (if_init(&eth0, &ENC28J60_PacketSend, &ENC28J60_PacketReceive) < 0) {
+#ifdef DEBUG
 		printf_P(PSTR("can't initialize interface\n"));
+#endif
 		return -1;
 	}
 	if (pkt_mempool_init() < 0) {
+#ifdef DEBUG
 		printf(PSTR("can't initialize pkt pool\n"));
+#endif
 		return -1;
 	}
 	arp_init();

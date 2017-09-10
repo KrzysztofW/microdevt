@@ -162,12 +162,14 @@ static inline int buf_read_file(buf_t *buf, const char *filename)
 
 static inline void buf_print(buf_t buf)
 {
+#ifdef TEST
 	int i;
 
 	for (i = 0; i < buf.len; i++) {
 		printf(" 0x%02X", buf.data[i]);
 	}
 	puts("");
+#endif
 }
 
 #endif

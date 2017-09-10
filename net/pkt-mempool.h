@@ -73,7 +73,7 @@ static inline int pkt_put(ring_t *ring, pkt_t *pkt)
 }
 #endif
 
-#ifdef DEBUG
+#ifdef PKT_DEBUG
 static inline pkt_t *__pkt_alloc(const char *func, int line)
 {
 	pkt_t *pkt;
@@ -82,6 +82,7 @@ static inline pkt_t *__pkt_alloc(const char *func, int line)
 	if (pkt) {
 		pkt->refcnt = 0;
 	}
+	printf("%s() in %s:%d\n", __func__, func, line);
 	return pkt;
 }
 
@@ -90,6 +91,7 @@ static inline int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
 	if (pkt->refcnt == 0) {
 		buf_reset(&pkt->buf);
+		printf("%s() in %s:%d\n", __func__, func, line);
 		return pkt_put(pkt_pool, pkt);
 	}
 	pkt->refcnt--;
