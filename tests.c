@@ -451,5 +451,11 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> net icmp tests succeeded\n");
 
+	if (net_udp_tests() < 0) {
+		fprintf(stderr, "  ==> net udp tests failed\n");
+		return -1;
+	}
+	printf("  ==> net udp tests succeeded\n");
+
 	return 0;
 }

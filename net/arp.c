@@ -211,7 +211,7 @@ void arp_retry_cb(void *arg)
 		pkt_free(arp_res->pkt);
 		return;
 	}
-	ip_output(arp_res->pkt, arp_res->iface, arp_res->retries);
+	ip_output(arp_res->pkt, arp_res->iface, arp_res->retries, 0);
 }
 
 void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
@@ -242,7 +242,7 @@ static void arp_process_wait_list(uint32_t ip)
 		if (arp_res->ip == ip) {
 			timer_del(&arp_res->tim);
 			list_del(node);
-			ip_output(pkt, arp_res->iface, arp_res->retries + 1);
+			ip_output(pkt, arp_res->iface, arp_res->retries + 1, 0);
 		}
 	}
 }

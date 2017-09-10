@@ -5,17 +5,14 @@ uint32_t cksum_partial(const void *data, uint16_t len)
 {
 	const uint16_t *w = data;
 	uint32_t sum = 0;
-	uint16_t ret;
 
 	while (len > 1)  {
 		sum += *w++;
 		len -= 2;
 	}
 
-	if (len == 1) {
-		*(uint8_t *)(&ret) = *(uint8_t *)w;
-		sum += ret;
-	}
+	if (len == 1)
+		sum += *(uint8_t *)w;
 
 	return sum;
 }

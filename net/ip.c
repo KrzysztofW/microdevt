@@ -4,9 +4,10 @@
 #include "eth.h"
 #include "chksum.h"
 #include "route.h"
+#include "udp.h"
 #include <assert.h>
 
-void ip_output(pkt_t *out, iface_t *iface, uint8_t retries)
+void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 {
 	ip_hdr_t *ip = btod(out, ip_hdr_t *);
 	uint8_t *mac_addr;
@@ -30,7 +31,7 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries)
 	ip->tos = 0;
 	ip->len = htons(pkt_len(out));
 	ip->id = 0;
-	ip->off = 0;
+	ip->off = flags;
 	ip->ttl = 0x38;
 	assert(ip->p); /* must be set by upper layer */
 	ip->chksum = 0;
@@ -91,7 +92,7 @@ void ip_input(pkt_t *pkt, iface_t *iface)
 		break;
 
 	case IPPROTO_UDP:
-		//udp_input(pkt, iface);
+		udp_input(pkt, iface);
 		return;
 	default:
 		/* unsupported protocols */

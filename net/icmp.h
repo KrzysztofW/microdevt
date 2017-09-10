@@ -21,6 +21,6 @@ typedef struct icmp icmp_hdr_t;
 
 void icmp_input(pkt_t *pkt, iface_t *iface);
 void icmp_output(pkt_t *out, iface_t *iface, int type, int code,
-		 uint16_t id, uint16_t seq, const buf_t *id_data);
+		 uint16_t id, uint16_t seq, const buf_t *id_data, uint16_t ip_flags);
 
 #endif
