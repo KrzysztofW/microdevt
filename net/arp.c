@@ -16,16 +16,16 @@ tim_t arp_timer;
 uint8_t broadcast_mac[] = { 0xFF };
 
 #define ARP_RETRY_TIMEOUT 3 /* seconds */
-#define ARP_RETRIES 3
+#define ARP_RETRIES 2
 
-typedef struct arp_res {
+struct arp_res {
 	tim_t tim;
 	pkt_t *pkt;
 	iface_t *iface;
 	uint8_t retries;
 	uint32_t ip;
-} arp_res_t;
-/* TODO check if arp_res doesn't overwrite ip->src, ip->dst */
+} __attribute__((__packed__));
+typedef struct arp_res arp_res_t;
 
 struct list_head arp_wait_list;
 
@@ -37,7 +37,7 @@ void arp_init(void)
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 {
 	int i;
-	/* linear search ... that's but saves space */
+	/* linear search ... that's bad but it saves space */
 	for (i = 0; i < CONFIG_ARP_TABLE_SIZE; i++) {
 		if (arp_entries.entries[i].ip == ip) {
 			*mac = arp_entries.entries[i].mac;
@@ -191,7 +191,7 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 		}
 #endif
 		arp_add_entry(sha, spa, iface);
-		arp_process_wait_list(*(uint32_t *)tpa);
+		arp_process_wait_list(*(uint32_t *)spa);
 		break;
 
 	default:
@@ -207,17 +207,32 @@ void arp_retry_cb(void *arg)
 {
 	arp_res_t *arp_res = arg;
 
+	timer_del(&arp_res->tim);
+	list_del(&arp_res->pkt->list);
 	if (arp_res->retries >= ARP_RETRIES) {
 		pkt_free(arp_res->pkt);
 		return;
 	}
-	ip_output(arp_res->pkt, arp_res->iface, arp_res->retries, 0);
+	pkt_adj(arp_res->pkt, (int)sizeof(eth_hdr_t));
+	ip_output(arp_res->pkt, arp_res->iface, arp_res->retries + 1, 0);
 }
 
 void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
 		 uint8_t retries)
 {
-	arp_res_t *arp_res = (arp_res_t *)pkt->buf.data;
+	arp_res_t *arp_res;
+
+	/* get more space in the pkt */
+	pkt_adj(pkt, -(int)sizeof(eth_hdr_t));
+
+	/* The following assert is false on x86-64 arch.
+	 * The arp resolution cannot be tested.
+	 */
+#ifndef TEST
+	STATIC_ASSERT(sizeof(arp_res_t) <
+		      sizeof(eth_hdr_t) + sizeof(ip_hdr_t) - sizeof(uint32_t) * 2);
+#endif
+	arp_res = btod(pkt, arp_res_t *);
 
 	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)&ip_dst);
 	memset(&arp_res->tim, 0, sizeof(tim_t));
@@ -242,6 +257,7 @@ static void arp_process_wait_list(uint32_t ip)
 		if (arp_res->ip == ip) {
 			timer_del(&arp_res->tim);
 			list_del(node);
+			pkt_adj(pkt, (int)sizeof(eth_hdr_t));
 			ip_output(pkt, arp_res->iface, arp_res->retries + 1, 0);
 		}
 	}

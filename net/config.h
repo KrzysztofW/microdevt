@@ -16,7 +16,7 @@
 /* #define CONFIG_IPV6 */
 /* #define CONFIG_STATS */
 /* #define CONFIG_PROMISC */
-#define CONFIG_ARP_TABLE_SIZE 4
+#define CONFIG_ARP_TABLE_SIZE 2
 /* #define CONFIG_ARP_EXPIRY 10 */
 /* #define CONFIG_DHCP */
 /* #define CONFIG_IP_CHKSUM */
