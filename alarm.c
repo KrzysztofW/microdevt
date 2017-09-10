@@ -173,6 +173,7 @@ int main(void)
 #ifdef NET
 	tim_t timer_wd;
 #endif
+	wdt_enable(WDTO_8S);
 	init_adc();
 #ifdef DEBUG
 	init_streams();
@@ -202,10 +203,13 @@ int main(void)
 	net_reset();
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
-	sei();
+
+#endif
 	while (1) {
+		/* slow functions */
 		pkt_t *pkt;
 
+		cli();
 		if ((pkt = pkt_get(&eth0.rx)) != NULL) {
 			eth_input(pkt, &eth0);
 		}
@@ -214,18 +218,15 @@ int main(void)
 			pkt_free(pkt);
 			enc28j60_get_pkts();
 		}
-		delay_ms(10);
-	}
-#endif
 #ifdef RF
-	while (1) {
-		/* slow functions */
 		decode_rf_cmds();
-
-		/* XXX if omitted, the while() content does not get executed */
-		delay_ms(100);
+#endif
+		sei();
+		delay_ms(10);
+		wdt_reset();
 	}
-	rf_shutdown();
+#ifdef RF
+		/* rf_shutdown(); */
 #endif
 	return 0;
 }
