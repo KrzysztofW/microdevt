@@ -4,13 +4,18 @@ F_CPU = 16000000
 NET_SRC = net/eth.c net/if.c net/arp.c net/ip.c net/icmp.c
 NET_SRC += net/chksum.c net/udp.c net/pkt-mempool.c net/route.c
 COMMON = sys/hash-tables.c
-SOURCES = alarm.c usart0.c timer.c enc28j60.c rf.c adc.c
+SOURCES = alarm.c timer.c enc28j60.c rf.c adc.c
 SOURCES += $(NET_SRC) $(COMMON)
 
 TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC} $(COMMON)
 
 LDFLAGS += -W
 CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
+
+ifeq ($(DEBUG), 1)
+	CFLAGS += -DDEBUG
+	SOURCES += usart0.c
+endif
 
 ifeq ($(TEST), 1)
 	CC = gcc
@@ -25,10 +30,6 @@ else
 	LDFLAGS = -DF_CPU=${F_CPU} -mmcu=${MCU}
 	CFLAGS += -DF_CPU=$(F_CPU)
 	CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
-endif
-
-ifeq ($(DEBUG), 1)
-	CFLAGS += -DDEBUG
 endif
 
 all: $(SOURCES) $(EXECUTABLE)
