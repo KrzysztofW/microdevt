@@ -41,7 +41,7 @@ static inline uint32_t hash_function(const hash_table_t *htable, sbuf_t key)
 }
 
 static int __htable_lookup(const hash_table_t *htable, uint32_t hashval,
-		    const sbuf_t *key, sbuf_t **val)
+			   const sbuf_t *key, sbuf_t **val)
 {
 	node_t *e;
 
@@ -98,6 +98,17 @@ int htable_add(hash_table_t *htable, const sbuf_t *key,
 	htable->len++;
 
 	return 0;
+}
+
+int __htable_add(hash_table_t *htable, const void *key, int key_len,
+		 const void *val, int val_len)
+{
+	sbuf_t buf_key, buf_val;
+
+	sbuf_init(&buf_key, key, key_len);
+	sbuf_init(&buf_val, val, val_len);
+
+	return htable_add(htable, &buf_key, &buf_val);
 }
 
 static void htable_free_node(node_t *node)

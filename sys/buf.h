@@ -136,6 +136,11 @@ static inline int buf_addbuf(buf_t *dst, const buf_t *src)
 	return buf_add(dst, src->data + src->skip, src->len - src->skip);
 }
 
+static inline int buf_addsbuf(buf_t *dst, const sbuf_t *src)
+{
+	return buf_add(dst, src->data, src->len);
+}
+
 #ifdef TEST
 static inline int buf_read_file(buf_t *buf, const char *filename)
 {
@@ -160,16 +165,23 @@ static inline int buf_read_file(buf_t *buf, const char *filename)
 }
 #endif
 
-static inline void buf_print(buf_t buf)
+static inline void sbuf_print(const sbuf_t *buf)
 {
-#ifdef TEST
+#if defined(TEST) || defined(DEBUG)
 	int i;
 
-	for (i = 0; i < buf.len; i++) {
-		printf(" 0x%02X", buf.data[i]);
+	for (i = 0; i < buf->len; i++) {
+		printf(" 0x%02X", buf->data[i]);
 	}
 	puts("");
 #endif
+}
+
+static inline void buf_print(const buf_t *buf)
+{
+	sbuf_t sb;
+	sbuf_init(&sb, buf->data + buf->skip, buf->len);
+	sbuf_print(&sb);
 }
 
 #endif

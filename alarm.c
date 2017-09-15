@@ -21,7 +21,9 @@
 #include "net/config.h"
 #include "net/eth.h"
 #include "net/arp.h"
+#include "net/route.h"
 #include "net/udp.h"
+#include "net/socket.h"
 #include "enc28j60.h"
 
 #define RF
@@ -172,10 +174,36 @@ void tim_cb_wd(void *arg)
 }
 #endif
 
+int udp_server(uint16_t port)
+{
+	int fd;
+	struct sockaddr_in sockaddr;
+
+	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+#ifdef DEBUG
+		printf("can't create socket\n");
+#endif
+		return -1;
+	}
+	sockaddr.sin_family = AF_INET;
+	sockaddr.sin_addr.s_addr = INADDR_ANY;
+	sockaddr.sin_port = htons(port);
+
+	if (bind(fd, (struct sockaddr *)&sockaddr,
+		 sizeof(struct sockaddr_in)) < 0) {
+#ifdef DEBUG
+		printf("can't bind\n");
+#endif
+		return -1;
+	}
+	return fd;
+}
+
 int main(void)
 {
 #ifdef NET
 	tim_t timer_wd;
+	int udp_fd;
 #endif
 	wdt_enable(WDTO_8S);
 	init_adc();
@@ -207,10 +235,16 @@ int main(void)
 #endif
 		return -1;
 	}
+#ifdef NET
 	arp_init();
+	dft_route.iface = &eth0;
 	udp_init();
-	udp_bind(10, 777);
+	socket_init();
 	net_reset();
+
+	udp_fd = udp_server(777);
+#endif
+
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
 
@@ -218,6 +252,7 @@ int main(void)
 	while (1) {
 		/* slow functions */
 		pkt_t *pkt;
+		struct sockaddr_in addr;
 
 		cli();
 		if ((pkt = pkt_get(&eth0.rx)) != NULL) {
@@ -232,6 +267,18 @@ int main(void)
 		decode_rf_cmds();
 #endif
 		sei();
+
+		/* userland apps */
+
+		if (socket_get_pkt(udp_fd, &pkt, (struct sockaddr *)&addr) >= 0) {
+			sbuf_t sb = PKT2SBUF(pkt);
+
+			if (socket_put_sbuf(udp_fd, &sb, (struct sockaddr *)&addr) < 0)
+				printf("can't put sbuf to socket\n");
+			pkt_free(pkt);
+		}
+
+
 		delay_ms(10);
 		wdt_reset();
 	}

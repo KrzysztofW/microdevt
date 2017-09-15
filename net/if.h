@@ -19,7 +19,7 @@ typedef struct iface {
 
 	uint8_t ip4_addr[IP_ADDR_LEN];
 	uint8_t ip4_mask[IP_ADDR_LEN];
-#ifdef IPV6
+#ifdef CONFIG_IPV6
 	uint8_t ip6_addr[IP6_ADDR_LEN];
 #endif
 	uint16_t (*send)(const buf_t *out);

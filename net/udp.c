@@ -3,19 +3,11 @@
 #include "icmp.h"
 #include "eth.h"
 #include "chksum.h"
+#include "socket.h"
 #include "../sys/hash-tables.h"
 
 /* htable keys (udp ports) are in network byte order */
 static hash_table_t *udp_binds;
-
-void udp_output(pkt_t *out, iface_t *iface, const buf_t *buf)
-{
-	static unsigned udp_ephemeral_port = EPHEMERAL_PORT_START;
-	(void)out;
-	(void)iface;
-	(void)buf;
-	udp_ephemeral_port++;
-}
 
 static uint16_t udp_cksum(const ip_hdr_t *ip, const udp_hdr_t *udp)
 {
@@ -37,13 +29,40 @@ static uint16_t udp_cksum(const ip_hdr_t *ip, const udp_hdr_t *udp)
 	return udp_csum;
 }
 
+void udp_set_cksum(const void *iph, void *udph)
+{
+	udp_hdr_t *udp_hdr = udph;
+	const ip_hdr_t *ip_hdr = iph;
+
+	udp_hdr->checksum = 0;
+	udp_hdr->checksum = udp_cksum(ip_hdr, udp_hdr);
+	if (udp_hdr->checksum == 0)
+		udp_hdr->checksum = 0xFFFF;
+}
+
+void udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
+{
+	udp_hdr_t *udp_hdr = btod(pkt, udp_hdr_t *);
+	ip_hdr_t *ip_hdr;
+
+	udp_hdr->length = htons(pkt_len(pkt));
+
+	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
+	ip_hdr = btod(pkt, ip_hdr_t *);
+	ip_hdr->dst = ip_dst;
+	udp_hdr->src_port = sport;
+	udp_hdr->dst_port = dport;
+
+	ip_output(pkt, NULL, 0, 0);
+}
+
 void udp_input(pkt_t *pkt, iface_t *iface)
 {
 	udp_hdr_t *udp_hdr;
 	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
 	ip_hdr_t *ip_hdr_out;
 	uint16_t length;
-	sbuf_t key, *val;
+	sbuf_t key, *fd;
 
 	pkt_adj(pkt, ip_hdr->hl * 4);
 	udp_hdr = btod(pkt, udp_hdr_t *);
@@ -53,7 +72,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 		goto error;
 
 	sbuf_init(&key, &udp_hdr->dst_port, sizeof(udp_hdr->dst_port));
-	if (htable_lookup(udp_binds, &key, &val) < 0) {
+	if (htable_lookup(udp_binds, &key, &fd) < 0) {
 		pkt_t *out;
 		buf_t data;
 
@@ -74,42 +93,50 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 		goto error;
 	}
 
-	pkt_adj(pkt, sizeof(udp_hdr_t));
 	if (udp_hdr->checksum && udp_cksum(ip_hdr, udp_hdr) != 0)
 		goto error;
 
-#ifdef DEBUG
-	{
-		unsigned int i;
-		uint8_t *data = (uint8_t *)(udp_hdr + 1);
+	pkt_adj(pkt, sizeof(udp_hdr_t));
+	/* truncate pkt to the udp payload length */
+	pkt->buf.len = length - sizeof(udp_hdr_t);
 
-		puts("udp data:");
-		for (i = 0; i < length - sizeof(udp_hdr_t); i++) {
-			printf(" 0x%0X", data[i]);
-		}
-		puts("");
-	}
-#endif
+	if (socket_append_pkt(fd, pkt) < 0)
+		goto error;
+
+	return;
+
  error:
 	pkt_free(pkt);
 	/* inc stats */
 	return;
 }
 
-int udp_bind(int fd, uint16_t port)
+/* port - network endian format */
+int udp_bind(uint8_t fd, uint16_t port)
 {
 	sbuf_t key, val;
-	uint16_t be_port = htons(port);
 
-	sbuf_init(&key, &be_port, sizeof(port));
+	/* static unsigned udp_ephemeral_port = EPHEMERAL_PORT_START; */
+	/* udp_ephemeral_port++; */
+
+	sbuf_init(&key, &port, sizeof(port));
 	sbuf_init(&val, &fd, sizeof(fd));
 
 	return htable_add(udp_binds, &key, &val);
 }
 
+/* port - network endian format */
+int udp_unbind(uint16_t port)
+{
+	sbuf_t key;
+
+	sbuf_init(&key, &port, sizeof(port));
+	return htable_del(udp_binds, &key);
+}
+
 int udp_init(void)
 {
-	if ((udp_binds = htable_create(UDP_MAX_BINDS)) == NULL)
+	if ((udp_binds = htable_create(UDP_MAX_HT)) == NULL)
 		return -1;
 	return 0;
 }

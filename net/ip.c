@@ -12,20 +12,29 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 	ip_hdr_t *ip = btod(out, ip_hdr_t *);
 	uint8_t *mac_addr;
 	uint32_t ip_dst;
-	uint32_t *mask = (uint32_t *)iface->ip4_mask;
-	uint32_t *ip_addr = (uint32_t *)iface->ip4_addr;
+	uint32_t *mask;
+	uint32_t *ip_addr;
+
+	if (iface == NULL)
+		iface = dft_route.iface;
+
+	if (iface == NULL) {
+		/* no interface to send the pkt to */
+		pkt_free(out);
+		return;
+	}
+	mask = (uint32_t *)iface->ip4_mask;
+	ip_addr = (uint32_t *)iface->ip4_addr;
 
 	/* XXX check for buf_adj coherency with other layers */
 	if (ip->dst == 0) {
 		/* no dest ip address set. Drop the packet */
+		pkt_free(out);
 		return;
 	}
 
-	if (ip->src == 0) {
-		uint32_t *ip_addr = (uint32_t *)iface->ip4_addr;
-		ip->src = *ip_addr;
-	}
-
+	ip_addr = (uint32_t *)iface->ip4_addr;
+	ip->src = *ip_addr;
 	ip->v = 4;
 	ip->hl = sizeof(ip_hdr_t) / 4;
 	ip->tos = 0;
@@ -47,6 +56,11 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 		return;
 	}
 
+	pkt_adj(out, (int)sizeof(ip_hdr_t));
+	if (ip->p == IPPROTO_UDP)
+		udp_set_cksum(ip, btod(out, udp_hdr_t *));
+	pkt_adj(out, -(int)sizeof(ip_hdr_t));
+
 	eth_output(out, iface, mac_addr, ETHERTYPE_IP);
 }
 
@@ -65,14 +79,12 @@ void ip_input(pkt_t *pkt, iface_t *iface)
 		/* ip fragmentation is unsupported */
 		goto error;
 	}
-	if (ip->hl > IP_MAX_HDR_LEN || ip->hl < IP_MIN_HDR_LEN) {
+	if (ip->hl > IP_MAX_HDR_LEN || ip->hl < IP_MIN_HDR_LEN)
 		goto error;
-	}
 
 	ip_len = ip->hl * 4;
-	if (cksum(ip, ip_len) != 0) {
+	if (cksum(ip, ip_len) != 0)
 		goto error;
-	}
 
 #ifdef CONFIG_IP_CHKSUM
 #endif

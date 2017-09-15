@@ -32,6 +32,12 @@ extern struct list_head *pkt_pool;
 extern ring_t *pkt_pool;
 #endif
 
+#define PKT2SBUF(pkt) (sbuf_t)			       \
+	{					       \
+		.data = pkt->buf.data + pkt->buf.skip, \
+		.len  = pkt_len(pkt),                  \
+	}
+
 static inline int pkt_len(const pkt_t *pkt)
 {
 	return pkt->buf.len;

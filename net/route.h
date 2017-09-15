@@ -6,7 +6,7 @@
 
 typedef struct route {
 	uint32_t ip;
-	/* iface_t *iface; */
+	iface_t *iface;
 } route_t;
 
 extern route_t dft_route;

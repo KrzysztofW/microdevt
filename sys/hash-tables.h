@@ -22,6 +22,8 @@ hash_table_t *htable_create(int size);
 
 int htable_lookup(const hash_table_t *htable, const sbuf_t *key, sbuf_t **val);
 int htable_add(hash_table_t *htable, const sbuf_t *key, const sbuf_t *val);
+int __htable_add(hash_table_t *htable, const void *key, int key_len,
+		 const void *val, int val_len);
 int htable_del(hash_table_t *htable, const sbuf_t *key);
 void htable_del_val(hash_table_t *htable, sbuf_t *val);
 void htable_free(hash_table_t *htable);

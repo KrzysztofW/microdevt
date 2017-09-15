@@ -3,6 +3,8 @@
 #include "arp.h"
 #include "eth.h"
 #include "udp.h"
+#include "route.h"
+#include "socket.h"
 #include "pkt-mempool.h"
 
 uint16_t send(const buf_t *out)
@@ -116,9 +118,9 @@ static int net_arp_request_test(pkt_t *pkt, iface_t ifa)
 		if (pkt->buf.data[i] != out->buf.data[i]) {
 			fprintf(stderr, "failed serializing arp request\n");
 			printf("got:\n");
-			buf_print(out->buf);
+			buf_print(&out->buf);
 			printf("expected:\n");
-			buf_print(pkt->buf);
+			buf_print(&pkt->buf);
 			puts("");
 			return -1;
 		}
@@ -160,7 +162,7 @@ int net_arp_tests(void)
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
 	/* printf("in pkt:\n"); */
-	/* buf_print(pkt->buf); */
+	/* buf_print(&pkt->buf); */
 	if (pkt_put(&iface.rx, pkt) < 0) {
 		fprintf(stderr , "can't put rx packet\n");
 		return -1;
@@ -181,9 +183,9 @@ int net_arp_tests(void)
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("out pkt:\n");
-		buf_print(pkt->buf);
+		buf_print(&pkt->buf);
 		printf("expected:\n");
-		buf_print(out);
+		buf_print(&out);
 		ret = -1;
 		goto end;
 	}
@@ -280,9 +282,9 @@ int net_icmp_tests(void)
 	}
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("out pkt:\n");
-		buf_print(pkt->buf);
+		buf_print(&pkt->buf);
 		printf("expected:\n");
-		buf_print(out);
+		buf_print(&out);
 		pkt_free(pkt);
 		return -1;
 	}
@@ -303,6 +305,27 @@ unsigned char icmp_port_unrecheable_pkt[] = {
 	/*	0x9c, 0xd6, 0x43, 0xae, 0x22, 0x6c, 0x48, 0x83, 0xc7, 0xbc, 0x7d, 0x06, 0x08, 0x00, 0x45, 0x00, 0x00, 0x38, 0xf6, 0xe8, 0x40, 0x00, 0x40, 0x01, 0xc2, 0x7f, 0xc0, 0xa8, 0x00, 0x01, 0xc0, 0xa8, 0x00, 0x0b, 0x03, 0x03, 0x3e, 0xc3, 0x00, 0x00, 0x00, 0x00, 0x45, 0x00, 0x00, 0x29, 0xdd, 0x22, 0x40, 0x00, 0x40, 0x11, 0xdc, 0x44, 0xc0, 0xa8, 0x00, 0x0b, 0xc0, 0xa8, 0x00, 0x01, 0xbb, 0x1b, 0x03, 0x09, 0x00, 0x15, 0x00, 0x00, 0x20, 0x08, */
 };
 
+int udp_fd;
+int udp_server(uint16_t port)
+{
+	struct sockaddr_in sockaddr;
+
+	if ((udp_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		fprintf(stderr, "can't create socket\n");
+		return -1;
+	}
+	sockaddr.sin_family = AF_INET;
+	sockaddr.sin_addr.s_addr = INADDR_ANY;
+	sockaddr.sin_port = htons(port);
+
+	if (bind(udp_fd, (struct sockaddr *)&sockaddr,
+		 sizeof(struct sockaddr_in)) < 0) {
+		fprintf(stderr, "can't bind\n");
+		return -1;
+	}
+	return 0;
+}
+
 int net_udp_tests(void)
 {
 	pkt_t *pkt;
@@ -321,6 +344,9 @@ int net_udp_tests(void)
 #endif
 	uint8_t mac_dst[] = { 0x48, 0x83, 0xc7, 0xbc, 0x7d, 0x06 };
 	uint8_t mac_src[] = { 0x9c, 0xd6, 0x43, 0xae, 0x22, 0x6c };
+	uint16_t port = 777;
+	struct sockaddr_in addr;
+	sbuf_t sb;
 
 	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
 	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
@@ -343,6 +369,7 @@ int net_udp_tests(void)
 
 	arp_init();
 	udp_init();
+	socket_init();
 
 	arp_add_entry(mac_src, (uint8_t *)&ip_src, &iface);
 	buf_init(&out, icmp_port_unrecheable_pkt,
@@ -356,15 +383,16 @@ int net_udp_tests(void)
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("out pkt:\n");
-		buf_print(pkt->buf);
+		buf_print(&pkt->buf);
 		printf("expected:\n");
-		buf_print(out);
+		buf_print(&out);
 		pkt_free(pkt);
 		return -1;
 	}
 
-	if (udp_bind(10, 777) < 0) {
-		fprintf(stderr, "can't bind on udp port 777\n");
+	dft_route.iface = &iface;
+	if (udp_server(port) < 0) {
+		fprintf(stderr, "can't start udp server\n");
 		return -1;
 	}
 
@@ -375,9 +403,29 @@ int net_udp_tests(void)
 		return -1;
 	}
 
+	if (socket_get_pkt(udp_fd, &pkt, (struct sockaddr *)&addr) < 0) {
+		fprintf(stderr, "can't get udp pkt\n");
+		return -1;
+	}
+
+	sb = PKT2SBUF(pkt);
+	sbuf_print(&sb);
+	if (socket_put_sbuf(udp_fd, &sb, (struct sockaddr *)&addr) < 0) {
+		fprintf(stderr, "can't put sbuf to socket\n");
+		return -1;
+	}
+	pkt_free(pkt);
+
+	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+		fprintf(stderr, "can't get udp echo packet\n");
+		return -1;
+	}
+
+	buf_print(&pkt->buf);
 
 	pkt_mempool_shutdown();
 	udp_shutdown();
+	socket_shutdown();
 
 	return 0;
 }
