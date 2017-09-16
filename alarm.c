@@ -199,11 +199,30 @@ int udp_server(uint16_t port)
 	return fd;
 }
 
+int udp_client(struct sockaddr_in *sockaddr, uint32_t addr, uint16_t port)
+{
+	int fd;
+
+	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+#ifdef DEBUG
+		printf("can't create socket\n");
+#endif
+		return -1;
+	}
+	sockaddr->sin_family = AF_INET;
+	sockaddr->sin_addr.s_addr = addr;
+	sockaddr->sin_port = htons(port);
+
+	return fd;
+}
+
 int main(void)
 {
 #ifdef NET
 	tim_t timer_wd;
 	int udp_fd;
+	int udp_fd_client;
+	struct sockaddr_in addr_c;
 #endif
 	wdt_enable(WDTO_8S);
 	init_adc();
@@ -243,6 +262,14 @@ int main(void)
 	net_reset();
 
 	udp_fd = udp_server(777);
+	udp_fd_client = udp_client(&addr_c, 0x0b00a8c0, 777);
+
+	if (udp_fd < 0 || udp_fd_client < 0) {
+#ifdef DEBUG
+		printf(PSTR("can't create sockets\n"));
+#endif
+		return -1;
+	}
 #endif
 
 	PCICR |= _BV(PCIE0);
@@ -253,6 +280,7 @@ int main(void)
 		/* slow functions */
 		pkt_t *pkt;
 		struct sockaddr_in addr;
+		static int a;
 
 		cli();
 		if ((pkt = pkt_get(&eth0.rx)) != NULL) {
@@ -277,6 +305,22 @@ int main(void)
 				printf("can't put sbuf to socket\n");
 			pkt_free(pkt);
 		}
+
+		if (a == 100) {
+			sbuf_t sb = SBUF_INITS("blabla\n");
+
+			if (socket_put_sbuf(udp_fd_client, &sb, (struct sockaddr *)&addr_c) < 0)
+				printf("can't put sbuf to socket\n");
+			a = 0;
+			if (socket_get_pkt(udp_fd_client, &pkt, (struct sockaddr *)&addr) >= 0) {
+				sbuf_t sb = PKT2SBUF(pkt);
+				char *s = (char *)sb.data;
+				s[sb.len] = 0;
+				printf("%s\n", s);
+				pkt_free(pkt);
+			}
+		}
+		a++;
 
 
 		delay_ms(10);

@@ -19,6 +19,11 @@ typedef struct buf {
 
 #define buf2staticbuf(buf) (sbuf_t) { .len = buf->len, .data = buf->data }
 
+#define SBUF_INITS(str) (sbuf_t)					\
+	{								\
+		.data = (unsigned char *)str, .len = strlen(str)	\
+	}
+
 static inline void sbuf_init(sbuf_t *sbuf, const void *data,
 			     unsigned len)
 {

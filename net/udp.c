@@ -111,18 +111,37 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	return;
 }
 
+int max_retries = EPHEMERAL_PORT_END - EPHEMERAL_PORT_START;
+
 /* port - network endian format */
-int udp_bind(uint8_t fd, uint16_t port)
+int udp_bind(uint8_t fd, uint16_t *port)
 {
 	sbuf_t key, val;
+	static unsigned udp_ephemeral_port = EPHEMERAL_PORT_START;
+	int ret = -1, retries = 0;
+	uint16_t p = *port;
+	int client = p ? 0 : 1;
 
-	/* static unsigned udp_ephemeral_port = EPHEMERAL_PORT_START; */
-	/* udp_ephemeral_port++; */
+	do {
+		if (client) {
+			p = htons(udp_ephemeral_port);
+			udp_ephemeral_port++;
+			if (udp_ephemeral_port >= EPHEMERAL_PORT_END)
+				udp_ephemeral_port = EPHEMERAL_PORT_START;
+		}
 
-	sbuf_init(&key, &port, sizeof(port));
-	sbuf_init(&val, &fd, sizeof(fd));
+		sbuf_init(&key, &p, sizeof(p));
+		sbuf_init(&val, &fd, sizeof(fd));
 
-	return htable_add(udp_binds, &key, &val);
+		if ((ret = htable_add(udp_binds, &key, &val)) < 0)
+			retries++;
+		else {
+			*port = p;
+			break;
+		}
+	} while (client && retries < max_retries);
+
+	return ret;
 }
 
 /* port - network endian format */

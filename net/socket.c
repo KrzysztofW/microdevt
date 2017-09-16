@@ -43,6 +43,7 @@ typedef struct sock_info sock_info_t;
 
 hash_table_t *fd_to_sock;
 uint8_t cur_fd = 3;
+uint8_t max_fds = 100;
 
 #define FD2SBUF(fd) (sbuf_t)			\
 	{					\
@@ -69,8 +70,9 @@ static sock_info_t *fd2sockinfo(int fd)
 int socket(int family, int type, int protocol)
 {
 	sock_info_t sock_info, *sinfo;
-	uint8_t fd = cur_fd;
+	uint8_t fd;
 	sbuf_t key, val;
+	int retries = 0;
 
 	(void)protocol;
 	if (family != AF_INET)
@@ -79,10 +81,19 @@ int socket(int family, int type, int protocol)
 	if (family >= SOCK_LAST)
 		return -1;
 
+ again:
+	fd = cur_fd;
 	key = FD2SBUF(fd);
 	val = SOCKINFO2SBUF(&sock_info);
-	if (htable_add(fd_to_sock, &key, &val) < 0)
-		return -1;
+	if (htable_add(fd_to_sock, &key, &val) < 0) {
+		if (retries > max_fds)
+			return -1;
+		retries++;
+		cur_fd++;
+		if (cur_fd > max_fds)
+			cur_fd = 3;
+		goto again;
+	}
 
 	sinfo = fd2sockinfo(fd);
 	assert (sinfo != NULL);
@@ -90,6 +101,7 @@ int socket(int family, int type, int protocol)
 	memset(sinfo, 0, sizeof(sock_info_t));
 	sinfo->type = type;
 	sinfo->family = family;
+	sinfo->port = 0;
 	INIT_LIST_HEAD(&sinfo->pkt_list);
 
 	cur_fd++;
@@ -116,7 +128,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	/* TODO check sin_addr for ip addresses on available interfaces */
 
 	if (sock_info->type == SOCK_DGRAM)
-		return udp_bind(sockfd, sockaddr->sin_port);
+		return udp_bind(sockfd, &sockaddr->sin_port);
 
 	return -1;
 }
@@ -140,12 +152,15 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr)
 
 	switch (sockinfo->type) {
 	case SOCK_TYPE_UDP:
+		if (sockinfo->port == 0 && udp_bind(fd, &sockinfo->port) < 0)
+			goto error;
+
 		ip_hdr->p = IPPROTO_UDP;
 		pkt_adj(pkt, (int)sizeof(udp_hdr_t));
 
-		if (buf_addsbuf(&pkt->buf, sbuf) < 0) {
+		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
 			goto error;
-		}
+
 		pkt_adj(pkt, -(int)sizeof(udp_hdr_t));
 		udp_output(pkt, addr_in->sin_addr.s_addr, sockinfo->port,
 			   addr_in->sin_port);
