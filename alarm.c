@@ -34,6 +34,7 @@ iface_t eth0 = {
 	.flags = IFF_UP|IFF_RUNNING,
 	.mac_addr = { 0x62, 0x5F, 0x70, 0x72, 0x61, 0x79 },
 	.ip4_addr = { 192, 168, 0, 99 },
+	.ip4_mask = { 255, 255, 255, 0 },
 };
 #endif
 
@@ -257,6 +258,7 @@ int main(void)
 #ifdef NET
 	arp_init();
 	dft_route.iface = &eth0;
+	dft_route.ip = 0x0100a8c0;
 	udp_init();
 	socket_init();
 	net_reset();

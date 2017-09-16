@@ -33,7 +33,6 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 		return;
 	}
 
-	ip_addr = (uint32_t *)iface->ip4_addr;
 	ip->src = *ip_addr;
 	ip->v = 4;
 	ip->hl = sizeof(ip_hdr_t) / 4;
