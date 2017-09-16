@@ -259,7 +259,6 @@ int main(void)
 	arp_init();
 	dft_route.iface = &eth0;
 	dft_route.ip = 0x0100a8c0;
-	udp_init();
 	socket_init();
 	net_reset();
 

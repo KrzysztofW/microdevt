@@ -56,7 +56,7 @@ int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr *addr);
 int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr);
 int socket_close(int fd);
 int socket_append_pkt(const sbuf_t *fd, pkt_t *pkt);
-void socket_init(void);
+int socket_init(void);
 void socket_shutdown(void);
 
 #endif

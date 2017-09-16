@@ -457,5 +457,11 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> net udp tests succeeded\n");
 
+	if (net_tcp_tests() < 0) {
+		fprintf(stderr, "  ==> net tcp tests failed\n");
+		return -1;
+	}
+	printf("  ==> net tcp tests succeeded\n");
+
 	return 0;
 }

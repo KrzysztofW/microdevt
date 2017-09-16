@@ -2,6 +2,7 @@
 #include "eth.h"
 #include "ip.h"
 #include "udp.h"
+#include "tcp.h"
 #include "../sys/list.h"
 #include "../sys/hash-tables.h"
 
@@ -38,12 +39,16 @@ struct sock_info {
 
 typedef struct sock_info sock_info_t;
 
-#define MAX_SOCK_HT_SIZE 4
-#define MAX_NB_SOCKETS   4
+#define TRANSPORT_MAX_HT 4
+#define MAX_SOCK_HT_SIZE (TRANSPORT_MAX_HT * 2)
+#define MAX_NB_SOCKETS MAX_SOCK_HT_SIZE
 
 hash_table_t *fd_to_sock;
 uint8_t cur_fd = 3;
 uint8_t max_fds = 100;
+extern hash_table_t *udp_binds;
+extern hash_table_t *tcp_binds;
+
 
 #define FD2SBUF(fd) (sbuf_t)			\
 	{					\
@@ -108,6 +113,65 @@ int socket(int family, int type, int protocol)
 	return fd;
 }
 
+int max_retries = EPHEMERAL_PORT_END - EPHEMERAL_PORT_START;
+
+/* port - network endian format */
+static int transport_bind(hash_table_t *ht_binds, uint8_t fd, uint16_t *port)
+{
+	sbuf_t key, val;
+	static unsigned ephemeral_port = EPHEMERAL_PORT_START;
+	int ret = -1, retries = 0;
+	uint16_t p = *port;
+	int client = p ? 0 : 1;
+
+	do {
+		if (client) {
+			p = htons(ephemeral_port);
+			ephemeral_port++;
+			if (ephemeral_port >= EPHEMERAL_PORT_END)
+				ephemeral_port = EPHEMERAL_PORT_START;
+		}
+
+		sbuf_init(&key, &p, sizeof(p));
+		sbuf_init(&val, &fd, sizeof(fd));
+
+		if ((ret = htable_add(ht_binds, &key, &val)) < 0)
+			retries++;
+		else {
+			*port = p;
+			break;
+		}
+	} while (client && retries < max_retries);
+
+	return ret;
+}
+
+int udp_bind(uint8_t fd, uint16_t *port)
+{
+	return transport_bind(udp_binds, fd, port);
+}
+
+int udp_unbind(uint16_t port)
+{
+	sbuf_t key;
+
+	sbuf_init(&key, &port, sizeof(port));
+	return htable_del(udp_binds, &key);
+}
+
+int tcp_bind(uint8_t fd, uint16_t *port)
+{
+	return transport_bind(tcp_binds, fd, port);
+}
+
+int tcp_unbind(uint16_t port)
+{
+	sbuf_t key;
+
+	sbuf_init(&key, &port, sizeof(port));
+	return htable_del(tcp_binds, &key);
+}
+
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
 	sock_info_t *sock_info;
@@ -138,7 +202,6 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr)
 	sock_info_t *sockinfo = fd2sockinfo(fd);
 	struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
 	pkt_t *pkt;
-	ip_hdr_t *ip_hdr;
 
 	if (sockinfo == NULL)
 		return -1;
@@ -147,7 +210,6 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr)
 		return -1;
 
 	pkt_adj(pkt, (int)sizeof(eth_hdr_t));
-	ip_hdr = btod(pkt, ip_hdr_t *);
 	pkt_adj(pkt, (int)sizeof(ip_hdr_t));
 
 	switch (sockinfo->type) {
@@ -155,7 +217,6 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr)
 		if (sockinfo->port == 0 && udp_bind(fd, &sockinfo->port) < 0)
 			goto error;
 
-		ip_hdr->p = IPPROTO_UDP;
 		pkt_adj(pkt, (int)sizeof(udp_hdr_t));
 
 		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
@@ -163,6 +224,20 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr)
 
 		pkt_adj(pkt, -(int)sizeof(udp_hdr_t));
 		udp_output(pkt, addr_in->sin_addr.s_addr, sockinfo->port,
+			   addr_in->sin_port);
+		return 0;
+
+	case SOCK_TYPE_TCP:
+		if (sockinfo->port == 0 && tcp_bind(fd, &sockinfo->port) < 0)
+			goto error;
+
+		pkt_adj(pkt, (int)sizeof(tcp_hdr_t));
+
+		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
+			goto error;
+
+		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
+		tcp_output(pkt, addr_in->sin_addr.s_addr, TH_PUSH | TH_ACK, sockinfo->port,
 			   addr_in->sin_port);
 		return 0;
 	default:
@@ -240,12 +315,20 @@ int socket_append_pkt(const sbuf_t *fd, pkt_t *pkt)
 	return 0;
 }
 
-void socket_init(void)
+int socket_init(void)
 {
-	fd_to_sock = htable_create(MAX_SOCK_HT_SIZE);
+	if ((fd_to_sock = htable_create(MAX_SOCK_HT_SIZE)) == NULL)
+		return -1;
+	if ((udp_binds = htable_create(TRANSPORT_MAX_HT)) == NULL)
+		return -1;
+	if ((tcp_binds = htable_create(TRANSPORT_MAX_HT)) == NULL)
+		return -1;
+	return 0;
 }
 
 void socket_shutdown(void)
 {
 	htable_free(fd_to_sock);
+	htable_free(udp_binds);
+	htable_free(tcp_binds);
 }

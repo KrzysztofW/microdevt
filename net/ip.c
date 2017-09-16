@@ -5,6 +5,7 @@
 #include "chksum.h"
 #include "route.h"
 #include "udp.h"
+#include "tcp.h"
 #include <assert.h>
 
 void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
@@ -14,6 +15,7 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 	uint32_t ip_dst;
 	uint32_t *mask;
 	uint32_t *ip_addr;
+	uint16_t payload_len = pkt_len(out);
 
 	if (iface == NULL)
 		iface = dft_route.iface;
@@ -37,7 +39,7 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 	ip->v = 4;
 	ip->hl = sizeof(ip_hdr_t) / 4;
 	ip->tos = 0;
-	ip->len = htons(pkt_len(out));
+	ip->len = htons(payload_len);
 	ip->id = 0;
 	ip->off = flags;
 	ip->ttl = 0x38;
@@ -56,8 +58,13 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 	}
 
 	pkt_adj(out, (int)sizeof(ip_hdr_t));
-	if (ip->p == IPPROTO_UDP)
-		udp_set_cksum(ip, btod(out, udp_hdr_t *));
+	if (ip->p == IPPROTO_UDP) {
+		udp_hdr_t *udp_hdr = btod(out, udp_hdr_t *);
+		set_transport_cksum(ip, udp_hdr, udp_hdr->length);
+	} else if (ip->p == IPPROTO_TCP) {
+		tcp_hdr_t *tcp_hdr = btod(out, tcp_hdr_t *);
+		set_transport_cksum(ip, tcp_hdr, htons(payload_len - sizeof(ip_hdr_t)));
+	}
 	pkt_adj(out, -(int)sizeof(ip_hdr_t));
 
 	eth_output(out, iface, mac_addr, ETHERTYPE_IP);
@@ -99,7 +106,7 @@ void ip_input(pkt_t *pkt, iface_t *iface)
 		return;
 #endif
 	case IPPROTO_TCP:
-		//tcp_input(pkt, iface);
+		tcp_input(pkt);
 		break;
 
 	case IPPROTO_UDP:
