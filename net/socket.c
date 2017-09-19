@@ -59,7 +59,7 @@ extern hash_table_t *tcp_binds;
 #define SOCKINFO2SBUF(sockinfo) (sbuf_t)	\
 	{					\
 		.data = (void *)sockinfo,	\
-		.len = sizeof(sock_info_t),     \
+		.len = sizeof(void *),          \
 	}
 
 static sock_info_t *fd2sockinfo(int fd)
@@ -69,12 +69,12 @@ static sock_info_t *fd2sockinfo(int fd)
 
 	if (htable_lookup(fd_to_sock, &key, &val) < 0)
 		return NULL;
-	return (sock_info_t *)val->data;
+	return *(sock_info_t **)val->data;
 }
 
 int socket(int family, int type, int protocol)
 {
-	sock_info_t sock_info, *sinfo;
+	sock_info_t *sock_info;
 	uint8_t fd;
 	sbuf_t key, val;
 	int retries = 0;
@@ -86,13 +86,18 @@ int socket(int family, int type, int protocol)
 	if (family >= SOCK_LAST)
 		return -1;
 
+	if ((sock_info = malloc(sizeof(sock_info_t))) == NULL)
+		return -1;
+
  again:
 	fd = cur_fd;
 	key = FD2SBUF(fd);
 	val = SOCKINFO2SBUF(&sock_info);
 	if (htable_add(fd_to_sock, &key, &val) < 0) {
-		if (retries > max_fds)
+		if (retries > max_fds) {
+			free(sock_info);
 			return -1;
+		}
 		retries++;
 		cur_fd++;
 		if (cur_fd > max_fds)
@@ -100,14 +105,11 @@ int socket(int family, int type, int protocol)
 		goto again;
 	}
 
-	sinfo = fd2sockinfo(fd);
-	assert (sinfo != NULL);
-
-	memset(sinfo, 0, sizeof(sock_info_t));
-	sinfo->type = type;
-	sinfo->family = family;
-	sinfo->port = 0;
-	INIT_LIST_HEAD(&sinfo->pkt_list);
+	memset(sock_info, 0, sizeof(sock_info_t));
+	sock_info->type = type;
+	sock_info->family = family;
+	sock_info->port = 0;
+	INIT_LIST_HEAD(&sock_info->pkt_list);
 
 	cur_fd++;
 	return fd;
@@ -309,7 +311,7 @@ int socket_append_pkt(const sbuf_t *fd, pkt_t *pkt)
 	if (htable_lookup(fd_to_sock, fd, &val) < 0)
 		return -1;
 
-	sockinfo = (sock_info_t *)val->data;
+	sockinfo = *(sock_info_t **)val->data;
 	list_add_tail(&pkt->list, &sockinfo->pkt_list);
 
 	return 0;
