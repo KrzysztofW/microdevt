@@ -151,7 +151,8 @@ int htable_del(hash_table_t *htable, const sbuf_t *key)
 	return -1;
 }
 
-void htable_free(hash_table_t *htable)
+void
+htable_for_each(hash_table_t *htable, void (*cb)(sbuf_t *key, sbuf_t *val))
 {
 	int i;
 
@@ -161,10 +162,22 @@ void htable_free(hash_table_t *htable)
 
 		list_for_each_safe(list, tmp, &htable->list_head[i]) {
 			e = list_entry(list, node_t, list);
-			htable_free_node(e);
+			cb(&e->key, &e->val);
 		}
 	}
+}
 
+static void ht_free_node_cb(sbuf_t *key, sbuf_t *val)
+{
+	node_t *node = container_of(val, node_t, val);
+
+	(void)key;
+	htable_free_node(node);
+}
+
+void htable_free(hash_table_t *htable)
+{
+	htable_for_each(htable, ht_free_node_cb);
 	free(htable->list_head);
 	free(htable);
 }

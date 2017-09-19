@@ -27,5 +27,7 @@ int __htable_add(hash_table_t *htable, const void *key, int key_len,
 int htable_del(hash_table_t *htable, const sbuf_t *key);
 void htable_del_val(hash_table_t *htable, sbuf_t *val);
 void htable_free(hash_table_t *htable);
+void
+htable_for_each(hash_table_t *htable, void (*cb)(sbuf_t *key, sbuf_t *val));
 
 #endif
