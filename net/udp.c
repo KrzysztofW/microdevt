@@ -31,7 +31,8 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	udp_hdr_t *udp_hdr;
 	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
 	uint16_t length;
-	sbuf_t key, *fd;
+	sbuf_t key, *val;
+	sock_info_t *sock_info;
 
 	pkt_adj(pkt, ip_hdr->hl * 4);
 	udp_hdr = btod(pkt, udp_hdr_t *);
@@ -41,7 +42,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 		goto error;
 
 	sbuf_init(&key, &udp_hdr->dst_port, sizeof(udp_hdr->dst_port));
-	if (htable_lookup(udp_binds, &key, &fd) < 0) {
+	if (htable_lookup(udp_binds, &key, &val) < 0) {
 		ip_hdr_t *ip_hdr_out;
 		pkt_t *out;
 		buf_t data;
@@ -71,8 +72,8 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	/* truncate pkt to the udp payload length */
 	pkt->buf.len = length - sizeof(udp_hdr_t);
 
-	if (socket_append_pkt(fd, pkt) < 0)
-		goto error;
+	sock_info = SBUF2SOCKINFO(val);
+	socket_append_pkt(sock_info, pkt);
 
 	return;
 

@@ -39,7 +39,8 @@ void tcp_input(pkt_t *pkt)
 	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
 	uint16_t ip_hdr_len = ip_hdr->hl * 4;
 	uint16_t payload_len = ip_hdr->len - ip_hdr_len;
-	sbuf_t key, *fd;
+	sbuf_t key, *val;
+	sock_info_t *sock_info;
 
 	pkt_adj(pkt, ip_hdr_len);
 	tcp_hdr = btod(pkt, tcp_hdr_t *);
@@ -47,7 +48,7 @@ void tcp_input(pkt_t *pkt)
 		goto error;
 
 	sbuf_init(&key, &tcp_hdr->dst_port, sizeof(tcp_hdr->dst_port));
-	if (htable_lookup(tcp_binds, &key, &fd) < 0) {
+	if (htable_lookup(tcp_binds, &key, &val) < 0) {
 		ip_hdr_t *ip_hdr_out;
 		pkt_t *out;
 
@@ -74,8 +75,7 @@ void tcp_input(pkt_t *pkt)
 	/* truncate pkt to the tcp payload length */
 	pkt->buf.len = payload_len;
 
-	if (socket_append_pkt(fd, pkt) < 0)
-		goto error;
+	socket_append_pkt(sock_info, pkt);
 
 	return;
 

@@ -6,39 +6,6 @@
 #include "../sys/list.h"
 #include "../sys/hash-tables.h"
 
-typedef enum sock_type {
-	SOCK_TYPE_NONE,
-	SOCK_TYPE_TCP,
-	SOCK_TYPE_UDP,
-} sock_type_t;
-
-typedef enum sock_status {
-	CLOSED,
-	CONNECTING,
-	OPEN,
-} sock_status_t;
-
-typedef union uaddr {
-	uint32_t ip4_addr;
-#ifdef CONFIG_IPV6
-	uint32_t ip6_addr[4];
-#endif
-} uaddr_t;
-
-struct sock_info {
-	uaddr_t  addr;
-	uint16_t port;
-
-	uint8_t family : 4; /* upto 15 families */
-	uint8_t type   : 2; /* upto 3 types */
-	uint8_t status : 2; /* upto 3 statuses */
-
-	struct list_head pkt_list;
-	/* TODO tx_pkt_list */
-}  __attribute__((__packed__));
-
-typedef struct sock_info sock_info_t;
-
 #define TRANSPORT_MAX_HT 4
 #define MAX_SOCK_HT_SIZE (TRANSPORT_MAX_HT * 2)
 #define MAX_NB_SOCKETS MAX_SOCK_HT_SIZE
@@ -49,20 +16,7 @@ uint8_t max_fds = 100;
 extern hash_table_t *udp_binds;
 extern hash_table_t *tcp_binds;
 
-
-#define FD2SBUF(fd) (sbuf_t)			\
-	{					\
-		.data = (void *)&fd,		\
-		.len = sizeof(uint8_t),	        \
-	}
-
-#define SOCKINFO2SBUF(sockinfo) (sbuf_t)	\
-	{					\
-		.data = (void *)sockinfo,	\
-		.len = sizeof(void *),          \
-	}
-
-static sock_info_t *fd2sockinfo(int fd)
+static inline sock_info_t *fd2sockinfo(int fd)
 {
 	sbuf_t key = FD2SBUF(fd);
 	sbuf_t *val;
@@ -70,6 +24,12 @@ static sock_info_t *fd2sockinfo(int fd)
 	if (htable_lookup(fd_to_sock, &key, &val) < 0)
 		return NULL;
 	return *(sock_info_t **)val->data;
+}
+
+static inline void sock_info_init(sock_info_t *sock_info)
+{
+	memset(sock_info, 0, sizeof(sock_info_t));
+	INIT_LIST_HEAD(&sock_info->pkt_list);
 }
 
 int socket(int family, int type, int protocol)
@@ -89,10 +49,10 @@ int socket(int family, int type, int protocol)
 	if ((sock_info = malloc(sizeof(sock_info_t))) == NULL)
 		return -1;
 
+	val = SOCKINFO2SBUF(sock_info);
  again:
 	fd = cur_fd;
 	key = FD2SBUF(fd);
-	val = SOCKINFO2SBUF(&sock_info);
 	if (htable_add(fd_to_sock, &key, &val) < 0) {
 		if (retries > max_fds) {
 			free(sock_info);
@@ -104,12 +64,9 @@ int socket(int family, int type, int protocol)
 			cur_fd = 3;
 		goto again;
 	}
-
-	memset(sock_info, 0, sizeof(sock_info_t));
+	sock_info_init(sock_info);
 	sock_info->type = type;
 	sock_info->family = family;
-	sock_info->port = 0;
-	INIT_LIST_HEAD(&sock_info->pkt_list);
 
 	cur_fd++;
 	return fd;
@@ -118,12 +75,13 @@ int socket(int family, int type, int protocol)
 int max_retries = EPHEMERAL_PORT_END - EPHEMERAL_PORT_START;
 
 /* port - network endian format */
-static int transport_bind(hash_table_t *ht_binds, uint8_t fd, uint16_t *port)
+static int
+transport_bind(hash_table_t *ht_binds, sock_info_t *sock_info)
 {
 	sbuf_t key, val;
 	static unsigned ephemeral_port = EPHEMERAL_PORT_START;
 	int ret = -1, retries = 0;
-	uint16_t p = *port;
+	uint16_t p = sock_info->port;
 	int client = p ? 0 : 1;
 
 	do {
@@ -135,12 +93,12 @@ static int transport_bind(hash_table_t *ht_binds, uint8_t fd, uint16_t *port)
 		}
 
 		sbuf_init(&key, &p, sizeof(p));
-		sbuf_init(&val, &fd, sizeof(fd));
+		val = SOCKINFO2SBUF(sock_info);
 
 		if ((ret = htable_add(ht_binds, &key, &val)) < 0)
 			retries++;
 		else {
-			*port = p;
+			sock_info->port = p;
 			break;
 		}
 	} while (client && retries < max_retries);
@@ -148,30 +106,34 @@ static int transport_bind(hash_table_t *ht_binds, uint8_t fd, uint16_t *port)
 	return ret;
 }
 
-int udp_bind(uint8_t fd, uint16_t *port)
-{
-	return transport_bind(udp_binds, fd, port);
-}
-
-int udp_unbind(uint16_t port)
+static int transport_unbind(hash_table_t *ht_binds, sock_info_t *sock_info)
 {
 	sbuf_t key;
 
-	sbuf_init(&key, &port, sizeof(port));
-	return htable_del(udp_binds, &key);
+	sbuf_init(&key, &sock_info->port, sizeof(sock_info->port));
+	htable_del(ht_binds, &key);
+	htable_del(fd_to_sock, &key);
+	return 0;
 }
 
-int tcp_bind(uint8_t fd, uint16_t *port)
+static int udp_bind(sock_info_t *sock_info)
 {
-	return transport_bind(tcp_binds, fd, port);
+	return transport_bind(udp_binds, sock_info);
 }
 
-int tcp_unbind(uint16_t port)
+static int udp_unbind(sock_info_t *sock_info)
 {
-	sbuf_t key;
+	return transport_unbind(udp_binds, sock_info);
+}
 
-	sbuf_init(&key, &port, sizeof(port));
-	return htable_del(tcp_binds, &key);
+static int tcp_bind(sock_info_t *sock_info)
+{
+	return transport_bind(tcp_binds, sock_info);
+}
+
+static int tcp_unbind(sock_info_t *sock_info)
+{
+	return transport_unbind(tcp_binds, sock_info);
 }
 
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
@@ -190,11 +152,15 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
 	sock_info->addr.ip4_addr = sockaddr->sin_addr.s_addr;
 	sock_info->port = sockaddr->sin_port;
+	sock_info->fd = sockfd;
 
 	/* TODO check sin_addr for ip addresses on available interfaces */
 
 	if (sock_info->type == SOCK_DGRAM)
-		return udp_bind(sockfd, &sockaddr->sin_port);
+		return udp_bind(sock_info);
+
+	if (sock_info->type == SOCK_STREAM)
+		return tcp_bind(sock_info);
 
 	return -1;
 }
@@ -216,7 +182,7 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr)
 
 	switch (sockinfo->type) {
 	case SOCK_TYPE_UDP:
-		if (sockinfo->port == 0 && udp_bind(fd, &sockinfo->port) < 0)
+		if (sockinfo->port == 0 && udp_bind(sockinfo) < 0)
 			goto error;
 
 		pkt_adj(pkt, (int)sizeof(udp_hdr_t));
@@ -230,7 +196,7 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr)
 		return 0;
 
 	case SOCK_TYPE_TCP:
-		if (sockinfo->port == 0 && tcp_bind(fd, &sockinfo->port) < 0)
+		if (sockinfo->port == 0 && tcp_bind(sockinfo) < 0)
 			goto error;
 
 		pkt_adj(pkt, (int)sizeof(tcp_hdr_t));
@@ -292,7 +258,10 @@ int socket_close(int fd)
 		return -1;
 
 	if (sockinfo->type == SOCK_DGRAM) {
-		if (udp_unbind(sockinfo->port) < 0)
+		if (udp_unbind(sockinfo) < 0)
+			return -1;
+	} else if (sockinfo->type == SOCK_STREAM) {
+		if (tcp_unbind(sockinfo) < 0)
 			return -1;
 	} else
 		return -1;
@@ -303,18 +272,9 @@ int socket_close(int fd)
 	return 0;
 }
 
-int socket_append_pkt(const sbuf_t *fd, pkt_t *pkt)
+void socket_append_pkt(sock_info_t *sock_info, pkt_t *pkt)
 {
-	sock_info_t *sockinfo;
-	sbuf_t *val;
-
-	if (htable_lookup(fd_to_sock, fd, &val) < 0)
-		return -1;
-
-	sockinfo = *(sock_info_t **)val->data;
-	list_add_tail(&pkt->list, &sockinfo->pkt_list);
-
-	return 0;
+	list_add_tail(&pkt->list, &sock_info->pkt_list);
 }
 
 int socket_init(void)
@@ -328,9 +288,17 @@ int socket_init(void)
 	return 0;
 }
 
+static void socket_free_cb(sbuf_t *key, sbuf_t *val)
+{
+	(void)key;
+	free(SBUF2SOCKINFO(val));
+}
+
 void socket_shutdown(void)
 {
-	htable_free(fd_to_sock);
 	htable_free(udp_binds);
 	htable_free(tcp_binds);
+
+	htable_for_each(fd_to_sock, socket_free_cb);
+	htable_free(fd_to_sock);
 }

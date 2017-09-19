@@ -49,14 +49,65 @@ struct sockaddr_in {
 	char           sin_zero[8];
 } __attribute__((__packed__));
 
+/* internal data structures */
+
+typedef enum sock_type {
+	SOCK_TYPE_NONE,
+	SOCK_TYPE_TCP,
+	SOCK_TYPE_UDP,
+} sock_type_t;
+
+typedef enum sock_status {
+	CLOSED,
+	CONNECTING,
+	OPEN,
+} sock_status_t;
+
+typedef union uaddr {
+	uint32_t ip4_addr;
+#ifdef CONFIG_IPV6
+	uint32_t ip6_addr[4];
+#endif
+} uaddr_t;
+
+struct sock_info {
+	uaddr_t  addr;
+	uint16_t port;
+
+	uint8_t family : 4; /* upto 15 families */
+	uint8_t type   : 2; /* upto 3 types */
+	uint8_t status : 2; /* upto 3 statuses */
+	uint8_t fd;
+
+	struct list_head pkt_list;
+	/* TODO tx_pkt_list */
+}  __attribute__((__packed__));
+
+typedef struct sock_info sock_info_t;
+
+#define FD2SBUF(fd) (sbuf_t)			\
+	{					\
+		.data = (void *)&fd,		\
+		.len = sizeof(uint8_t),	        \
+	}
+
+#define SOCKINFO2SBUF(sockinfo) (sbuf_t)	\
+	{					\
+		.data = (void *)&sockinfo,	\
+		.len = sizeof(void *),          \
+	}
+
+#define SBUF2SOCKINFO(sb) *(sock_info_t **)(sb)->data
+
+void socket_append_pkt(sock_info_t *sock_info, pkt_t *pkt);
+int socket_init(void);
+void socket_shutdown(void);
+
+/* userland functions */
 int socket(int family, int type, int protocol);
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-void socket_put_pkt(pkt_t *pkt);
 int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr *addr);
 int socket_put_sbuf(int fd, const sbuf_t *sbuf, struct sockaddr *addr);
 int socket_close(int fd);
-int socket_append_pkt(const sbuf_t *fd, pkt_t *pkt);
-int socket_init(void);
-void socket_shutdown(void);
 
 #endif
