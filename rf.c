@@ -80,7 +80,7 @@ void decode_rf_cmds(void)
 	if (ring_len(rf_ring) < CMD_SIZE)
 		return;
 
-	ring_print(rf_ring);
+	ring_print_limit(rf_ring, CMD_SIZE);
 
 	if (ring_cmp(rf_ring, remote1_btn1,
 		     sizeof(remote1_btn1)) == 0) {
@@ -90,7 +90,6 @@ void decode_rf_cmds(void)
 		PORTD &= ~(1 << LED);
 	}
 	ring_skip(rf_ring, CMD_SIZE);
-	ring_cons_finish(rf_ring);
 }
 
 static void fill_cmd_ring(int bit, int count)
@@ -116,18 +115,14 @@ static void fill_cmd_ring(int bit, int count)
 		if (bit)
 			goto error;
 
-		if (started) {
-			if (ring_prod_len(rf_ring) == CMD_SIZE) {
-				ring_prod_finish(rf_ring);
-			} else
-				goto error;
-		}
+		if (started && (ring_len(rf_ring) % CMD_SIZE) != 0)
+			goto error;
 		started = 1;
 		return;
 	}
 
  error:
-	ring_prod_reset(rf_ring);
+	ring_reset(rf_ring);
 	ring_reset_byte(rf_ring);
 	started = 0;
 }

@@ -25,7 +25,6 @@ static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 			b = b << 1;
 		}
 	}
-	ring_prod_finish(ring);
 	return 0;
 }
 
@@ -39,18 +38,15 @@ static int ring_check_full(ring_t *ring)
 	for (i = 0; i < ZCHK_RSIZE - 1; i++) {
 		ring_addc(ring, 1);
 	}
-	ring_prod_finish(ring);
 	if (ring_len(ring) != ZCHK_RSIZE - 1) {
 		return -1;
 	}
 	ring_getc(ring, &c);
-	ring_cons_finish(ring);
 	if (ring_len(ring) != ZCHK_RSIZE - 2) {
 		return -1;
 	}
 	if (ring_addc(ring, 1) < 0)
 		return -1;
-	ring_prod_finish(ring);
 	if (ring_len(ring) != ZCHK_RSIZE - 1) {
 		return -1;
 	}
@@ -94,7 +90,6 @@ static int ring_check(void)
 		}
 		i++;
 	}
-	ring_cons_finish(ring);
 
 	/* fill up the whole ring */
 	ring_reset(ring);
@@ -105,13 +100,11 @@ static int ring_check(void)
 		free(ring);
 		return -1;
 	}
-	ring_prod_finish(ring);
 	if (ring_getc(ring, &c) < 0) {
 		fprintf(stderr, "cannot take elements\n");
 		free(ring);
 		return -1;
 	}
-	ring_cons_finish(ring);
 	if (c != bytes[0]) {
 		fprintf(stderr, "elements mismatch\n");
 		free(ring);
@@ -131,10 +124,8 @@ static int ring_check(void)
 		}
 		j = (j + 1) % sizeof(bytes);
 	}
-	ring_cons_finish(ring);
 	while (fill_ring(ring, bytes, sizeof(bytes)) == 0) {}
 	ring_skip(ring, 2);
-	ring_cons_finish(ring);
 	if (ring_len(ring) != ZCHK_RSIZE - 3) {
 		fprintf(stderr, "ring skip 1 failed (ring size:%d)\n",
 			ring_len(ring));
@@ -143,7 +134,6 @@ static int ring_check(void)
 	}
 	ring_addc(ring, 0xAA);
 	ring_addc(ring, 0xFF);
-	ring_prod_finish(ring);
 	if (ring_len(ring) != ZCHK_RSIZE - 1) {
 		fprintf(stderr, "ring skip 2 failed (ring size:%d)\n",
 			ring_len(ring));
@@ -151,7 +141,6 @@ static int ring_check(void)
 		return -1;
 	}
 	ring_skip(ring, ZCHK_RSIZE);
-	ring_cons_finish(ring);
 	if (ring_len(ring) != 0) {
 		fprintf(stderr, "ring skip 3 failed (ring size:%d)\n",
 			ring_len(ring));
