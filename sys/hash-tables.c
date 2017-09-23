@@ -62,8 +62,7 @@ int htable_lookup(const hash_table_t *htable, const sbuf_t *key,
 	return __htable_lookup(htable, hashval, key, val);
 }
 
-int htable_add(hash_table_t *htable, const sbuf_t *key,
-	       const sbuf_t *val)
+int htable_add(hash_table_t *htable, const sbuf_t *key, sbuf_t *val)
 {
 	node_t *new_node;
 	sbuf_t *cur_val;
@@ -92,6 +91,7 @@ int htable_add(hash_table_t *htable, const sbuf_t *key,
 	memcpy(data, val->data, val->len);
 	new_node->val.data = data;
 	new_node->val.len = val->len;
+	val->data = data;
 	INIT_LIST_HEAD(&new_node->list);
 
 	list_add_tail(&new_node->list, &htable->list_head[hashval]);
@@ -100,6 +100,7 @@ int htable_add(hash_table_t *htable, const sbuf_t *key,
 	return 0;
 }
 
+#if 0 /* unused function */
 int __htable_add(hash_table_t *htable, const void *key, int key_len,
 		 const void *val, int val_len)
 {
@@ -110,6 +111,7 @@ int __htable_add(hash_table_t *htable, const void *key, int key_len,
 
 	return htable_add(htable, &buf_key, &buf_val);
 }
+#endif
 
 static void htable_free_node(node_t *node)
 {

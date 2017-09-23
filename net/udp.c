@@ -73,12 +73,11 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	pkt->buf.len = length - sizeof(udp_hdr_t);
 
 	sock_info = SBUF2SOCKINFO(val);
-	socket_append_pkt(sock_info, pkt);
+	socket_append_pkt(&sock_info->trq.pkt_list, pkt);
 
 	return;
 
  error:
 	pkt_free(pkt);
 	/* inc stats */
-	return;
 }

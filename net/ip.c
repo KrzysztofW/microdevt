@@ -107,7 +107,7 @@ void ip_input(pkt_t *pkt, iface_t *iface)
 #endif
 	case IPPROTO_TCP:
 		tcp_input(pkt);
-		break;
+		return;
 
 	case IPPROTO_UDP:
 		udp_input(pkt, iface);
@@ -120,5 +120,4 @@ void ip_input(pkt_t *pkt, iface_t *iface)
  error:
 	pkt_free(pkt);
 	/* inc stats */
-	return;
 }
