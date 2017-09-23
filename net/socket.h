@@ -121,6 +121,7 @@ void socket_shutdown(void);
 
 /* userland functions */
 int socket(int family, int type, int protocol);
+int close(int fd);
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int listen(int fd, int backlog);
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);

@@ -382,6 +382,11 @@ int socket_close(int fd)
 	return 0;
 }
 
+int close(int fd)
+{
+	return socket_close(fd);
+}
+
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt)
 {
 	list_add_tail(&pkt->list, list_head);
