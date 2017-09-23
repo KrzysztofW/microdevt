@@ -124,6 +124,10 @@ int socket(int family, int type, int protocol);
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int listen(int fd, int backlog);
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+	       const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+		 struct sockaddr *src_addr, socklen_t *addrlen);
 int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr *addr);
 int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr);
 int socket_close(int fd);

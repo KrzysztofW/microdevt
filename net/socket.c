@@ -268,6 +268,18 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 	return -1;
 }
 
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+	       const struct sockaddr *dest_addr, socklen_t addrlen)
+{
+	sbuf_t sb;
+
+	(void)flags;
+	if (addrlen != sizeof(struct sockaddr_in))
+		return -1;
+	sbuf_init(&sb, buf, len);
+	return socket_put_sbuf(sockfd, &sb, dest_addr);
+}
+
 int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 {
 	sock_info_t *sockinfo = fd2sockinfo(fd);
@@ -332,6 +344,22 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 	pkt_adj(pkt, transport_hdr_len);
 
 	return 0;
+}
+
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+		 struct sockaddr *src_addr, socklen_t *addrlen)
+{
+	pkt_t *pkt;
+	int __len;
+
+	(void)flags;
+	if (socket_get_pkt(sockfd, &pkt, src_addr) < 0)
+		return -1;
+	*addrlen = sizeof(struct sockaddr_in);
+	__len = MIN((int)len, pkt->buf.len);
+	memcpy(buf, buf_data(&pkt->buf), __len);
+	pkt_free(pkt);
+	return __len;
 }
 
 int socket_close(int fd)

@@ -346,7 +346,10 @@ int net_udp_tests(void)
 	uint8_t mac_src[] = { 0x9c, 0xd6, 0x43, 0xae, 0x22, 0x6c };
 	uint16_t port = 777;
 	struct sockaddr_in addr;
+	socklen_t addrlen;
 	sbuf_t sb;
+	int buf_size = 1024, len;
+	char buf[buf_size];
 
 	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
 	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
@@ -402,18 +405,30 @@ int net_udp_tests(void)
 		return -1;
 	}
 
-	if (socket_get_pkt(udp_fd, &pkt, (struct sockaddr *)&addr) < 0) {
+	/* if (socket_get_pkt(udp_fd, &pkt, (struct sockaddr *)&addr) < 0) { */
+	/* 	fprintf(stderr, "can't get udp pkt\n"); */
+	/* 	return -1; */
+	/* } */
+	/* sb = PKT2SBUF(pkt); */
+	/* sbuf_print(&sb); */
+	/* if (socket_put_sbuf(udp_fd, &sb, (struct sockaddr *)&addr) < 0) { */
+	/* 	fprintf(stderr, "can't put sbuf to socket\n"); */
+	/* 	return -1; */
+	/* } */
+	/* pkt_free(pkt); */
+
+	if ((len = recvfrom(udp_fd, buf, buf_size, 0, (struct sockaddr *)&addr,
+			    &addrlen)) < 0) {
 		fprintf(stderr, "can't get udp pkt\n");
 		return -1;
 	}
-
-	sb = PKT2SBUF(pkt);
-	sbuf_print(&sb);
-	if (socket_put_sbuf(udp_fd, &sb, (struct sockaddr *)&addr) < 0) {
+	printf("udp data: %*s\n", len, buf);
+	sbuf_init(&sb, buf, len);
+	if (sendto(udp_fd, sb.data, sb.len, 0, (struct sockaddr *)&addr,
+		   sizeof(struct sockaddr_in)) < 0) {
 		fprintf(stderr, "can't put sbuf to socket\n");
 		return -1;
 	}
-	pkt_free(pkt);
 
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
 		fprintf(stderr, "can't get udp echo packet\n");
