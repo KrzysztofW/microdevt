@@ -378,6 +378,7 @@ int socket_close(int fd)
 		cur_fd--;
 	if (sockinfo->listen)
 		free(sockinfo->listen);
+	free(sockinfo);
 	return 0;
 }
 
@@ -399,17 +400,25 @@ int socket_init(void)
 	return 0;
 }
 
+#if 0 /* this code prevents from finding leaks */
 static void socket_free_cb(sbuf_t *key, sbuf_t *val)
 {
+	sock_info_t *sock_info = SBUF2SOCKINFO(val);
+
 	(void)key;
-	free(SBUF2SOCKINFO(val));
+	if (sock_info->listen)
+		free(sock_info->listen);
+	free(sock_info);
 }
+#endif
 
 void socket_shutdown(void)
 {
 	htable_free(udp_binds);
 	htable_free(tcp_binds);
-
+	htable_free(tcp_conns);
+#if 0 /* this code prevents from finding leaks */
 	htable_for_each(fd_to_sock, socket_free_cb);
+#endif
 	htable_free(fd_to_sock);
 }

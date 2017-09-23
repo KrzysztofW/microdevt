@@ -437,8 +437,9 @@ int net_udp_tests(void)
 
 	buf_print(&pkt->buf);
 
-	pkt_mempool_shutdown();
+	close(udp_fd);
 	socket_shutdown();
+	pkt_mempool_shutdown();
 
 	return 0;
 }
@@ -680,8 +681,10 @@ int net_tcp_tests(void)
 		return -1;
 	}
 
-	pkt_mempool_shutdown();
+	close(client_fd);
+	close(tcp_fd);
 	socket_shutdown();
+	pkt_mempool_shutdown();
 
 	return 0;
 }
