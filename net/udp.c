@@ -34,6 +34,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	sbuf_t key, *val;
 	sock_info_t *sock_info;
 
+	(void)iface;
 	pkt_adj(pkt, ip_hdr->hl * 4);
 	udp_hdr = btod(pkt, udp_hdr_t *);
 	length = ntohs(udp_hdr->length);
@@ -43,6 +44,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 
 	sbuf_init(&key, &udp_hdr->dst_port, sizeof(udp_hdr->dst_port));
 	if (htable_lookup(udp_binds, &key, &val) < 0) {
+#ifdef CONFIG_ICMP
 		ip_hdr_t *ip_hdr_out;
 		pkt_t *out;
 		buf_t data;
@@ -61,6 +63,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 
 		icmp_output(out, iface, ICMP_UNREACHABLE, ICMP_UNREACH_PORT, 0,
 			    0, &data, IP_DF);
+#endif
 		goto error;
 	}
 

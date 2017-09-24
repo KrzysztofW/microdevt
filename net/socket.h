@@ -2,7 +2,9 @@
 #define _SOCKET_H_
 
 #include "config.h"
+#ifdef CONFIG_TCP
 #include "tcp.h"
+#endif
 
 #define EPHEMERAL_PORT_START 49152
 #define EPHEMERAL_PORT_END   65535
@@ -33,6 +35,9 @@ struct in_addr {
 typedef uint16_t in_port_t;
 typedef uint8_t sa_family_t;
 typedef uint8_t socklen_t;
+#ifndef TEST
+typedef int ssize_t;
+#endif
 
 #define INADDR_ANY ((uint32_t)0)
 
@@ -58,6 +63,7 @@ typedef enum sock_type {
 	SOCK_TYPE_UDP,
 } sock_type_t;
 
+#ifdef CONFIG_TCP
 typedef enum sock_status {
 	SOCK_CLOSED,
 	SOCK_TCP_SYN_SENT,
@@ -65,6 +71,7 @@ typedef enum sock_status {
 	SOCK_TCP_FIN_SENT,
 	SOCK_CONNECTED,
 } sock_status_t;
+#endif
 
 typedef union uaddr {
 	uint32_t ip4_addr;
@@ -76,7 +83,9 @@ typedef union uaddr {
 typedef union transport_queue {
 	/* connectionless socket packet queue */
 	struct list_head pkt_list;
+#ifdef CONFIG_TCP
 	tcp_conn_t *tcp_conn;
+#endif
 } transport_queue_t;
 
 struct listen {

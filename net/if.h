@@ -11,7 +11,7 @@
 #define IFF_NOARP   (1 << 3)
 /*      IFF_LAST    (1 << 7) */
 
-typedef struct iface {
+struct iface {
 	uint8_t flags;
 	uint8_t mac_addr[ETHER_ADDR_LEN];
 
@@ -34,7 +34,8 @@ typedef struct iface {
 #endif
 	struct list_head rx;
 	struct list_head tx;
-} iface_t;
+} __attribute__((__packed__));
+typedef struct iface iface_t;
 
 int if_init(iface_t *ifce, uint16_t (*send)(const buf_t *out),
 	    uint16_t (*recv)(buf_t *in));

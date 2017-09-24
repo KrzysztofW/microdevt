@@ -96,6 +96,7 @@ void ip_input(pkt_t *pkt, iface_t *iface)
 #endif
 
 	switch (ip->p) {
+#ifdef CONFIG_ICMP
 	case IPPROTO_ICMP:
 		icmp_input(pkt, iface);
 		return;
@@ -105,13 +106,17 @@ void ip_input(pkt_t *pkt, iface_t *iface)
 		icmp6_input(pkt, iface);
 		return;
 #endif
+#endif
+#ifdef CONFIG_TCP
 	case IPPROTO_TCP:
 		tcp_input(pkt);
 		return;
-
+#endif
+#ifdef CONFIG_UDP
 	case IPPROTO_UDP:
 		udp_input(pkt, iface);
 		return;
+#endif
 	default:
 		/* unsupported protocols */
 		break;

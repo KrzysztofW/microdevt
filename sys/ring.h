@@ -5,18 +5,20 @@
 #include <stdio.h>
 #include "utils.h"
 
-typedef struct byte {
+struct byte {
 	unsigned char c;
 	int pos;
-} byte_t;
+} __attribute__((__packed__));
+typedef struct byte byte_t;
 
-typedef struct ring {
+struct ring {
 	int head;
 	int tail;
 	byte_t byte;
 	int mask;
 	unsigned char data[];
-} ring_t;
+} __attribute__((__packed__));
+typedef struct ring ring_t;
 
 /*
       0 1 2 3

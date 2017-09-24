@@ -1,17 +1,26 @@
+include config
+include net/config
+
 MCU = atmega328p
 BMCU = m328p
 F_CPU = 16000000
-NET_SRC = net/eth.c net/if.c net/arp.c net/ip.c net/icmp.c
-NET_SRC += net/chksum.c net/udp.c net/tcp.c net/pkt-mempool.c net/route.c
-NET_SRC += net/socket.c
-COMMON = sys/hash-tables.c
-SOURCES = alarm.c timer.c enc28j60.c rf.c adc.c
+
+LDFLAGS = -W
+CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
+
+include net/build.mk
+
+COMMON = sys/hash-tables.c sys/errno.c
+SOURCES = alarm.c timer.c enc28j60.c adc.c
+
+ifdef CONFIG_RF
+SOURCES += rf.c
+CFLAGS += -DCONFIG_RF
+endif
+
 SOURCES += $(NET_SRC) $(COMMON)
 
 TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC} $(COMMON)
-
-LDFLAGS += -W
-CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -DDEBUG

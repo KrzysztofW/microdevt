@@ -1,20 +1,22 @@
 #include "socket.h"
 #include "eth.h"
 #include "ip.h"
+#ifdef CONFIG_UDP
 #include "udp.h"
+#endif
 #include "../sys/list.h"
 #include "../sys/hash-tables.h"
-
-#define TRANSPORT_MAX_HT 4
-#define MAX_SOCK_HT_SIZE (TRANSPORT_MAX_HT * 2)
-#define MAX_NB_SOCKETS MAX_SOCK_HT_SIZE
 
 hash_table_t *fd_to_sock;
 uint8_t cur_fd = 3;
 uint8_t max_fds = 100;
+#ifdef CONFIG_UDP
 extern hash_table_t *udp_binds;
+#endif
+#ifdef CONFIG_TCP
 extern hash_table_t *tcp_binds;
 extern hash_table_t *tcp_conns;
+#endif
 
 static inline sock_info_t *fd2sockinfo(int fd)
 {
@@ -68,6 +70,7 @@ int socket(int family, int type, int protocol)
 	return fd;
 }
 
+#ifdef CONFIG_TCP
 int listen(int fd, int backlog)
 {
 	sock_info_t *sock_info = fd2sockinfo(fd);
@@ -84,6 +87,7 @@ int listen(int fd, int backlog)
 	INIT_LIST_HEAD(&listen->tcp_conn_list_head);
 	return 0;
 }
+#endif
 
 int max_retries = CONFIG_EPHEMERAL_PORT_END - CONFIG_EPHEMERAL_PORT_START;
 
@@ -130,6 +134,7 @@ static int transport_unbind(hash_table_t *ht_binds, sock_info_t *sock_info)
 	return 0;
 }
 
+#ifdef CONFIG_UDP
 static int udp_bind(sock_info_t *sock_info)
 {
 	return transport_bind(udp_binds, sock_info);
@@ -139,7 +144,9 @@ static int udp_unbind(sock_info_t *sock_info)
 {
 	return transport_unbind(udp_binds, sock_info);
 }
+#endif
 
+#ifdef CONFIG_TCP
 static int tcp_bind(sock_info_t *sock_info)
 {
 	return transport_bind(tcp_binds, sock_info);
@@ -149,6 +156,7 @@ static int tcp_unbind(sock_info_t *sock_info)
 {
 	return transport_unbind(tcp_binds, sock_info);
 }
+#endif
 
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
@@ -169,16 +177,18 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	sock_info->fd = sockfd;
 
 	/* TODO check sin_addr for ip addresses on available interfaces */
-
+#ifdef CONFIG_UDP
 	if (sock_info->type == SOCK_DGRAM)
 		return udp_bind(sock_info);
-
+#endif
+#ifdef CONFIG_TCP
 	if (sock_info->type == SOCK_STREAM)
 		return tcp_bind(sock_info);
-
+#endif
 	return -1;
 }
 
+#ifdef CONFIG_TCP
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 {
 	sock_info_t *sock_info;
@@ -215,6 +225,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 
 	return fd;
 }
+#endif
 
 int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 {
@@ -232,6 +243,7 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 	pkt_adj(pkt, (int)sizeof(ip_hdr_t));
 
 	switch (sockinfo->type) {
+#ifdef CONFIG_UDP
 	case SOCK_TYPE_UDP:
 		if (sockinfo->port == 0 && udp_bind(sockinfo) < 0)
 			goto error;
@@ -245,7 +257,8 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 		udp_output(pkt, addr_in->sin_addr.s_addr, sockinfo->port,
 			   addr_in->sin_port);
 		return 0;
-
+#endif
+#ifdef CONFIG_TCP
 	case SOCK_TYPE_TCP:
 		if (sockinfo->port == 0 && tcp_bind(sockinfo) < 0)
 			goto error;
@@ -258,7 +271,9 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
 		tcp_output(pkt, addr_in->sin_addr.s_addr, TH_PUSH | TH_ACK, sockinfo->port,
 			   addr_in->sin_port, 0, 0, IP_DF);
+		tcp_conn_inc_seqid(sockinfo->trq.tcp_conn, sbuf->len);
 		return 0;
+#endif
 	default:
 		goto error;
 	}
@@ -284,7 +299,9 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 {
 	sock_info_t *sockinfo = fd2sockinfo(fd);
 	struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
+#ifdef CONFIG_UDP
 	udp_hdr_t *udp_hdr;
+#endif
 	ip_hdr_t *ip_hdr;
 	pkt_t *pkt;
 	int transport_hdr_len;
@@ -294,6 +311,7 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 		return -1;
 	}
 
+#ifdef CONFIG_UDP
 	if (sockinfo->type == SOCK_DGRAM) {
 		if (list_empty(&sockinfo->trq.pkt_list)) {
 			/* errno = EAGAIN; */
@@ -308,7 +326,10 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 		udp_hdr = btod(pkt, udp_hdr_t *);
 		addr_in->sin_port = udp_hdr->src_port;
 		transport_hdr_len = (int)sizeof(udp_hdr_t);
-	} else if (sockinfo->type == SOCK_STREAM) {
+	} else
+#endif
+#ifdef CONFIG_TCP
+	if (sockinfo->type == SOCK_STREAM) {
 		sbuf_t key, *val;
 		tcp_conn_t *tcp_conn;
 		tcp_hdr_t *tcp_hdr;
@@ -332,6 +353,7 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 		addr_in->sin_port = tcp_hdr->src_port;
 		transport_hdr_len = (int)sizeof(tcp_hdr_t);
 	} else
+#endif
 		return -1;
 
 	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
@@ -369,11 +391,15 @@ int socket_close(int fd)
 	if ((sockinfo = fd2sockinfo(fd)) == NULL)
 		return -1;
 
+#ifdef CONFIG_UDP
 	if (sockinfo->type == SOCK_DGRAM)
 		udp_unbind(sockinfo);
-	else if (sockinfo->type == SOCK_STREAM)
+	else
+#endif
+#ifdef CONFIG_TCP
+	if (sockinfo->type == SOCK_STREAM)
 		tcp_unbind(sockinfo);
-
+#endif
 	if (fd == cur_fd - 1)
 		cur_fd--;
 	if (sockinfo->listen)
@@ -394,14 +420,18 @@ void socket_append_pkt(struct list_head *list_head, pkt_t *pkt)
 
 int socket_init(void)
 {
-	if ((fd_to_sock = htable_create(MAX_SOCK_HT_SIZE)) == NULL)
+	if ((fd_to_sock = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
 		return -1;
-	if ((udp_binds = htable_create(TRANSPORT_MAX_HT)) == NULL)
+#ifdef CONFIG_UDP
+	if ((udp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
 		return -1;
-	if ((tcp_binds = htable_create(TRANSPORT_MAX_HT)) == NULL)
+#endif
+#ifdef CONFIG_TCP
+	if ((tcp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
 		return -1;
-	if ((tcp_conns = htable_create(TRANSPORT_MAX_HT)) == NULL)
+	if ((tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
 		return -1;
+#endif
 	return 0;
 }
 
@@ -419,9 +449,13 @@ static void socket_free_cb(sbuf_t *key, sbuf_t *val)
 
 void socket_shutdown(void)
 {
+#ifdef CONFIG_UDP
 	htable_free(udp_binds);
+#endif
+#ifdef CONFIG_TCP
 	htable_free(tcp_binds);
 	htable_free(tcp_conns);
+#endif
 #if 0 /* this code prevents from finding leaks */
 	htable_for_each(fd_to_sock, socket_free_cb);
 #endif

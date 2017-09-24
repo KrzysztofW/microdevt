@@ -13,15 +13,4 @@
 #include "proto_defs.h"
 #include "if.h"
 
-/* #define CONFIG_IPV6 */
-/* #define CONFIG_STATS */
-/* #define CONFIG_PROMISC */
-#define CONFIG_ARP_TABLE_SIZE 2
-/* #define CONFIG_ARP_EXPIRY 10 */
-/* #define CONFIG_DHCP */
-/* #define CONFIG_IP_CHKSUM */
-/* #define CONFIG_MORE_THAN_ONE_INTERFACE */
-#define CONFIG_TCP_SYN_TABLE_SIZE 4
-#define CONFIG_EPHEMERAL_PORT_START 49152
-#define CONFIG_EPHEMERAL_PORT_END   65535
 #endif

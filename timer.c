@@ -39,7 +39,8 @@ static unsigned long timer_resolution_us = MIN_TIMER_RES;
 struct timer_state {
 	int current_idx;
 	struct list_head timer_list[TIMER_TABLE_SIZE];
-} timer_state;
+} __attribute__((__packed__));
+struct timer_state timer_state;
 
 static void timer_process(void)
 {

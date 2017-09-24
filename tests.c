@@ -434,23 +434,26 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> net arp tests succeeded\n");
 
+#ifdef CONFIG_ICMP
 	if (net_icmp_tests() < 0) {
 		fprintf(stderr, "  ==> net icmp tests failed\n");
 		return -1;
 	}
 	printf("  ==> net icmp tests succeeded\n");
-
+#endif
+#ifdef CONFIG_UDP
 	if (net_udp_tests() < 0) {
 		fprintf(stderr, "  ==> net udp tests failed\n");
 		return -1;
 	}
 	printf("  ==> net udp tests succeeded\n");
-
+#endif
+#ifdef CONFIG_TCP
 	if (net_tcp_tests() < 0) {
 		fprintf(stderr, "  ==> net tcp tests failed\n");
 		return -1;
 	}
 	printf("  ==> net tcp tests succeeded\n");
-
+#endif
 	return 0;
 }

@@ -5,17 +5,19 @@
 #include "ring.h"
 #include "utils.h"
 
-typedef struct static_buf {
+struct static_buf {
 	int len;
 	const unsigned char *data;
-} sbuf_t;
+} __attribute__((__packed__));
+typedef struct static_buf sbuf_t;
 
-typedef struct buf {
+struct buf {
 	int len;
 	int size;
 	int skip;
 	unsigned char *data;
-} buf_t;
+} __attribute__((__packed__));
+typedef struct buf buf_t;
 
 #define buf2staticbuf(buf) (sbuf_t) { .len = buf->len, .data = buf->data }
 
