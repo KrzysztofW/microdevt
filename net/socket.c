@@ -168,7 +168,9 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 	INIT_LIST_HEAD(&sock_info->list);
 	sock_info->fd = fd;
 	sock_info->port = 0;
+#ifdef CONFIG_TCP
 	sock_info->listen = NULL;
+#endif
 	list_add_tail(&sock_info->list, &sock_list);
 	return 0;
 }
@@ -188,14 +190,17 @@ static int unbind_port(sock_info_t *sock_info)
 			return -1;
 	}
 	sock_info->port = 0;
+#ifdef CONFIG_TCP
 	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn) {
 		tcp_conn_delete(sock_info->trq.tcp_conn);
 		sock_info->trq.tcp_conn = NULL;
 	}
+#endif
 	list_del(&sock_info->list);
 	return 0;
 }
 
+#ifdef CONFIG_TCP
 tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
 {
 	sock_info_t *sock_info;
@@ -214,6 +219,7 @@ tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
 	}
 	return NULL;
 }
+#endif
 #endif
 
 int socket(int family, int type, int protocol)
@@ -245,10 +251,21 @@ int socket(int family, int type, int protocol)
 			cur_fd = 3;
 		goto again;
 	}
-	if (type == SOCK_DGRAM)
+	switch (type) {
+#ifdef CONFIG_UDP
+	case SOCK_DGRAM:
 		INIT_LIST_HEAD(&sock_info->trq.pkt_list);
-	else
+		break;
+#endif
+#ifdef CONFIG_TCP
+	case SOCK_STREAM:
 		sock_info->trq.tcp_conn = NULL;
+		break;
+#endif
+	default:
+		free(sock_info);
+		return -1;
+	}
 	sock_info->type = type;
 	sock_info->family = family;
 
@@ -350,7 +367,6 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 }
 
 #ifdef CONFIG_TCP
-
 int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn)
 {
 	if (listen->backlog >= listen->backlog_max)
@@ -562,7 +578,9 @@ int socket_close(int fd)
 
 	if (sockinfo_unbind(sock_info) >= 0 && fd == cur_fd - 1)
 		cur_fd--;
+#ifdef CONFIG_TCP
 	socket_listen_free(sock_info->listen);
+#endif
 	free(sock_info);
 	return 0;
 }
@@ -631,7 +649,9 @@ void socket_shutdown(void)
 
 	list_for_each_entry_safe(sock_info, si_tmp, &sock_list, list) {
 		list_del(&sock_info->list);
+#ifdef CONFIG_TCP
 		socket_listen_free(sock_info->listen);
+#endif
 		free(sock_info);
 	}
 #endif

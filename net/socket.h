@@ -81,19 +81,23 @@ typedef union uaddr {
 } uaddr_t;
 
 typedef union transport_queue {
+#ifdef CONFIG_UDP
 	/* connectionless socket packet queue */
 	struct list_head pkt_list;
+#endif
 #ifdef CONFIG_TCP
 	tcp_conn_t *tcp_conn;
 #endif
 } transport_queue_t;
 
+#ifdef CONFIG_TCP
 struct listen {
 	uint8_t backlog;
 	uint8_t backlog_max;
 	struct list_head tcp_conn_list_head;
 } __attribute__((__packed__));
 typedef struct listen listen_t;
+#endif
 
 struct sock_info {
 	uaddr_t  addr;
@@ -106,7 +110,9 @@ struct sock_info {
 #ifndef CONFIG_HT_STORAGE
 	struct list_head list;
 #endif
+#ifdef CONFIG_TCP
 	listen_t *listen;
+#endif
 	transport_queue_t trq;
 	/* TODO tx_pkt_list */
 } __attribute__((__packed__));
@@ -115,7 +121,7 @@ typedef struct sock_info sock_info_t;
 #define FD2SBUF(fd) (sbuf_t)			\
 	{					\
 		.data = (void *)&fd,		\
-		.len = sizeof(uint8_t),	        \
+		.len = sizeof(uint8_t),         \
 	}
 
 #define SOCKINFO2SBUF(sockinfo) (sbuf_t)	\
@@ -145,7 +151,9 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr *addr);
 int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr);
 int socket_close(int fd);
+#ifdef CONFIG_TCP
 int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
 tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid);
+#endif
 
 #endif
