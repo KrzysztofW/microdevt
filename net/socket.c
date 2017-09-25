@@ -7,18 +7,29 @@
 #include "../sys/list.h"
 #include "../sys/hash-tables.h"
 
+#ifdef CONFIG_HT_STORAGE
 hash_table_t *fd_to_sock;
-uint8_t cur_fd = 3;
-uint8_t max_fds = 100;
-#ifdef CONFIG_UDP
-extern hash_table_t *udp_binds;
-#endif
-#ifdef CONFIG_TCP
-extern hash_table_t *tcp_binds;
-extern hash_table_t *tcp_conns;
+#else
+struct list_head sock_list;
 #endif
 
-static inline sock_info_t *fd2sockinfo(int fd)
+uint8_t cur_fd = 3;
+uint8_t max_fds = 100;
+
+#ifdef CONFIG_HT_STORAGE
+#ifdef CONFIG_UDP
+hash_table_t *udp_binds;
+#endif
+#ifdef CONFIG_TCP
+hash_table_t *tcp_binds;
+extern hash_table_t *tcp_conns;
+#endif
+#else
+extern struct list_head tcp_conns;
+#endif
+
+#ifdef CONFIG_HT_STORAGE
+static sock_info_t *fd2sockinfo(int fd)
 {
 	sbuf_t key = FD2SBUF(fd);
 	sbuf_t *val;
@@ -28,11 +39,187 @@ static inline sock_info_t *fd2sockinfo(int fd)
 	return *(sock_info_t **)val->data;
 }
 
+static sock_info_t *port2sockinfo(hash_table_t *ht, uint16_t port)
+{
+	sbuf_t key, *val;
+
+	sbuf_init(&key, &port, sizeof(port));
+	if (htable_lookup(ht, &key, &val) < 0)
+		return NULL;
+	return *(sock_info_t **)val->data;
+}
+
+#ifdef CONFIG_TCP
+sock_info_t *tcpport2sockinfo(uint16_t port)
+{
+	return port2sockinfo(tcp_binds, port);
+}
+#endif
+
+sock_info_t *udpport2sockinfo(uint16_t port)
+{
+	return port2sockinfo(udp_binds, port);
+}
+
+static int sock_info_add(int fd, sock_info_t *sock_info)
+{
+	sbuf_t key = FD2SBUF(fd);
+	sbuf_t val = SOCKINFO2SBUF(sock_info);
+
+	sock_info->fd = fd;
+	sock_info->port = 0;
+	sock_info->listen = NULL;
+	if (htable_add(fd_to_sock, &key, &val) < 0)
+		return -1;
+	return 0;
+}
+
+static hash_table_t *get_hash_table(const sock_info_t *sock_info)
+{
+	switch (sock_info->type) {
+#ifdef CONFIG_UDP
+	case SOCK_DGRAM:
+		return udp_binds;
+#endif
+#ifdef CONFIG_TCP
+	case SOCK_STREAM:
+		return tcp_binds;
+#endif
+	default:
+		return NULL;
+	}
+}
+
+static int bind_on_port(uint16_t port, sock_info_t *sock_info)
+{
+	hash_table_t *ht = get_hash_table(sock_info);
+	sbuf_t key, val;
+
+	if (ht == NULL)
+		return -1;
+	sbuf_init(&key, &port, sizeof(port));
+	val = SOCKINFO2SBUF(sock_info);
+
+	if (htable_add(ht, &key, &val) < 0)
+		return -1;
+	sock_info->port = port;
+	return 0;
+}
+
+static int unbind_port(sock_info_t *sock_info)
+{
+	sbuf_t key;
+	hash_table_t *ht = get_hash_table(sock_info);
+
+	if (ht == NULL)
+		return -1;
+	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn) {
+		tcp_conn_delete(sock_info->trq.tcp_conn);
+		sock_info->trq.tcp_conn = NULL;
+	}
+
+	sbuf_init(&key, &sock_info->port, sizeof(sock_info->port));
+	htable_del(ht, &key);
+	sbuf_init(&key, &sock_info->fd, sizeof(sock_info->fd));
+	if (htable_del(fd_to_sock, &key) < 0)
+		return -1;
+	return 0;
+}
+
+#else
+static sock_info_t *fd2sockinfo(int fd)
+{
+	sock_info_t *sock_info;
+
+	list_for_each_entry(sock_info, &sock_list, list) {
+		if (sock_info->fd == fd)
+			return sock_info;
+	}
+	return NULL;
+}
+
+static sock_info_t *port2sockinfo(int type, uint16_t port)
+{
+	sock_info_t *sock_info;
+
+	list_for_each_entry(sock_info, &sock_list, list) {
+		if (sock_info->port == port && sock_info->type == type)
+			return sock_info;
+	}
+	return NULL;
+}
+
+#ifdef CONFIG_TCP
+sock_info_t *tcpport2sockinfo(uint16_t port)
+{
+	return port2sockinfo(SOCK_STREAM, port);
+}
+#endif
+
+sock_info_t *udpport2sockinfo(uint16_t port)
+{
+	return port2sockinfo(SOCK_DGRAM, port);
+}
+
+static int sock_info_add(int fd, sock_info_t *sock_info)
+{
+	if (fd2sockinfo(fd))
+		return -1;
+	INIT_LIST_HEAD(&sock_info->list);
+	sock_info->fd = fd;
+	sock_info->port = 0;
+	sock_info->listen = NULL;
+	list_add_tail(&sock_info->list, &sock_list);
+	return 0;
+}
+
+static int bind_on_port(uint16_t port, sock_info_t *sock_info)
+{
+	if (port2sockinfo(port, sock_info->type))
+		return -1;
+	sock_info->port = port;
+	return 0;
+}
+
+static int unbind_port(sock_info_t *sock_info)
+{
+	if (port2sockinfo(sock_info->port, sock_info->type) == NULL) {
+		if (fd2sockinfo(sock_info->fd) == NULL)
+			return -1;
+	}
+	sock_info->port = 0;
+	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn) {
+		tcp_conn_delete(sock_info->trq.tcp_conn);
+		sock_info->trq.tcp_conn = NULL;
+	}
+	list_del(&sock_info->list);
+	return 0;
+}
+
+tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
+{
+	sock_info_t *sock_info;
+
+	list_for_each_entry(sock_info, &sock_list, list) {
+		listen_t *listen = sock_info->listen;
+		tcp_conn_t *tcp_conn;
+
+		if (listen == NULL)
+			continue;
+		list_for_each_entry(tcp_conn, &listen->tcp_conn_list_head,
+				    list) {
+			if (memcmp(uid, &tcp_conn->uid, sizeof(tcp_uid_t)) == 0)
+				return tcp_conn;
+		}
+	}
+	return NULL;
+}
+#endif
+
 int socket(int family, int type, int protocol)
 {
 	sock_info_t *sock_info;
 	uint8_t fd;
-	sbuf_t key, val;
 	int retries = 0;
 
 	(void)protocol;
@@ -45,11 +232,9 @@ int socket(int family, int type, int protocol)
 	if ((sock_info = malloc(sizeof(sock_info_t))) == NULL)
 		return -1;
 
-	val = SOCKINFO2SBUF(sock_info);
  again:
 	fd = cur_fd;
-	key = FD2SBUF(fd);
-	if (htable_add(fd_to_sock, &key, &val) < 0) {
+	if (sock_info_add(fd, sock_info) < 0) {
 		if (retries > max_fds) {
 			free(sock_info);
 			return -1;
@@ -60,9 +245,10 @@ int socket(int family, int type, int protocol)
 			cur_fd = 3;
 		goto again;
 	}
-	memset(sock_info, 0, sizeof(sock_info_t));
 	if (type == SOCK_DGRAM)
 		INIT_LIST_HEAD(&sock_info->trq.pkt_list);
+	else
+		sock_info->trq.tcp_conn = NULL;
 	sock_info->type = type;
 	sock_info->family = family;
 
@@ -78,24 +264,39 @@ int listen(int fd, int backlog)
 
 	if (sock_info == NULL)
 		return -1;
-	if ((listen = malloc(sizeof(listen_t)))
-	    == NULL)
+	if ((listen = malloc(sizeof(listen_t))) == NULL)
 		return -1;
+
+	INIT_LIST_HEAD(&listen->tcp_conn_list_head);
 	sock_info->listen = listen;
 	listen->backlog = 0;
 	listen->backlog_max = backlog;
-	INIT_LIST_HEAD(&listen->tcp_conn_list_head);
 	return 0;
+}
+
+static void socket_listen_free(listen_t *listen)
+{
+	tcp_conn_t *tcp_conn, *tcp_conn_tmp;
+
+	if (listen == NULL)
+		return;
+	if (list_empty(&listen->tcp_conn_list_head)) {
+		free(listen);
+		return;
+	}
+	list_for_each_entry_safe(tcp_conn, tcp_conn_tmp,
+				 &listen->tcp_conn_list_head, list) {
+		list_del(&tcp_conn->list);
+		free(tcp_conn);
+	}
+	free(listen);
 }
 #endif
 
 int max_retries = CONFIG_EPHEMERAL_PORT_END - CONFIG_EPHEMERAL_PORT_START;
 
-/* port - network endian format */
-static int
-transport_bind(hash_table_t *ht_binds, sock_info_t *sock_info)
+static int sockinfo_bind(sock_info_t *sock_info)
 {
-	sbuf_t key, val;
 	static unsigned ephemeral_port = CONFIG_EPHEMERAL_PORT_START;
 	int ret = -1, retries = 0;
 	uint16_t p = sock_info->port;
@@ -110,10 +311,9 @@ transport_bind(hash_table_t *ht_binds, sock_info_t *sock_info)
 				ephemeral_port = EPHEMERAL_PORT_START;
 		}
 
-		sbuf_init(&key, &p, sizeof(p));
-		val = SOCKINFO2SBUF(sock_info);
 
-		if ((ret = htable_add(ht_binds, &key, &val)) < 0)
+		ret = bind_on_port(p, sock_info);
+		if (ret < 0)
 			retries++;
 		else {
 			sock_info->port = p;
@@ -124,39 +324,10 @@ transport_bind(hash_table_t *ht_binds, sock_info_t *sock_info)
 	return ret;
 }
 
-static int transport_unbind(hash_table_t *ht_binds, sock_info_t *sock_info)
+static int sockinfo_unbind(sock_info_t *sock_info)
 {
-	sbuf_t key;
-
-	sbuf_init(&key, &sock_info->port, sizeof(sock_info->port));
-	htable_del(ht_binds, &key);
-	htable_del(fd_to_sock, &key);
-	return 0;
+	return unbind_port(sock_info);
 }
-
-#ifdef CONFIG_UDP
-static int udp_bind(sock_info_t *sock_info)
-{
-	return transport_bind(udp_binds, sock_info);
-}
-
-static int udp_unbind(sock_info_t *sock_info)
-{
-	return transport_unbind(udp_binds, sock_info);
-}
-#endif
-
-#ifdef CONFIG_TCP
-static int tcp_bind(sock_info_t *sock_info)
-{
-	return transport_bind(tcp_binds, sock_info);
-}
-
-static int tcp_unbind(sock_info_t *sock_info)
-{
-	return transport_unbind(tcp_binds, sock_info);
-}
-#endif
 
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
@@ -173,22 +344,22 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 		return -1;
 
 	sock_info->addr.ip4_addr = sockaddr->sin_addr.s_addr;
-	sock_info->port = sockaddr->sin_port;
-	sock_info->fd = sockfd;
 
 	/* TODO check sin_addr for ip addresses on available interfaces */
-#ifdef CONFIG_UDP
-	if (sock_info->type == SOCK_DGRAM)
-		return udp_bind(sock_info);
-#endif
-#ifdef CONFIG_TCP
-	if (sock_info->type == SOCK_STREAM)
-		return tcp_bind(sock_info);
-#endif
-	return -1;
+	return bind_on_port(sockaddr->sin_port, sock_info);
 }
 
 #ifdef CONFIG_TCP
+
+int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn)
+{
+	if (listen->backlog >= listen->backlog_max)
+		return -1;
+	list_add_tail(&tcp_conn->list, &listen->tcp_conn_list_head);
+	listen->backlog++;
+	return 0;
+}
+
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 {
 	sock_info_t *sock_info;
@@ -202,19 +373,25 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	if (sock_info->type != SOCK_STREAM)
 		return -1;
 
-	if (sock_info->listen == NULL || sock_info->listen->backlog == 0)
+	if (sock_info->listen == NULL)
 		return -1;
 
-	if (list_empty(&sock_info->listen->tcp_conn_list_head))
+	if (list_empty(&sock_info->listen->tcp_conn_list_head)) {
+		/* EAGAIN */
 		return -1;
-
+	}
 	tcp_conn = list_first_entry(&sock_info->listen->tcp_conn_list_head,
 				    tcp_conn_t, list);
 	list_del(&tcp_conn->list);
+	sock_info->listen->backlog--;
+
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		tcp_conn_delete(tcp_conn);
 		return -1;
 	}
+#ifndef CONFIG_HT_STORAGE
+	list_add_tail(&tcp_conn->list, &tcp_conns);
+#endif
 	sockaddr->sin_family = AF_INET;
 	sockaddr->sin_addr.s_addr = tcp_conn->uid.src_addr;
 	sockaddr->sin_port = tcp_conn->uid.src_port;
@@ -242,14 +419,13 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 	pkt_adj(pkt, (int)sizeof(eth_hdr_t));
 	pkt_adj(pkt, (int)sizeof(ip_hdr_t));
 
+	if (sockinfo->port == 0 && sockinfo_bind(sockinfo) < 0)
+		goto error;
+
 	switch (sockinfo->type) {
 #ifdef CONFIG_UDP
 	case SOCK_TYPE_UDP:
-		if (sockinfo->port == 0 && udp_bind(sockinfo) < 0)
-			goto error;
-
 		pkt_adj(pkt, (int)sizeof(udp_hdr_t));
-
 		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
 			goto error;
 
@@ -260,11 +436,7 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 #endif
 #ifdef CONFIG_TCP
 	case SOCK_TYPE_TCP:
-		if (sockinfo->port == 0 && tcp_bind(sockinfo) < 0)
-			goto error;
-
 		pkt_adj(pkt, (int)sizeof(tcp_hdr_t));
-
 		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
 			goto error;
 
@@ -330,17 +502,14 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 #endif
 #ifdef CONFIG_TCP
 	if (sockinfo->type == SOCK_STREAM) {
-		sbuf_t key, *val;
 		tcp_conn_t *tcp_conn;
 		tcp_hdr_t *tcp_hdr;
 
 		if (sockinfo->trq.tcp_conn == NULL)
 			return -1;
-		sbuf_init(&key, &sockinfo->trq.tcp_conn->uid,
-			  sizeof(sockinfo->trq.tcp_conn->uid));
-		if (htable_lookup(tcp_conns, &key, &val) < 0)
+		tcp_conn = tcp_conn_lookup(&sockinfo->trq.tcp_conn->uid);
+		if (tcp_conn == NULL)
 			return -1;
-		tcp_conn = (tcp_conn_t *)val->data;
 		if (list_empty(&tcp_conn->pkt_list_head))
 			return -1;
 
@@ -386,25 +555,15 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 
 int socket_close(int fd)
 {
-	sock_info_t *sockinfo;
+	sock_info_t *sock_info;
 
-	if ((sockinfo = fd2sockinfo(fd)) == NULL)
+	if ((sock_info = fd2sockinfo(fd)) == NULL)
 		return -1;
 
-#ifdef CONFIG_UDP
-	if (sockinfo->type == SOCK_DGRAM)
-		udp_unbind(sockinfo);
-	else
-#endif
-#ifdef CONFIG_TCP
-	if (sockinfo->type == SOCK_STREAM)
-		tcp_unbind(sockinfo);
-#endif
-	if (fd == cur_fd - 1)
+	if (sockinfo_unbind(sock_info) >= 0 && fd == cur_fd - 1)
 		cur_fd--;
-	if (sockinfo->listen)
-		free(sockinfo->listen);
-	free(sockinfo);
+	socket_listen_free(sock_info->listen);
+	free(sock_info);
 	return 0;
 }
 
@@ -420,6 +579,7 @@ void socket_append_pkt(struct list_head *list_head, pkt_t *pkt)
 
 int socket_init(void)
 {
+#ifdef CONFIG_HT_STORAGE
 	if ((fd_to_sock = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
 		return -1;
 #ifdef CONFIG_UDP
@@ -432,6 +592,12 @@ int socket_init(void)
 	if ((tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
 		return -1;
 #endif
+#else
+	INIT_LIST_HEAD(&sock_list);
+#ifdef CONFIG_TCP
+	INIT_LIST_HEAD(&tcp_conns);
+#endif
+#endif
 	return 0;
 }
 
@@ -441,14 +607,14 @@ static void socket_free_cb(sbuf_t *key, sbuf_t *val)
 	sock_info_t *sock_info = SBUF2SOCKINFO(val);
 
 	(void)key;
-	if (sock_info->listen)
-		free(sock_info->listen);
+	socket_listen_free(sock_info->listen);
 	free(sock_info);
 }
 #endif
 
 void socket_shutdown(void)
 {
+#ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_UDP
 	htable_free(udp_binds);
 #endif
@@ -460,4 +626,13 @@ void socket_shutdown(void)
 	htable_for_each(fd_to_sock, socket_free_cb);
 #endif
 	htable_free(fd_to_sock);
+#else
+	sock_info_t *sock_info, *si_tmp;
+
+	list_for_each_entry_safe(sock_info, si_tmp, &sock_list, list) {
+		list_del(&sock_info->list);
+		socket_listen_free(sock_info->listen);
+		free(sock_info);
+	}
+#endif
 }

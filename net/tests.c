@@ -349,9 +349,10 @@ int net_udp_tests(void)
 	struct sockaddr_in addr;
 	socklen_t addrlen;
 	sbuf_t sb;
-	int buf_size = 1024, len;
+	int buf_size = 512, len;
 	char buf[buf_size];
 
+	memset(buf, 0, buf_size);
 	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
 	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
 	if (if_init(&iface, &send, &recv) < 0) {
@@ -408,18 +409,6 @@ int net_udp_tests(void)
 		fprintf(stderr, "shouldn't get tx packet\n");
 		return -1;
 	}
-
-	/* if (socket_get_pkt(udp_fd, &pkt, (struct sockaddr *)&addr) < 0) { */
-	/* 	fprintf(stderr, "can't get udp pkt\n"); */
-	/* 	return -1; */
-	/* } */
-	/* sb = PKT2SBUF(pkt); */
-	/* sbuf_print(&sb); */
-	/* if (socket_put_sbuf(udp_fd, &sb, (struct sockaddr *)&addr) < 0) { */
-	/* 	fprintf(stderr, "can't put sbuf to socket\n"); */
-	/* 	return -1; */
-	/* } */
-	/* pkt_free(pkt); */
 
 	if ((len = recvfrom(udp_fd, buf, buf_size, 0, (struct sockaddr *)&addr,
 			    &addrlen)) < 0) {

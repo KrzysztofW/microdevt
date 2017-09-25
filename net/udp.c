@@ -6,9 +6,6 @@
 #include "socket.h"
 #include "../sys/hash-tables.h"
 
-/* htable keys (udp ports) are in network byte order */
-hash_table_t *udp_binds;
-
 void udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
 {
 	udp_hdr_t *udp_hdr = btod(pkt, udp_hdr_t *);
@@ -31,7 +28,6 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	udp_hdr_t *udp_hdr;
 	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
 	uint16_t length;
-	sbuf_t key, *val;
 	sock_info_t *sock_info;
 
 	(void)iface;
@@ -42,8 +38,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	    length > pkt_len(pkt) + sizeof(udp_hdr_t))
 		goto error;
 
-	sbuf_init(&key, &udp_hdr->dst_port, sizeof(udp_hdr->dst_port));
-	if (htable_lookup(udp_binds, &key, &val) < 0) {
+	if ((sock_info = udpport2sockinfo(udp_hdr->dst_port)) == NULL) {
 #ifdef CONFIG_ICMP
 		ip_hdr_t *ip_hdr_out;
 		pkt_t *out;
@@ -75,7 +70,6 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	/* truncate pkt to the udp payload length */
 	pkt->buf.len = length - sizeof(udp_hdr_t);
 
-	sock_info = SBUF2SOCKINFO(val);
 	socket_append_pkt(&sock_info->trq.pkt_list, pkt);
 
 	return;

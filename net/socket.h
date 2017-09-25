@@ -89,9 +89,9 @@ typedef union transport_queue {
 } transport_queue_t;
 
 struct listen {
-	struct list_head tcp_conn_list_head;
 	uint8_t backlog;
 	uint8_t backlog_max;
+	struct list_head tcp_conn_list_head;
 } __attribute__((__packed__));
 typedef struct listen listen_t;
 
@@ -103,7 +103,9 @@ struct sock_info {
 	uint8_t type   : 4; /* upto 15 types */
 	uint8_t status;
 	uint8_t fd;
-
+#ifndef CONFIG_HT_STORAGE
+	struct list_head list;
+#endif
 	listen_t *listen;
 	transport_queue_t trq;
 	/* TODO tx_pkt_list */
@@ -127,6 +129,8 @@ typedef struct sock_info sock_info_t;
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt);
 int socket_init(void);
 void socket_shutdown(void);
+sock_info_t *udpport2sockinfo(uint16_t port);
+sock_info_t *tcpport2sockinfo(uint16_t port);
 
 /* userland functions */
 int socket(int family, int type, int protocol);
@@ -141,5 +145,7 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr *addr);
 int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr);
 int socket_close(int fd);
+int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
+tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid);
 
 #endif

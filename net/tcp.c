@@ -6,11 +6,12 @@
 #include "socket.h"
 #include "../sys/hash-tables.h"
 
-/* htable keys (tcp ports) are in network byte order */
-hash_table_t *tcp_binds;
-
+#ifdef CONFIG_HT_STORAGE
 /* htable keys (tcp uids), values are pkt list (struct list_head) */
 hash_table_t *tcp_conns;
+#else
+struct list_head tcp_conns;
+#endif
 
 struct tcp_syn {
 	uint32_t seqid;
@@ -40,18 +41,19 @@ static tcp_syn_t *syn_find_entry(const tcp_uid_t *uid)
 	return NULL;
 }
 
-static tcp_conn_t *tcp_conn_create(const sbuf_t *key, uint8_t status)
+#ifdef CONFIG_HT_STORAGE
+static tcp_conn_t *tcp_conn_create(const tcp_uid_t *tuid, uint8_t status)
 {
 	tcp_conn_t conn, *c;
-	tcp_uid_t *tuid = (tcp_uid_t *)key->data;
-	sbuf_t val;
+	sbuf_t key, val;
 
+	sbuf_init(&key, tuid, sizeof(tcp_uid_t));
 	sbuf_init(&val, &conn, sizeof(conn));
-	if (htable_add(tcp_conns, key, &val) < 0)
+	if (htable_add(tcp_conns, &key, &val) < 0)
 		return NULL;
 	c = (tcp_conn_t *)val.data;
-	INIT_LIST_HEAD(&c->pkt_list_head);
 	INIT_LIST_HEAD(&c->list);
+	INIT_LIST_HEAD(&c->pkt_list_head);
 	c->status = status;
 	c->uid = *tuid;
 	c->sock_info = NULL;
@@ -61,11 +63,77 @@ static tcp_conn_t *tcp_conn_create(const sbuf_t *key, uint8_t status)
 
 void tcp_conn_delete(tcp_conn_t *tcp_conn)
 {
+	sock_info_t *sock_info = tcp_conn->sock_info;
+	pkt_t *pkt, *pkt_tmp;
 	sbuf_t key;
 
-	sbuf_init(&key, tcp_conn, sizeof(tcp_conn_t));
+	/* TODO send RST to peer */
+	if (sock_info != NULL)
+		sock_info->trq.tcp_conn = NULL;
+
+#ifndef CONFIG_HT_STORAGE
+	list_del(&tcp_conn->list);
+#endif
+	list_for_each_entry_safe(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
+		list_del(&pkt->list);
+		pkt_free(pkt);
+	}
+	sbuf_init(&key, &tcp_conn->uid, sizeof(tcp_uid_t));
 	htable_del(tcp_conns, &key);
 }
+
+tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
+{
+	sbuf_t key, *val;
+
+	sbuf_init(&key, uid, sizeof(tcp_uid_t));
+	if (htable_lookup(tcp_conns, &key, &val) < 0)
+		return NULL;
+	return (tcp_conn_t *)val->data;
+}
+#else
+static tcp_conn_t *tcp_conn_create(const tcp_uid_t *tuid, uint8_t status)
+{
+	tcp_conn_t *conn = malloc(sizeof(tcp_conn_t));
+
+	if (conn == NULL)
+		return NULL;
+
+	INIT_LIST_HEAD(&conn->pkt_list_head);
+	INIT_LIST_HEAD(&conn->list);
+	conn->status = status;
+	conn->uid = *tuid;
+	conn->sock_info = NULL;
+	return conn;
+}
+
+void tcp_conn_delete(tcp_conn_t *tcp_conn)
+{
+	sock_info_t *sock_info = tcp_conn->sock_info;
+	pkt_t *pkt, *pkt_tmp;
+
+	/* TODO send RST to peer */
+	if (sock_info && sock_info->trq.tcp_conn)
+		sock_info->trq.tcp_conn = NULL;
+	list_del(&tcp_conn->list);
+	list_for_each_entry_safe(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
+		list_del(&pkt->list);
+		pkt_free(pkt);
+	}
+	free(tcp_conn);
+}
+
+tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
+{
+	tcp_conn_t *tcp_conn;
+	list_for_each_entry(tcp_conn, &tcp_conns, list) {
+		/* tcp_conn must be packed */
+		if (memcmp(uid, &tcp_conn->uid, sizeof(tcp_uid_t)) == 0)
+			return tcp_conn;
+	}
+	return socket_tcp_conn_lookup(uid);
+}
+#endif
 
 void tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
 		uint16_t sport, uint16_t dport, uint32_t seqid, uint32_t ack,
@@ -164,15 +232,6 @@ void tcp_parse_options(tcp_syn_t *tcp_syn, tcp_hdr_t *tcp_hdr, int opt_len)
 	}
 }
 
-static void tcp_socket_close(const sbuf_t *key_tuid, tcp_conn_t *tcp_conn)
-{
-	sock_info_t *sock_info = tcp_conn->sock_info;
-
-	if (sock_info != NULL)
-		sock_info->trq.tcp_conn = NULL;
-	htable_del(tcp_conns, key_tuid);
-}
-
 static void tcp_conn_inc_ack(tcp_conn_t *tcp_conn, int cnt)
 {
 	tcp_conn->ack = htonl(ntohl(tcp_conn->ack) + cnt);
@@ -185,11 +244,11 @@ void tcp_input(pkt_t *pkt)
 	uint16_t ip_hdr_len = ip_hdr->hl * 4;
 	uint16_t ip_plen = ntohs(ip_hdr->len) - ip_hdr_len;
 	uint16_t tcp_hdr_len;
-	sbuf_t key_tuid, key_port, *val;
 	sock_info_t *sock_info;
 	tcp_uid_t tuid;
 	tcp_syn_t *tsyn_entry;
 	uint32_t remote_seqid;
+	tcp_conn_t *tcp_conn;
 
 	STATIC_ASSERT(POWEROF2(CONFIG_TCP_SYN_TABLE_SIZE));
 
@@ -204,58 +263,53 @@ void tcp_input(pkt_t *pkt)
 		goto end;
 	}
 
+	kw_dump_flags(tcp_hdr->ctrl, tcp_hdr->seq, tcp_hdr->ack);
 	set_tuid(&tuid, ip_hdr, tcp_hdr);
-	sbuf_init(&key_tuid, &tuid, sizeof(tuid));
 	remote_seqid = ntohl(tcp_hdr->seq);
-	if (htable_lookup(tcp_conns, &key_tuid, &val) >= 0) {
-		tcp_conn_t *tcp_conn;
+	if ((tcp_conn = tcp_conn_lookup(&tuid)) != NULL) {
+		int flags = 0;
 
-		tcp_conn = (tcp_conn_t *)val->data;
 		if (tcp_hdr->ctrl & TH_RST) {
-			tcp_socket_close(&key_tuid, tcp_conn);
+			tcp_conn_delete(tcp_conn);
 			goto end;
 		}
 		if (tcp_hdr->seq != tcp_conn->ack || tcp_hdr->ack != tcp_conn->seqid) {
 			/* drop the packet */
-			/* tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, tcp_conn->seqid, 0); */
-			/* tcp_socket_close(&key_tuid, tcp_conn); */
 			goto end;
 		}
 		if (tcp_hdr->ctrl & TH_FIN) {
 			tcp_conn_inc_ack(tcp_conn, 1);
 			if (tcp_conn->status == SOCK_CONNECTED) {
-				tcp_send_pkt(ip_hdr, tcp_hdr, TH_FIN|TH_ACK,
-					     tcp_conn->seqid, tcp_conn->ack);
+				flags |= TH_FIN|TH_ACK;
+				/* tcp_send_pkt(ip_hdr, tcp_hdr, TH_FIN|TH_ACK, */
+				/* 	     tcp_conn->seqid, tcp_conn->ack); */
 				tcp_conn->status = SOCK_TCP_FIN_SENT;
-			} else if (tcp_conn->status == SOCK_TCP_FIN_SENT) {
-				tcp_send_pkt(ip_hdr, tcp_hdr, TH_ACK,
-					     tcp_conn->seqid, tcp_conn->ack);
-				tcp_socket_close(&key_tuid, tcp_conn);
 			}
+		} else if (tcp_hdr->ctrl == TH_ACK
+			   && tcp_conn->status == SOCK_TCP_FIN_SENT) {
+			tcp_conn_delete(tcp_conn);
 			goto end;
 		}
-		if (tcp_hdr->ctrl == TH_ACK && tcp_conn->status == SOCK_TCP_FIN_SENT) {
-			tcp_socket_close(&key_tuid, tcp_conn);
-			goto end;
-		}
-
 		pkt_adj(pkt, tcp_hdr_len);
 		/* truncate pkt to the tcp payload length */
 		pkt->buf.len = ip_plen - tcp_hdr_len;
 
 		if (pkt->buf.len)
 			socket_append_pkt(&tcp_conn->pkt_list_head, pkt);
+		else
+			pkt_free(pkt);
 		tcp_conn->ack = htonl(remote_seqid + pkt->buf.len);
-		tcp_send_pkt(ip_hdr, tcp_hdr, TH_ACK, tcp_conn->seqid, tcp_conn->ack);
+		tcp_send_pkt(ip_hdr, tcp_hdr, flags | TH_ACK, tcp_conn->seqid,
+			     tcp_conn->ack);
+		if (flags & TH_FIN)
+			tcp_conn_inc_seqid(tcp_conn, 1);
 		return;
 	}
 
-	sbuf_init(&key_port, &tcp_hdr->dst_port, sizeof(tcp_hdr->dst_port));
-	if (htable_lookup(tcp_binds, &key_port, &val) < 0) {
+	if ((sock_info = tcpport2sockinfo(tcp_hdr->dst_port)) == NULL) {
 		tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST|TH_ACK, 0, htonl(remote_seqid + 1));
 		goto end;
 	}
-	sock_info = SBUF2SOCKINFO(val);
 	tsyn_entry = syn_find_entry(&tuid);
 
 	if (tcp_hdr->ctrl == TH_SYN) {
@@ -281,10 +335,16 @@ void tcp_input(pkt_t *pkt)
 		if (tsyn_entry == NULL || tsyn_entry->status != SOCK_TCP_SYN_SENT)
 			goto end;
 		tsyn_entry->seqid = htonl(ntohl(tsyn_entry->seqid) + 1);
-		if ((tc = tcp_conn_create(&key_tuid, SOCK_CONNECTED)) == NULL)
+		if ((tc = tcp_conn_create(&tuid, SOCK_CONNECTED)) == NULL) {
 			tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, tsyn_entry->seqid, 0);
-		else {
+		} else {
 			sock_info->trq.tcp_conn = tc;
+			if (socket_add_backlog(sock_info->listen, tc) < 0) {
+				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST,
+					     tsyn_entry->seqid, 0);
+				tcp_conn_delete(tc);
+				goto end;
+			}
 			if (tsyn_entry->ack != htonl(remote_seqid))
 				tsyn_entry->ack = htonl(remote_seqid + 1);
 			/* else => duplicate */
@@ -294,37 +354,43 @@ void tcp_input(pkt_t *pkt)
 		goto end;
 	}
 	if (tcp_hdr->ctrl == TH_ACK) {
+		uint32_t local_seqid;
+
 		if (tsyn_entry == NULL) {
 			tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, 0, 0);
 			goto end;
 		}
+		local_seqid = htonl(ntohl(tsyn_entry->seqid) + 1);
 		if (tsyn_entry->status == SOCK_TCP_SYN_ACK_SENT) {
 			listen_t *l = sock_info->listen;
 			tcp_conn_t *tc;
-			uint32_t local_seqid = htonl(ntohl(tsyn_entry->seqid) + 1);
 
 			if (tcp_hdr->seq != tsyn_entry->ack ||
 			    tcp_hdr->ack != local_seqid) {
-				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, local_seqid, 0);
+				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST,
+					     local_seqid, 0);
 				goto end;
 			}
 
 			if (l == NULL || l->backlog >= l->backlog_max ||
-			    (tc = tcp_conn_create(&key_tuid, SOCK_CONNECTED)) == NULL)
-				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, local_seqid, 0);
-			else {
-				if (sock_info->listen->backlog >= sock_info->listen->backlog_max){
-					tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, local_seqid, 0);
+			    (tc = tcp_conn_create(&tuid,
+						  SOCK_CONNECTED)) == NULL) {
+				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST,
+					     local_seqid, 0);
+			} else {
+				if (socket_add_backlog(l, tc) < 0) {
+					tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST,
+						     local_seqid, 0);
+					tcp_conn_delete(tc);
 					goto end;
 				}
-				list_add_tail(&tc->list, &sock_info->listen->tcp_conn_list_head);
-				sock_info->listen->backlog++;
 				tc->seqid = local_seqid;
 				tc->ack = htonl(remote_seqid);
 				tc->mss = tsyn_entry->mss;
+				goto end;
 			}
 		}
-		goto end;
+		tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, local_seqid, 0);
 	}
 	/* silently drop the packet */
  end:

@@ -10,7 +10,7 @@ CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
 
 include net/build.mk
 
-COMMON = sys/hash-tables.c sys/errno.c
+COMMON =
 SOURCES = alarm.c timer.c enc28j60.c adc.c
 
 ifdef CONFIG_RF
@@ -20,7 +20,7 @@ endif
 
 SOURCES += $(NET_SRC) $(COMMON)
 
-TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC} $(COMMON)
+TEST_SOURCES = sys/hash-tables.c timer.c tests.c net/tests.c ${NET_SRC} $(COMMON)
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -DDEBUG
