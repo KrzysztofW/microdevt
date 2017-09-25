@@ -111,17 +111,24 @@ static inline int ring_addc(ring_t *ring, unsigned char c)
 	return 0;
 }
 
-static inline int ring_add(ring_t *ring, unsigned char *data, int len)
+static inline int ring_add(ring_t *ring, void *data, int len)
 {
 	int i;
+	unsigned char *d = data;
 
 	if (ring->mask - ring_len(ring) <= 0)
 		return -1;
 	for (i = 0; i < len; i++) {
-		__ring_addc(ring, data[0]);
-		data++;
+		__ring_addc(ring, d[0]);
+		d++;
 	}
 	return 0;
+}
+
+static inline void __ring_getc(ring_t *ring, unsigned char *c)
+{
+	*c = (unsigned char)ring->data[ring->tail];
+	ring->tail = (ring->tail + 1) & ring->mask;
 }
 
 static inline int ring_getc(ring_t *ring, unsigned char *c)
@@ -129,8 +136,18 @@ static inline int ring_getc(ring_t *ring, unsigned char *c)
 	if (ring_is_empty(ring)) {
 		return -1;
 	}
-	*c = (unsigned char)ring->data[ring->tail];
-	ring->tail = (ring->tail + 1) & ring->mask;
+	__ring_getc(ring, c);
+	return 0;
+}
+
+static inline int ring_get(ring_t *ring, void *data, int len)
+{
+	unsigned char *c = data;
+
+	if (ring_len(ring) < len)
+		return -1;
+	while (len--)
+		__ring_getc(ring, c++);
 	return 0;
 }
 
