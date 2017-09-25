@@ -422,14 +422,10 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 }
 #endif
 
-int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
+int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
+		      uint16_t dst_port, uint32_t dst_addr)
 {
-	sock_info_t *sockinfo = fd2sockinfo(fd);
-	const struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
 	pkt_t *pkt;
-
-	if (sockinfo == NULL)
-		return -1;
 
 	if ((pkt = pkt_alloc()) == NULL)
 		return -1;
@@ -437,10 +433,10 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 	pkt_adj(pkt, (int)sizeof(eth_hdr_t));
 	pkt_adj(pkt, (int)sizeof(ip_hdr_t));
 
-	if (sockinfo->port == 0 && sockinfo_bind(sockinfo) < 0)
+	if (sock_info->port == 0 && sockinfo_bind(sock_info) < 0)
 		goto error;
 
-	switch (sockinfo->type) {
+	switch (sock_info->type) {
 #ifdef CONFIG_UDP
 	case SOCK_TYPE_UDP:
 		pkt_adj(pkt, (int)sizeof(udp_hdr_t));
@@ -448,8 +444,7 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 			goto error;
 
 		pkt_adj(pkt, -(int)sizeof(udp_hdr_t));
-		udp_output(pkt, addr_in->sin_addr.s_addr, sockinfo->port,
-			   addr_in->sin_port);
+		udp_output(pkt, dst_addr, sock_info->port, dst_port);
 		return 0;
 #endif
 #ifdef CONFIG_TCP
@@ -459,18 +454,29 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 			goto error;
 
 		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
-		tcp_output(pkt, addr_in->sin_addr.s_addr, TH_PUSH | TH_ACK, sockinfo->port,
-			   addr_in->sin_port, 0, 0, IP_DF);
-		tcp_conn_inc_seqid(sockinfo->trq.tcp_conn, sbuf->len);
+		tcp_output(pkt, dst_addr, TH_PUSH | TH_ACK, sock_info->port,
+			   dst_port, 0, 0, IP_DF);
+		tcp_conn_inc_seqid(sock_info->trq.tcp_conn, sbuf->len);
 		return 0;
 #endif
 	default:
-		goto error;
+		break;
 	}
 
  error:
 	pkt_free(pkt);
 	return -1;
+}
+
+int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
+{
+	sock_info_t *sock_info = fd2sockinfo(fd);
+	const struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
+
+	if (sock_info == NULL)
+		return -1;
+	return __socket_put_sbuf(sock_info, sbuf, addr_in->sin_port,
+				 addr_in->sin_addr.s_addr);
 }
 
 ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
@@ -485,47 +491,40 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 	return socket_put_sbuf(sockfd, &sb, dest_addr);
 }
 
-int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
+int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
+		     uint16_t *src_port, uint32_t *src_addr)
 {
-	sock_info_t *sockinfo = fd2sockinfo(fd);
-	struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
+	int transport_hdr_len = -1;
+	pkt_t *pkt;
+	ip_hdr_t *ip_hdr;
 #ifdef CONFIG_UDP
 	udp_hdr_t *udp_hdr;
 #endif
-	ip_hdr_t *ip_hdr;
-	pkt_t *pkt;
-	int transport_hdr_len;
-
-	if (sockinfo == NULL) {
-		/* errno = CLOSED */
-		return -1;
-	}
-
+#ifdef CONFIG_TCP
+	tcp_hdr_t *tcp_hdr;
+	tcp_conn_t *tcp_conn;
+#endif
+	switch (sock_info->type) {
 #ifdef CONFIG_UDP
-	if (sockinfo->type == SOCK_DGRAM) {
-		if (list_empty(&sockinfo->trq.pkt_list)) {
+	case SOCK_DGRAM:
+		if (list_empty(&sock_info->trq.pkt_list)) {
 			/* errno = EAGAIN; */
 			return -1;
 		}
 
-		pkt = list_first_entry(&sockinfo->trq.pkt_list, pkt_t, list);
+		pkt = list_first_entry(&sock_info->trq.pkt_list, pkt_t, list);
 		list_del(&pkt->list);
-
-		*pktp = pkt;
 		pkt_adj(pkt, -(int)sizeof(udp_hdr_t));
 		udp_hdr = btod(pkt, udp_hdr_t *);
-		addr_in->sin_port = udp_hdr->src_port;
+		*src_port = udp_hdr->src_port;
 		transport_hdr_len = (int)sizeof(udp_hdr_t);
-	} else
+		break;
 #endif
 #ifdef CONFIG_TCP
-	if (sockinfo->type == SOCK_STREAM) {
-		tcp_conn_t *tcp_conn;
-		tcp_hdr_t *tcp_hdr;
-
-		if (sockinfo->trq.tcp_conn == NULL)
+	case SOCK_STREAM:
+		if (sock_info->trq.tcp_conn == NULL)
 			return -1;
-		tcp_conn = tcp_conn_lookup(&sockinfo->trq.tcp_conn->uid);
+		tcp_conn = tcp_conn_lookup(&sock_info->trq.tcp_conn->uid);
 		if (tcp_conn == NULL)
 			return -1;
 		if (list_empty(&tcp_conn->pkt_list_head))
@@ -533,24 +532,40 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 
 		pkt = list_first_entry(&tcp_conn->pkt_list_head, pkt_t, list);
 		list_del(&pkt->list);
-
-		*pktp = pkt;
 		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
 		tcp_hdr = btod(pkt, tcp_hdr_t *);
-		addr_in->sin_port = tcp_hdr->src_port;
+		*src_port = tcp_hdr->src_port;
 		transport_hdr_len = (int)sizeof(tcp_hdr_t);
-	} else
+		break;
 #endif
+	default:
 		return -1;
-
+	}
 	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
 	ip_hdr = btod(pkt, ip_hdr_t *);
-
-	addr_in->sin_family = AF_INET;
-	addr_in->sin_addr.s_addr = ip_hdr->src;
-
+	*src_addr = ip_hdr->src;
 	pkt_adj(pkt, sizeof(ip_hdr_t));
 	pkt_adj(pkt, transport_hdr_len);
+
+	*pktp = pkt;
+	return 0;
+}
+
+int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
+{
+	sock_info_t *sock_info = fd2sockinfo(fd);
+	struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
+	int ret;
+
+	if (sock_info == NULL) {
+		/* errno = CLOSED */
+		return -1;
+	}
+	ret = __socket_get_pkt(sock_info, pktp, &addr_in->sin_port,
+			       &addr_in->sin_addr.s_addr);
+	if (ret < 0)
+		return -1;
+	addr_in->sin_family = AF_INET;
 
 	return 0;
 }

@@ -155,5 +155,9 @@ int socket_close(int fd);
 int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
 tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid);
 #endif
-
+int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,
+		     uint16_t *src_port, uint32_t *src_addr);
+int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
+		      uint16_t dst_port, uint32_t dst_addr);
+#endif
 #endif
