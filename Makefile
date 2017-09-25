@@ -11,7 +11,7 @@ CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
 include net/build.mk
 
 COMMON =
-SOURCES = alarm.c timer.c enc28j60.c adc.c
+SOURCES = alarm.c net_apps.c timer.c enc28j60.c adc.c
 
 ifdef CONFIG_RF
 SOURCES += rf.c
