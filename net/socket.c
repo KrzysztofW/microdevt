@@ -312,33 +312,35 @@ static void socket_listen_free(listen_t *listen)
 
 int max_retries = CONFIG_EPHEMERAL_PORT_END - CONFIG_EPHEMERAL_PORT_START;
 
-static int sockinfo_bind(sock_info_t *sock_info)
+/* return val of 0 => no ports available  */
+static uint16_t socket_get_ephemeral_port(uint8_t type)
 {
 	static unsigned ephemeral_port = CONFIG_EPHEMERAL_PORT_START;
-	int ret = -1, retries = 0;
-	uint16_t p = sock_info->port;
-	int client = p ? 0 : 1;
+	uint16_t port;
+	int retries = 0;
 
 	STATIC_ASSERT(CONFIG_EPHEMERAL_PORT_END > CONFIG_EPHEMERAL_PORT_START);
 	do {
-		if (client) {
-			p = htons(ephemeral_port);
-			ephemeral_port++;
-			if (ephemeral_port >= EPHEMERAL_PORT_END)
-				ephemeral_port = EPHEMERAL_PORT_START;
-		}
+		port = htons(ephemeral_port);
+		ephemeral_port++;
+		if (ephemeral_port >= EPHEMERAL_PORT_END)
+			ephemeral_port = EPHEMERAL_PORT_START;
+		if (port2sockinfo(type, port) == NULL)
+			return port;
+	} while (retries < max_retries);
+	return 0;
+}
 
-
-		ret = bind_on_port(p, sock_info);
-		if (ret < 0)
-			retries++;
-		else {
-			sock_info->port = p;
-			break;
-		}
-	} while (client && retries < max_retries);
-
-	return ret;
+static int sockinfo_bind(sock_info_t *sock_info)
+{
+	if (sock_info->port == 0) { /* client */
+		sock_info->port = socket_get_ephemeral_port(sock_info->type);
+		if (sock_info->port == 0)
+			return -1; /* no more available ports */
+	}
+	bind_on_port(sock_info->port, sock_info);
+	assert(sock_info->port != 0);
+	return 0;
 }
 
 static int sockinfo_unbind(sock_info_t *sock_info)
