@@ -80,8 +80,9 @@ void decode_rf_cmds(void)
 	if (ring_len(rf_ring) < CMD_SIZE)
 		return;
 
+#ifdef DEBUG
 	ring_print_limit(rf_ring, CMD_SIZE);
-
+#endif
 	if (ring_cmp(rf_ring, remote1_btn1,
 		     sizeof(remote1_btn1)) == 0) {
 		PORTD |= (1 << LED);
