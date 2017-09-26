@@ -305,6 +305,8 @@ unsigned char icmp_port_unrecheable_pkt[] = {
 	/*	0x9c, 0xd6, 0x43, 0xae, 0x22, 0x6c, 0x48, 0x83, 0xc7, 0xbc, 0x7d, 0x06, 0x08, 0x00, 0x45, 0x00, 0x00, 0x38, 0xf6, 0xe8, 0x40, 0x00, 0x40, 0x01, 0xc2, 0x7f, 0xc0, 0xa8, 0x00, 0x01, 0xc0, 0xa8, 0x00, 0x0b, 0x03, 0x03, 0x3e, 0xc3, 0x00, 0x00, 0x00, 0x00, 0x45, 0x00, 0x00, 0x29, 0xdd, 0x22, 0x40, 0x00, 0x40, 0x11, 0xdc, 0x44, 0xc0, 0xa8, 0x00, 0x0b, 0xc0, 0xa8, 0x00, 0x01, 0xbb, 0x1b, 0x03, 0x09, 0x00, 0x15, 0x00, 0x00, 0x20, 0x08, */
 };
 
+#ifdef CONFIG_UDP
+#ifdef CONFIG_BSD_COMPAT
 int udp_fd;
 int udp_server(uint16_t port)
 {
@@ -325,8 +327,7 @@ int udp_server(uint16_t port)
 	}
 	return 0;
 }
-
-#ifdef CONFIG_UDP
+#endif
 int net_udp_tests(void)
 {
 	pkt_t *pkt;
@@ -346,8 +347,14 @@ int net_udp_tests(void)
 	uint8_t mac_dst[] = { 0x48, 0x83, 0xc7, 0xbc, 0x7d, 0x06 };
 	uint8_t mac_src[] = { 0x9c, 0xd6, 0x43, 0xae, 0x22, 0x6c };
 	uint16_t port = 777;
+#ifdef CONFIG_BSD_COMPAT
 	struct sockaddr_in addr;
 	socklen_t addrlen;
+#else
+	sock_info_t sock_info;
+	uint32_t src_addr;
+	uint16_t src_port;
+#endif
 	sbuf_t sb;
 	int buf_size = 512, len;
 	char buf[buf_size];
@@ -398,31 +405,58 @@ int net_udp_tests(void)
 	}
 #endif
 	dft_route.iface = &iface;
+#ifdef CONFIG_BSD_COMPAT
 	if (udp_server(port) < 0) {
 		fprintf(stderr, "can't start udp server\n");
 		return -1;
 	}
+#else
+	if (sock_info_init(&sock_info, 0, SOCK_DGRAM, htons(port)) < 0) {
+		fprintf(stderr, "can't init udp sock_info\n");
+		return -1;
+	}
+	__sock_info_add(&sock_info);
 
+	if (sock_info_bind(&sock_info) < 0) {
+		fprintf(stderr, "can't start udp server\n");
+		return -1;
+	}
+#endif
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) != NULL) {
 		fprintf(stderr, "shouldn't get tx packet\n");
 		return -1;
 	}
-
+#ifdef CONFIG_BSD_COMPAT
 	if ((len = recvfrom(udp_fd, buf, buf_size, 0, (struct sockaddr *)&addr,
 			    &addrlen)) < 0) {
 		fprintf(stderr, "can't get udp pkt\n");
 		return -1;
 	}
 	printf("udp data: %*s\n", len, buf);
-	sbuf_init(&sb, buf, len);
-	if (sendto(udp_fd, sb.data, sb.len, 0, (struct sockaddr *)&addr,
-		   sizeof(struct sockaddr_in)) < 0) {
-		fprintf(stderr, "can't put sbuf to socket\n");
+#else
+	if (__socket_get_pkt(&sock_info, &pkt, &src_addr, &src_port) < 0) {
+		fprintf(stderr, "can't get udp pkt\n");
 		return -1;
 	}
+	len = pkt->buf.len;
+	printf("udp data: %*s\n", pkt->buf.len, buf_data(&pkt->buf));
+#endif
 
+	sbuf_init(&sb, buf, len);
+#ifdef CONFIG_BSD_COMPAT
+	if (sendto(udp_fd, sb.data, sb.len, 0, (struct sockaddr *)&addr,
+		   sizeof(struct sockaddr_in)) < 0) {
+		fprintf(stderr, "can't put sbuf to udp socket\n");
+		return -1;
+	}
+#else
+	if (__socket_put_sbuf(&sock_info, &sb, src_port, src_addr) < 0) {
+		fprintf(stderr, "can't put sbuf to udp socket\n");
+		return -1;
+	}
+#endif
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
 		fprintf(stderr, "can't get udp echo packet\n");
 		return -1;
@@ -430,7 +464,17 @@ int net_udp_tests(void)
 
 	buf_print(&pkt->buf);
 
-	close(udp_fd);
+#ifdef CONFIG_BSD_COMPAT
+	if (close(udp_fd) < 0) {
+		fprintf(stderr, "can't close udp socket\n");
+		return -1;
+	}
+#else
+	if (sock_info_unbind(&sock_info) < 0) {
+		fprintf(stderr, "can't close udp socket\n");
+		return -1;
+	}
+#endif
 	socket_shutdown();
 	pkt_mempool_shutdown();
 
@@ -480,6 +524,7 @@ unsigned char tcp_ack_client_pkt[] = {
 	0x00, 0x1c, 0xbf, 0xca, 0x8e, 0xba, 0x9c, 0xd6, 0x43, 0xae, 0x22, 0x6c, 0x08, 0x00, 0x45, 0x00, 0x00, 0x34, 0x9c, 0x3e, 0x40, 0x00, 0x40, 0x06, 0x1c, 0xe6, 0xc0, 0xa8, 0x00, 0x0b, 0xc0, 0xa8, 0x00, 0x44, 0xce, 0x18, 0x03, 0x09, 0x76, 0xde, 0x61, 0x21, 0x7b, 0xe7, 0x07, 0x14, 0x80, 0x10, 0x00, 0xe5, 0x9f, 0xba, 0x00, 0x00, 0x01, 0x01, 0x08, 0x0a, 0x00, 0x36, 0xfd, 0x23, 0x00, 0xb4, 0x2a, 0x53,
 };
 
+#ifdef CONFIG_BSD_COMPAT
 int tcp_fd;
 int tcp_server(uint16_t port)
 {
@@ -504,6 +549,7 @@ int tcp_server(uint16_t port)
 	}
 	return 0;
 }
+#endif
 
 int net_tcp_tests(void)
 {
@@ -524,10 +570,17 @@ int net_tcp_tests(void)
 	uint8_t mac_dst[] = { 0x00, 0x1c, 0xbf, 0xca, 0x8e, 0xba };
 	uint8_t mac_src[] = { 0x9c, 0xd6, 0x43, 0xae, 0x22, 0x6c };
 	uint16_t port = 777;
+#ifdef CONFIG_BSD_COMPAT
 	struct sockaddr_in addr;
 	socklen_t addr_len;
-	sbuf_t sb;
 	int client_fd;
+#else
+	sock_info_t sock_info_server;
+	sock_info_t sock_info_client;
+	uint32_t src_addr;
+	uint16_t src_port;
+#endif
+	sbuf_t sb;
 
 	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
 	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
@@ -535,7 +588,7 @@ int net_tcp_tests(void)
 		fprintf(stderr, "can't init interface\n");
 		return -1;
 	}
-	pkt_mempool_shutdown();
+	pkt_mempool_shutdown(); /* TODO: to be removed */
 	if (pkt_mempool_init() < 0) {
 		fprintf(stderr, "can't initialize pkt pool\n");
 		return -1;
@@ -573,11 +626,27 @@ int net_tcp_tests(void)
 	}
 
 	/* COMPLETE TCP COMM */
+#ifdef CONFIG_BSD_COMPAT
 	if (tcp_server(port) < 0) {
 		fprintf(stderr, "can't start tcp server on port: %d\n", port);
 		return -1;
 	}
+#else
+	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
+		fprintf(stderr, "can't init tcp sock_info\n");
+		return -1;
+	}
+	__sock_info_add(&sock_info_server);
+	if (sock_info_listen(&sock_info_server, 5) < 0) {
+		fprintf(stderr, "can't listen on tcp sock_info\n");
+		return -1;
+	}
 
+	if (sock_info_bind(&sock_info_server) < 0) {
+		fprintf(stderr, "can't start tcp server\n");
+		return -1;
+	}
+#endif
 	/* SYN => SYN_ACK */
 	buf_init(&pkt->buf, tcp_syn_pkt, sizeof(tcp_syn_pkt));
 	buf_init(&out, tcp_syn_ack_pkt, sizeof(tcp_syn_ack_pkt));
@@ -632,7 +701,7 @@ int net_tcp_tests(void)
 		return -1;
 	}
 	pkt_free(pkt);
-
+#ifdef CONFIG_BSD_COMPAT
 	if ((client_fd = accept(tcp_fd,
 				(struct sockaddr *)&addr, &addr_len)) < 0) {
 		fprintf(stderr, "TCP: cannot accept connections\n");
@@ -642,7 +711,17 @@ int net_tcp_tests(void)
 		fprintf(stderr, "TCP: can't get pkt from a tcp connection\n");
 		return -1;
 	}
-
+#else
+	if (sock_info_accept(&sock_info_server, &sock_info_client, &src_addr,
+			     &src_port) < 0) {
+		fprintf(stderr, "TCP: cannot accept connections\n");
+		return -1;
+	}
+	if (__socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) < 0) {
+		fprintf(stderr, "TCP: can't get pkt from a tcp connection\n");
+		return -1;
+	}
+#endif
 	sb = PKT2SBUF(pkt);
 	sbuf_print(&sb);
 	printf("TCP: got: %*s\n", sb.len, sb.data);
@@ -664,7 +743,7 @@ int net_tcp_tests(void)
 		printf("expected:\n");
 		buf_print(&out);
 		pkt_free(pkt);
-		return -1;
+		goto end;
 	}
 
 	buf_init(&pkt->buf, tcp_ack_client_pkt, sizeof(tcp_ack_client_pkt));
@@ -675,8 +754,26 @@ int net_tcp_tests(void)
 		return -1;
 	}
 
-	close(client_fd);
-	close(tcp_fd);
+ end:
+#ifdef CONFIG_BSD_COMPAT
+	if (close(client_fd) < 0) {
+		fprintf(stderr, "can't close tcp client fd\n");
+		return -1;
+	}
+	if (close(tcp_fd) < 0) {
+		fprintf(stderr, "can't close tcp server fd\n");
+		return -1;
+	}
+#else
+	if (sock_info_unbind(&sock_info_server) < 0) {
+		fprintf(stderr, "can't unbind tcp server socket\n");
+		return -1;
+	}
+	if (sock_info_unbind(&sock_info_client) < 0) {
+		fprintf(stderr, "can't unbind tcp client socket\n");
+		return -1;
+	}
+#endif
 	socket_shutdown();
 	pkt_mempool_shutdown();
 

@@ -70,10 +70,6 @@ void tcp_conn_delete(tcp_conn_t *tcp_conn)
 	/* TODO send RST to peer */
 	if (sock_info != NULL)
 		sock_info->trq.tcp_conn = NULL;
-
-#ifndef CONFIG_HT_STORAGE
-	list_del(&tcp_conn->list);
-#endif
 	list_for_each_entry_safe(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
 		list_del(&pkt->list);
 		pkt_free(pkt);

@@ -18,6 +18,7 @@
 #define SOCK_RAW        3  /* raw-protocol interface */
 #define SOCK_LAST       4  /* must be at the end and can't exceed 16 */
 
+#ifdef CONFIG_BSD_COMPAT
 /*
  * Address families
  */
@@ -54,6 +55,7 @@ struct sockaddr_in {
 	struct in_addr sin_addr;
 	char           sin_zero[8];
 } __attribute__((__packed__));
+#endif
 
 /* internal data structures */
 
@@ -103,10 +105,12 @@ struct sock_info {
 	uaddr_t  addr;
 	uint16_t port;
 
-	uint8_t family : 4; /* upto 15 families */
 	uint8_t type   : 4; /* upto 15 types */
 	uint8_t status;
+#ifdef CONFIG_BSD_COMPAT
+	uint8_t family : 4; /* upto 15 families */
 	uint8_t fd;
+#endif
 #ifndef CONFIG_HT_STORAGE
 	struct list_head list;
 #endif
@@ -137,8 +141,12 @@ int socket_init(void);
 void socket_shutdown(void);
 sock_info_t *udpport2sockinfo(uint16_t port);
 sock_info_t *tcpport2sockinfo(uint16_t port);
+#ifdef CONFIG_TCP
+tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid);
+#endif
 
 /* userland functions */
+#ifdef CONFIG_BSD_COMPAT
 int socket(int family, int type, int protocol);
 int close(int fd);
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
@@ -151,13 +159,20 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr *addr);
 int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr);
 int socket_close(int fd);
-#ifdef CONFIG_TCP
-int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
-tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid);
 #endif
 int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,
-		     uint16_t *src_port, uint32_t *src_addr);
+		     uint32_t *src_addr, uint16_t *src_port);
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint16_t dst_port, uint32_t dst_addr);
+int sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port);
+void __sock_info_add(sock_info_t *sock_info);
+int sock_info_bind(sock_info_t *sock_info);
+int sock_info_unbind(sock_info_t *sock_info);
+#ifdef CONFIG_TCP
+int sock_info_listen(sock_info_t *sock_info, int backlog);
+int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
+int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
+		     uint32_t *src_addr, uint16_t *src_port);
+
 #endif
 #endif

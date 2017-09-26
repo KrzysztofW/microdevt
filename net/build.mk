@@ -37,3 +37,7 @@ ifdef CONFIG_HT_STORAGE
 CFLAGS += -DCONFIG_HT_STORAGE
 NET_SRC += sys/hash-tables.c
 endif
+
+ifdef CONFIG_BSD_COMPAT
+CFLAGS += -DCONFIG_BSD_COMPAT
+endif

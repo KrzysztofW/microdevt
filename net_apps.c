@@ -3,7 +3,9 @@
 
 #include "net_apps.h"
 
+#ifdef CONFIG_BSD_COMPAT
 struct sockaddr_in addr_c;
+
 #ifdef CONFIG_TCP
 int tcp_server(uint16_t port)
 {
@@ -73,19 +75,7 @@ void tcp_app(void)
 	}
 	/* close(client_fd); */
 }
-#else
-int tcp_init(void)
-{
-	return 0;
-}
-
-int tcp_server(uint16_t port)
-{
-	return 0;
-}
-
-void tcp_app(void) {}
-#endif
+#endif	/* CONFIG_TCP */
 
 #ifdef CONFIG_UDP
 int udp_server(uint16_t port)
@@ -125,7 +115,7 @@ int udp_client(struct sockaddr_in *sockaddr, uint32_t addr, uint16_t port)
 	}
 	sockaddr->sin_family = AF_INET;
 	sockaddr->sin_addr.s_addr = addr;
-	sockaddr->sin_port = htons(port);
+	sockaddr->sin_port = port;
 
 	return fd;
 }
@@ -135,7 +125,7 @@ int udp_fd_client;
 int udp_init(void)
 {
 	udp_fd = udp_server(777);
-	udp_fd_client = udp_client(&addr_c, 0x0b00a8c0, 777);
+	udp_fd_client = udp_client(&addr_c, 0x0b00a8c0, htons(777));
 
 	if (udp_fd < 0 || udp_fd_client < 0) {
 #ifdef DEBUG
@@ -160,9 +150,9 @@ void udp_app(void)
 		pkt_free(pkt);
 	}
 
-
-	if (a == 100) {
+	(void)a;
 #if 0
+	if (a == 100) {
 		sbuf_t sb = SBUF_INITS("blabla\n");
 
 		if (socket_put_sbuf(udp_fd_client, &sb, (struct sockaddr *)&addr_c) < 0)
@@ -175,28 +165,148 @@ void udp_app(void)
 			printf("%s\n", s);
 			pkt_free(pkt);
 		}
-#endif
 	}
 	a++;
+#endif
 }
-#else
-int udp_server(uint16_t port)
+#endif	/* CONFIG_UDP */
+
+#else	/* CONFIG_BSD_COMPAT */
+
+#ifdef CONFIG_TCP
+sock_info_t sock_info_server, sock_info_client;
+
+int tcp_server(uint16_t port)
 {
+	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
+		fprintf(stderr, "can't init tcp sock_info\n");
+		return -1;
+	}
+	__sock_info_add(&sock_info_server);
+	if (sock_info_listen(&sock_info_server, 5) < 0) {
+		fprintf(stderr, "can't listen on tcp sock_info\n");
+		return -1;
+	}
+
+	if (sock_info_bind(&sock_info_server) < 0) {
+		fprintf(stderr, "can't start tcp server\n");
+		return -1;
+	}
+
 	return 0;
 }
 
-int udp_client(struct sockaddr_in *sockaddr, uint32_t addr, uint16_t port) {
-	(void)sockaddr;
-	(void)addr;
-	(void)port;
+int tcp_init(void)
+{
+	if (tcp_server(777) < 0) {
+#ifdef DEBUG
+		printf(PSTR("can't create TCP socket\n"));
+#endif
+		return -1;
+	}
+	return 0;
+}
+
+void tcp_app(void)
+{
+	uint32_t src_addr;
+	uint16_t src_port;
+	pkt_t *pkt;
+
+	if (sock_info_client.port == 0) {
+		if (sock_info_accept(&sock_info_server, &sock_info_client, &src_addr,
+				     &src_port) >= 0)
+			printf("accepted connection from:0x%lX on port %u\n",
+			       ntohl(src_addr), ntohs(src_port));
+	}
+	if (sock_info_client.port &&
+	    __socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) >= 0) {
+		sbuf_t sb = PKT2SBUF(pkt);
+
+		printf("got:%*s\n", sb.len, sb.data);
+		if (__socket_put_sbuf(&sock_info_client, &sb, src_addr,
+				      src_port) < 0)
+			printf("can't put sbuf to socket\n");
+		pkt_free(pkt);
+	}
+}
+#endif	/* CONFIG_TCP */
+#ifdef CONFIG_UDP
+sock_info_t sock_info_udp_server, sock_info_udp_client;
+int udp_server(uint16_t port)
+{
+	if (sock_info_init(&sock_info_udp_server, 0, SOCK_DGRAM, htons(port)) < 0) {
+		fprintf(stderr, "can't init udp sock_info\n");
+		return -1;
+	}
+	__sock_info_add(&sock_info_udp_server);
+
+	if (sock_info_bind(&sock_info_udp_server) < 0) {
+		fprintf(stderr, "can't start udp server\n");
+		return -1;
+	}
+	return 0;
+}
+
+uint32_t src_addr_c;
+uint16_t src_port_c;
+
+int udp_client(void)
+{
+	if (sock_info_init(&sock_info_udp_client, 0, SOCK_DGRAM, 0) < 0) {
+		fprintf(stderr, "can't init udp sock_info\n");
+		return -1;
+	}
+	__sock_info_add(&sock_info_udp_client);
+	src_addr_c = 0x0b00a8c0;
+	src_port_c = htons(777);
 	return 0;
 }
 
 int udp_init(void)
 {
+	if (udp_server(777) < 0 || udp_client() < 0)
+		return -1;
 	return 0;
 }
 
-void udp_app(void) {}
+void udp_app(void)
+{
+	uint32_t src_addr;
+	uint16_t src_port;
+	pkt_t *pkt;
+	static int a;
 
+	if (__socket_get_pkt(&sock_info_udp_server, &pkt, &src_addr,
+			     &src_port) >= 0) {
+		sbuf_t sb = PKT2SBUF(pkt);
+
+		if (__socket_put_sbuf(&sock_info_udp_server, &sb, src_addr,
+				      src_port) < 0)
+			printf("can't put sbuf to udp socket\n");
+		pkt_free(pkt);
+	}
+	(void)a;
+#if 0
+	if (a == 100) {
+		sbuf_t sb = SBUF_INITS("blabla\n");
+
+		if (__socket_put_sbuf(&sock_info_udp_client, &sb, src_addr_c,
+				      src_port_c) < 0)
+			printf("can't put sbuf to socket\n");
+		a = 0;
+		if (__socket_get_pkt(&sock_info_udp_client, &pkt, &src_addr_c,
+				     &src_port_c) >= 0) {
+			sbuf_t sb = PKT2SBUF(pkt);
+			char *s = (char *)sb.data;
+			s[sb.len] = 0;
+			printf("%s\n", s);
+			pkt_free(pkt);
+		}
+	}
+	a++;
 #endif
+}
+
+#endif	/* CONFIG_UDP */
+#endif  /* CONFIG_BSD_COMPAT */
