@@ -257,7 +257,6 @@ void tcp_input(pkt_t *pkt)
 	if (transport_cksum(ip_hdr, tcp_hdr, htons(ip_plen)) != 0)
 		goto end;
 
-	kw_dump_flags(tcp_hdr->ctrl, tcp_hdr->seq, tcp_hdr->ack);
 	set_tuid(&tuid, ip_hdr, tcp_hdr);
 	remote_seqid = ntohl(tcp_hdr->seq);
 	if ((tcp_conn = tcp_conn_lookup(&tuid)) != NULL) {
