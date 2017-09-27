@@ -237,7 +237,7 @@ sock_info_t *tcpport2sockinfo(uint16_t port)
 }
 #endif
 
-#ifdef CONFIG_TCP
+#ifdef CONFIG_UDP
 sock_info_t *udpport2sockinfo(uint16_t port)
 {
 	return port2sockinfo(SOCK_DGRAM, port);
