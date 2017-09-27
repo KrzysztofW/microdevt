@@ -20,7 +20,10 @@ endif
 
 SOURCES += $(NET_SRC) $(COMMON)
 
-TEST_SOURCES = sys/hash-tables.c timer.c tests.c net/tests.c ${NET_SRC} $(COMMON)
+TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC} $(COMMON)
+# sys/hash-tables.c might be already in NET_SRC
+TEST_SOURCES := $(filter-out sys/hash-tables.c, $(TEST_SOURCES))
+TEST_SOURCES += sys/hash-tables.c
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -DDEBUG

@@ -78,7 +78,10 @@ static sock_info_t *port2sockinfo(int type, uint16_t port)
 	return *(sock_info_t **)val->data;
 }
 
-void __sock_info_add(sock_info_t *sock_info) {}
+void __sock_info_add(sock_info_t *sock_info)
+{
+	(void)sock_info;
+}
 
 #ifdef CONFIG_BSD_COMPAT
 static int sock_info_add(int fd, sock_info_t *sock_info)
