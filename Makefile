@@ -1,5 +1,4 @@
 include config
-include net/config
 
 MCU = atmega328p
 BMCU = m328p
