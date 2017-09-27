@@ -254,10 +254,8 @@ void tcp_input(pkt_t *pkt)
 		goto end;
 
 	tcp_hdr_len = tcp_hdr->hdr_len * 4;
-	if (tcp_hdr->checksum &&
-	    transport_cksum(ip_hdr, tcp_hdr, htons(ip_plen)) != 0) {
+	if (transport_cksum(ip_hdr, tcp_hdr, htons(ip_plen)) != 0)
 		goto end;
-	}
 
 	kw_dump_flags(tcp_hdr->ctrl, tcp_hdr->seq, tcp_hdr->ack);
 	set_tuid(&tuid, ip_hdr, tcp_hdr);
