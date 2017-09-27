@@ -59,6 +59,7 @@ upload: all
 	sudo avrdude -V -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
 
 size: all
+	#avr-nm -S --size-sort -t d <obj-file>
 	avr-size -C --mcu=${MCU} alarm
 
 
