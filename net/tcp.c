@@ -233,6 +233,11 @@ static void tcp_conn_inc_ack(tcp_conn_t *tcp_conn, int cnt)
 	tcp_conn->ack = htonl(ntohl(tcp_conn->ack) + cnt);
 }
 
+void tcp_conn_inc_seqid(tcp_conn_t *tcp_conn, int cnt)
+{
+	tcp_conn->seqid = htonl(ntohl(tcp_conn->seqid) + cnt);
+}
+
 void tcp_input(pkt_t *pkt)
 {
 	tcp_hdr_t *tcp_hdr;
