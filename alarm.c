@@ -210,7 +210,7 @@ int main(void)
 	printf_P(PSTR("KW alarm v0.2\n"));
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
-#ifdef RF
+#ifdef CONFIG_RF
 	if (rf_init() < 0) {
 #ifdef DEBUG
 		printf_P(PSTR("can't initialize RF\n"));
@@ -261,7 +261,7 @@ int main(void)
 			pkt_free(pkt);
 			enc28j60_get_pkts();
 		}
-#ifdef RF
+#ifdef CONFIG_RF
 		decode_rf_cmds();
 #endif
 		sei();
@@ -271,7 +271,7 @@ int main(void)
 		delay_ms(10);
 		wdt_reset();
 	}
-#ifdef RF
+#ifdef CONFIG_RF
 		/* rf_shutdown(); */
 #endif
 	return 0;
