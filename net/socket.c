@@ -690,9 +690,6 @@ int socket_close(int fd)
 
 	if (sock_info_unbind(sock_info) >= 0 && fd == cur_fd - 1)
 		cur_fd--;
-#ifdef CONFIG_TCP
-	socket_listen_free(sock_info->listen);
-#endif
 	free(sock_info);
 	return 0;
 }
