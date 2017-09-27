@@ -9,6 +9,88 @@ struct list_head *pkt_pool = &__pkt_pool;
 ring_t *pkt_pool;
 #endif
 
+#ifndef RING_POOL
+pkt_t *pkt_get(struct list_head *head)
+{
+	pkt_t *pkt;
+
+	if (list_empty(head))
+		return NULL;
+
+	pkt = list_first_entry(head, pkt_t, list);
+	list_del(&pkt->list);
+	return pkt;
+}
+
+int pkt_put(struct list_head *head, pkt_t *pkt)
+{
+	list_add_tail(&pkt->list, head);
+	return 0;
+}
+
+#else
+pkt_t *pkt_get(ring_t *ring)
+{
+	uint8_t offset;
+	int ret = ring_getc_finish(ring, &offset);
+
+	if (ret < 0)
+		return NULL;
+	return &buffer_pool[offset];
+}
+
+int pkt_put(ring_t *ring, pkt_t *pkt)
+{
+	return ring_addc_finish(ring, pkt->offset);
+}
+#endif
+
+#ifdef PKT_DEBUG
+pkt_t *__pkt_alloc(const char *func, int line)
+{
+	pkt_t *pkt;
+
+	pkt = pkt_get(pkt_pool);
+	if (pkt) {
+		pkt->refcnt = 0;
+	}
+	printf("%s() in %s:%d\n", __func__, func, line);
+	return pkt;
+}
+
+
+int __pkt_free(pkt_t *pkt, const char *func, int line)
+{
+	if (pkt->refcnt == 0) {
+		buf_reset(&pkt->buf);
+		printf("%s() in %s:%d\n", __func__, func, line);
+		return pkt_put(pkt_pool, pkt);
+	}
+	pkt->refcnt--;
+	return 0;
+}
+#define pkt_free(pkt) __pkt_free(pkt, __func__, __LINE__)
+#else
+pkt_t *pkt_alloc(void)
+{
+	pkt_t *pkt = pkt_get(pkt_pool);
+
+	if (pkt)
+		pkt->refcnt = 0;
+	return pkt;
+}
+int pkt_free(pkt_t *pkt)
+{
+	if (pkt->refcnt == 0) {
+		buf_reset(&pkt->buf);
+		return pkt_put(pkt_pool, pkt);
+	}
+	pkt->refcnt--;
+	return 0;
+}
+
+#endif
+
 int pkt_mempool_init(void)
 {
 	uint8_t i;
