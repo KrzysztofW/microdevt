@@ -193,7 +193,7 @@ static inline void ring_print_limit(const ring_t *ring, int limit)
 	}
 	puts("");
 }
-static inline void ring_print(const ring_t *ring, int limit)
+static inline void ring_print(const ring_t *ring)
 {
 	ring_print_limit(ring, 0);
 }
