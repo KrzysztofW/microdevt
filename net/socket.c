@@ -518,7 +518,7 @@ int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_clien
 #endif	/* BSD_COMPAT */
 
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
-		      uint16_t dst_port, uint32_t dst_addr)
+		      uint32_t dst_addr, uint16_t dst_port)
 {
 	pkt_t *pkt;
 
@@ -571,8 +571,8 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 
 	if (sock_info == NULL)
 		return -1;
-	return __socket_put_sbuf(sock_info, sbuf, addr_in->sin_port,
-				 addr_in->sin_addr.s_addr);
+	return __socket_put_sbuf(sock_info, sbuf, addr_in->sin_addr.s_addr,
+				 addr_in->sin_port);
 }
 
 ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
@@ -761,8 +761,8 @@ void socket_shutdown(void)
 #ifdef CONFIG_BSD_COMPAT
 	htable_for_each(fd_to_sock, socket_free_cb);
 #endif
-#endif
 	htable_free(fd_to_sock);
+#endif
 #else
 	sock_info_t *sock_info, *si_tmp;
 

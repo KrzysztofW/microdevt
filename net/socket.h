@@ -163,7 +163,7 @@ int socket_close(int fd);
 int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,
 		     uint32_t *src_addr, uint16_t *src_port);
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
-		      uint16_t dst_port, uint32_t dst_addr);
+		      uint32_t dst_addr, uint16_t dst_port);
 int sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port);
 void __sock_info_add(sock_info_t *sock_info);
 int sock_info_bind(sock_info_t *sock_info);
