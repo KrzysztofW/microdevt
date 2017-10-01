@@ -178,11 +178,11 @@ void tim_cb_wd(void *arg)
 int apps_init(void)
 {
 #ifdef CONFIG_UDP
-	if (udp_init() < 0)
+	if (udp_init(0x0b00a8c0, 777) < 0)
 		return -1;
 #endif
 #ifdef CONFIG_TCP
-	if (tcp_init() < 0)
+	if (tcp_init(777) < 0)
 		return -1;
 #endif
 	return 0;

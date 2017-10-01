@@ -1,5 +1,9 @@
+#ifndef TUN
 #include <avr/io.h>
 #include <avr/pgmspace.h>
+#else
+#define PSTR(x) x
+#endif
 
 #include "net_apps.h"
 
@@ -39,9 +43,9 @@ int tcp_server(uint16_t port)
 }
 
 int tcp_fd;
-int tcp_init(void)
+int tcp_init(uint16_t port)
 {
-	tcp_fd = tcp_server(777);
+	tcp_fd = tcp_server(port);
 	if (tcp_fd < 0) {
 #ifdef DEBUG
 		printf(PSTR("can't create TCP socket\n"));
@@ -122,10 +126,10 @@ int udp_client(struct sockaddr_in *sockaddr, uint32_t addr, uint16_t port)
 
 int udp_fd;
 int udp_fd_client;
-int udp_init(void)
+int udp_init(uint32_t dst_addr, uint16_t port)
 {
-	udp_fd = udp_server(777);
-	udp_fd_client = udp_client(&addr_c, 0x0b00a8c0, htons(777));
+	udp_fd = udp_server(port);
+	udp_fd_client = udp_client(&addr_c, dst_addr, htons(port));
 
 	if (udp_fd < 0 || udp_fd_client < 0) {
 #ifdef DEBUG
@@ -196,9 +200,9 @@ int tcp_server(uint16_t port)
 	return 0;
 }
 
-int tcp_init(void)
+int tcp_init(uint16_t port)
 {
-	if (tcp_server(777) < 0) {
+	if (tcp_server(port) < 0) {
 #ifdef DEBUG
 		printf(PSTR("can't create TCP socket\n"));
 #endif
@@ -213,17 +217,17 @@ void tcp_app(void)
 	uint16_t src_port;
 	pkt_t *pkt;
 
-	if (sock_info_client.port == 0) {
+	if (sock_info_client.trq.tcp_conn == NULL) {
 		if (sock_info_accept(&sock_info_server, &sock_info_client, &src_addr,
 				     &src_port) >= 0)
 			printf("accepted connection from:0x%lX on port %u\n",
 			       ntohl(src_addr), ntohs(src_port));
 	}
-	if (sock_info_client.port &&
+	if (sock_info_client.trq.tcp_conn &&
 	    __socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
-		printf("got:%*s\n", sb.len, sb.data);
+		printf("got (len:%d):%.*s\n", sb.len, sb.len, sb.data);
 		if (__socket_put_sbuf(&sock_info_client, &sb, src_addr,
 				      src_port) < 0)
 			printf("can't put sbuf to socket\n");
@@ -251,21 +255,21 @@ int udp_server(uint16_t port)
 uint32_t src_addr_c;
 uint16_t src_port_c;
 
-int udp_client(void)
+int udp_client(uint32_t dst_addr, uint16_t port)
 {
 	if (sock_info_init(&sock_info_udp_client, 0, SOCK_DGRAM, 0) < 0) {
 		fprintf(stderr, "can't init udp sock_info\n");
 		return -1;
 	}
 	__sock_info_add(&sock_info_udp_client);
-	src_addr_c = 0x0b00a8c0;
-	src_port_c = htons(777);
+	src_addr_c = dst_addr;
+	src_port_c = htons(port);
 	return 0;
 }
 
-int udp_init(void)
+int udp_init(uint32_t dst_addr, uint16_t port)
 {
-	if (udp_server(777) < 0 || udp_client() < 0)
+	if (udp_server(port) < 0 || udp_client(dst_addr, port) < 0)
 		return -1;
 	return 0;
 }

@@ -18,7 +18,6 @@
 #define SOCK_RAW        3  /* raw-protocol interface */
 #define SOCK_LAST       4  /* must be at the end and can't exceed 16 */
 
-#ifdef CONFIG_BSD_COMPAT
 /*
  * Address families
  */
@@ -35,7 +34,10 @@ struct in_addr {
 
 typedef uint16_t in_port_t;
 typedef uint8_t sa_family_t;
+#ifndef SOCKLEN_DEFINED
 typedef uint8_t socklen_t;
+#endif
+
 #ifndef TEST
 typedef int ssize_t;
 #endif
@@ -55,7 +57,6 @@ struct sockaddr_in {
 	struct in_addr sin_addr;
 	char           sin_zero[8];
 } __attribute__((__packed__));
-#endif
 
 /* internal data structures */
 
@@ -102,11 +103,12 @@ typedef struct listen listen_t;
 #endif
 
 struct sock_info {
+#if 0 /* only one ip address is allowed on an interface */
 	uaddr_t  addr;
+#endif
 	uint16_t port;
 
 	uint8_t type   : 4; /* upto 15 types */
-	uint8_t status;
 #ifdef CONFIG_BSD_COMPAT
 	uint8_t family : 4; /* upto 15 families */
 	uint8_t fd;

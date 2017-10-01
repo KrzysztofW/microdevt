@@ -29,7 +29,16 @@ ifeq ($(DEBUG), 1)
 	SOURCES += usart0.c
 endif
 
-ifeq ($(TEST), 1)
+ifeq ($(TUN), 1)
+	CC = gcc
+	EXECUTABLE = tun-driver
+	TEST_SOURCES := $(filter-out tests.c, $(TEST_SOURCES))
+	TEST_SOURCES := $(filter-out net/tests.c, $(TEST_SOURCES))
+	SOURCES = net/tun-driver.c net_apps.c ${TEST_SOURCES}
+	OBJECTS = $(SOURCES:.c=.o)
+	CFLAGS += -DTEST -DTUN -O0
+	LDFLAGS += -lcap
+else ifeq ($(TEST), 1)
 	CC = gcc
 	EXECUTABLE = tests
 	SOURCES = ${TEST_SOURCES}
@@ -48,6 +57,7 @@ all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+	#if [ X$TUN != X ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
 
 .c.o: ring.h
 	$(CC) $(CFLAGS) $< -o $@
@@ -64,7 +74,7 @@ size: all
 
 
 clean:
-	@rm -f *.o net/*.o sys/*.o *.pdf *.hex *.srec *.elf *~ tests alarm
+	@rm -f *.o net/*.o sys/*.o *.pdf *.hex *.srec *.elf *~ tests alarm tun-driver
 
 #pdf: README.rst
 #	rst2pdf $< > $(<:.rst=.pdf)
