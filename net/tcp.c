@@ -129,12 +129,27 @@ tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
 }
 #endif
 
+static int tcp_set_options(void *data)
+{
+	uint8_t *opts = data;
+	uint16_t opts_len;
+
+	opts[0] = TCPOPT_MAXSEG;
+	opts[1] = TCPOLEN_MAXSEG;
+	opts += 2;
+	opts_len = PKT_SIZE - sizeof(eth_hdr_t)
+		- sizeof(ip_hdr_t) - sizeof(tcp_hdr_t) - TCPOLEN_MAXSEG;
+	*(uint16_t *)opts = htons(opts_len);
+	return TCPOLEN_MAXSEG;
+}
+
 void tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
 		uint16_t sport, uint16_t dport, uint32_t seqid, uint32_t ack,
 		uint16_t ip_flags)
 {
 	tcp_hdr_t *tcp_hdr = btod(pkt, tcp_hdr_t *);
 	ip_hdr_t *ip_hdr;
+	uint8_t tcp_hdr_len = sizeof(tcp_hdr_t);
 
 	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
 	ip_hdr = btod(pkt, ip_hdr_t *);
@@ -146,10 +161,16 @@ void tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
 	tcp_hdr->seq = seqid;
 	tcp_hdr->ack = ack;
 	tcp_hdr->reserved = 0;
-	tcp_hdr->hdr_len = sizeof(tcp_hdr_t) / 4;
 	tcp_hdr->ctrl = ctrl;
 	tcp_hdr->win_size = (ctrl & TH_RST) ? 0 : 1; /* XXX to be checked */
 	tcp_hdr->urg_ptr = 0;
+	if (ctrl & TH_SYN) {
+		int opts_len = tcp_set_options(tcp_hdr + 1);
+
+		tcp_hdr_len += opts_len;
+		pkt->buf.len += opts_len;
+	}
+	tcp_hdr->hdr_len = tcp_hdr_len / 4;
 
 	ip_output(pkt, NULL, 0, ip_flags);
 }
