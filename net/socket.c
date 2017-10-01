@@ -244,7 +244,8 @@ sock_info_t *udpport2sockinfo(uint16_t port)
 }
 #endif
 
-int sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port)
+int
+sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port)
 {
 	switch (type) {
 #ifdef CONFIG_UDP
@@ -262,7 +263,6 @@ int sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port)
 	}
 	sock_info->type = type;
 	(void)family;
-	(void)port;
 #ifdef CONFIG_BSD_COMPAT
 	sock_info->family = family;
 #endif
@@ -428,7 +428,9 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	if ((sock_info = fd2sockinfo(sockfd)) == NULL)
 		return -1;
 
+#if 0 /* only one ip address is allowed on an interface */
 	sock_info->addr.ip4_addr = sockaddr->sin_addr.s_addr;
+#endif
 
 	/* TODO check sin_addr for ip addresses on available interfaces */
 	return bind_on_port(sockaddr->sin_port, sock_info);
@@ -437,7 +439,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 #ifdef CONFIG_TCP
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 {
-	sock_info_t *sock_info;
+	sock_info_t *sock_info, *sock_info_child;
 	tcp_conn_t *tcp_conn;
 	struct sockaddr_in *sockaddr = (struct sockaddr_in *)addr;
 	int fd;
@@ -471,17 +473,19 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	sockaddr->sin_addr.s_addr = tcp_conn->uid.src_addr;
 	sockaddr->sin_port = tcp_conn->uid.src_port;
 	*addrlen = sizeof(struct sockaddr_in);
-	sock_info = fd2sockinfo(fd);
-	sock_info->trq.tcp_conn = tcp_conn;
-	tcp_conn->sock_info = sock_info;
+	sock_info_child = fd2sockinfo(fd);
+	sock_info_child->trq.tcp_conn = tcp_conn;
+	sock_info_child->port = sock_info->port;
+	tcp_conn->sock_info = sock_info_child;
 
 	return fd;
 }
 #endif	/* TCP */
 #else	/* CONFIG_BSD_COMPAT */
 #ifdef CONFIG_TCP
-int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
-		     uint32_t *src_addr, uint16_t *src_port)
+int
+sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
+		 uint32_t *src_addr, uint16_t *src_port)
 {
 	tcp_conn_t *tcp_conn;
 
@@ -503,7 +507,6 @@ int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_clien
 	if (sock_info_init(sock_info_client, 0, SOCK_STREAM,
 			   sock_info_server->port) < 0)
 		return -1;
-	__sock_info_add(sock_info_client);
 
 #ifndef CONFIG_HT_STORAGE
 	list_add_tail(&tcp_conn->list, &tcp_conns);
@@ -521,6 +524,9 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint32_t dst_addr, uint16_t dst_port)
 {
 	pkt_t *pkt;
+#ifdef CONFIG_TCP
+	tcp_conn_t *tcp_conn;
+#endif
 
 	if ((pkt = pkt_alloc()) == NULL)
 		return -1;
@@ -549,8 +555,9 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 			goto error;
 
 		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
+		tcp_conn = sock_info->trq.tcp_conn;
 		tcp_output(pkt, dst_addr, TH_PUSH | TH_ACK, sock_info->port,
-			   dst_port, 0, 0, IP_DF);
+			   dst_port, tcp_conn->seqid, tcp_conn->ack, IP_DF);
 		tcp_conn_inc_seqid(sock_info->trq.tcp_conn, sbuf->len);
 		return 0;
 #endif

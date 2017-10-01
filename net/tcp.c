@@ -13,6 +13,8 @@ hash_table_t *tcp_conns;
 struct list_head tcp_conns;
 #endif
 
+uint32_t tcp_initial_seqid = 0x1207e77b;
+
 struct tcp_syn {
 	uint32_t seqid;
 	uint32_t ack;
@@ -41,6 +43,19 @@ static tcp_syn_t *syn_find_entry(const tcp_uid_t *uid)
 	return NULL;
 }
 
+void __tcp_conn_delete(tcp_conn_t *tcp_conn)
+{
+	sock_info_t *sock_info = tcp_conn->sock_info;
+	pkt_t *pkt, *pkt_tmp;
+
+	if (sock_info)
+		sock_info->trq.tcp_conn = NULL;
+	list_for_each_entry_safe(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
+		list_del(&pkt->list);
+		pkt_free(pkt);
+	}
+}
+
 #ifdef CONFIG_HT_STORAGE
 static tcp_conn_t *tcp_conn_create(const tcp_uid_t *tuid, uint8_t status)
 {
@@ -63,17 +78,9 @@ static tcp_conn_t *tcp_conn_create(const tcp_uid_t *tuid, uint8_t status)
 
 void tcp_conn_delete(tcp_conn_t *tcp_conn)
 {
-	sock_info_t *sock_info = tcp_conn->sock_info;
-	pkt_t *pkt, *pkt_tmp;
 	sbuf_t key;
 
-	/* TODO send RST to peer */
-	if (sock_info != NULL)
-		sock_info->trq.tcp_conn = NULL;
-	list_for_each_entry_safe(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
-		list_del(&pkt->list);
-		pkt_free(pkt);
-	}
+	__tcp_conn_delete(tcp_conn);
 	sbuf_init(&key, &tcp_conn->uid, sizeof(tcp_uid_t));
 	htable_del(tcp_conns, &key);
 }
@@ -105,17 +112,8 @@ static tcp_conn_t *tcp_conn_create(const tcp_uid_t *tuid, uint8_t status)
 
 void tcp_conn_delete(tcp_conn_t *tcp_conn)
 {
-	sock_info_t *sock_info = tcp_conn->sock_info;
-	pkt_t *pkt, *pkt_tmp;
-
-	/* TODO send RST to peer */
-	if (sock_info && sock_info->trq.tcp_conn)
-		sock_info->trq.tcp_conn = NULL;
+	__tcp_conn_delete(tcp_conn);
 	list_del(&tcp_conn->list);
-	list_for_each_entry_safe(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
-		list_del(&pkt->list);
-		pkt_free(pkt);
-	}
 	free(tcp_conn);
 }
 
@@ -314,7 +312,7 @@ void tcp_input(pkt_t *pkt)
 		tcp_syn_t *tcp_syn = &syn_entries.conns[syn_entries.pos];
 
 		/* network endian for seqid and ack */
-		tcp_syn->seqid = 0x1207e77b; /* XXX to be changed */
+		tcp_syn->seqid = tcp_initial_seqid;
 		tcp_syn->ack = htonl(remote_seqid + 1);
 		tcp_syn->status = SOCK_TCP_SYN_ACK_SENT;
 		tcp_parse_options(tcp_syn, tcp_hdr, tcp_hdr_len - sizeof(tcp_hdr_t));
