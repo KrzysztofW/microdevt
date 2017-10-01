@@ -668,7 +668,7 @@ int net_tcp_tests(void)
 	}
 
 	/* SYN_ACK => ACK */
-	buf_init(&pkt->buf, tcp_ack_pkt, sizeof(tcp_syn_pkt));
+	buf_init(&pkt->buf, tcp_ack_pkt, sizeof(tcp_ack_pkt));
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) != NULL) {
@@ -779,4 +779,5 @@ int net_tcp_tests(void)
 
 	return 0;
 }
+
 #endif

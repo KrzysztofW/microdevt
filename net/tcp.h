@@ -83,7 +83,6 @@ struct tcp_conn {
 } __attribute__((__packed__));
 typedef struct tcp_conn tcp_conn_t;
 
-void tcp_conn_inc_seqid(tcp_conn_t *tcp_conn, int cnt);
 tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid);
 void tcp_conn_delete(tcp_conn_t *tcp_conn);
 
