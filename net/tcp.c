@@ -210,7 +210,7 @@ void tcp_parse_options(tcp_syn_t *tcp_syn, tcp_hdr_t *tcp_hdr, int opt_len)
 	uint8_t *ops_end = ops + opt_len;
 	uint8_t op;
 
-	while (ops <= ops_end && (op = ops[0]) != 0) {
+	while (ops < ops_end && (op = ops[0]) != 0) {
 		int len;
 
 		switch (op) {
