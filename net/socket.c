@@ -557,7 +557,7 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
 		tcp_conn = sock_info->trq.tcp_conn;
 		tcp_output(pkt, dst_addr, TH_PUSH | TH_ACK, sock_info->port,
-			   dst_port, tcp_conn->seqid, tcp_conn->ack, IP_DF);
+			   dst_port, tcp_conn->seqid, tcp_conn->ack);
 		tcp_conn_inc_seqid(sock_info->trq.tcp_conn, sbuf->len);
 		return 0;
 #endif

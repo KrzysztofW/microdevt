@@ -58,8 +58,7 @@ struct tcp_hdr {
 
 typedef struct tcp_hdr tcp_hdr_t;
 void tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
-		uint16_t sport, uint16_t dport,	uint32_t seqid, uint32_t ack,
-		uint16_t ip_flags);
+		uint16_t sport, uint16_t dport,	uint32_t seqid, uint32_t ack);
 void tcp_input(pkt_t *pkt);
 
 /* internal data structures */

@@ -144,8 +144,7 @@ static int tcp_set_options(void *data)
 }
 
 void tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
-		uint16_t sport, uint16_t dport, uint32_t seqid, uint32_t ack,
-		uint16_t ip_flags)
+		uint16_t sport, uint16_t dport, uint32_t seqid, uint32_t ack)
 {
 	tcp_hdr_t *tcp_hdr = btod(pkt, tcp_hdr_t *);
 	ip_hdr_t *ip_hdr;
@@ -172,7 +171,7 @@ void tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
 	}
 	tcp_hdr->hdr_len = tcp_hdr_len / 4;
 
-	ip_output(pkt, NULL, 0, ip_flags);
+	ip_output(pkt, NULL, 0, IP_DF);
 }
 
 static void
@@ -181,23 +180,19 @@ tcp_send_pkt(const ip_hdr_t *ip_hdr, const tcp_hdr_t *tcp_hdr, uint8_t flags,
 {
 	ip_hdr_t *ip_hdr_out;
 	pkt_t *out;
-	uint16_t ip_flags;
 
 	if ((out = pkt_alloc()) == NULL)
 		return;
+
 	pkt_adj(out, (int)sizeof(eth_hdr_t));
 	ip_hdr_out = btod(out, ip_hdr_t *);
 	ip_hdr_out->src = ip_hdr->dst;
 	pkt_adj(out, (int)sizeof(ip_hdr_t));
 	pkt_adj(out, (int)sizeof(tcp_hdr_t));
 	pkt_adj(out, -(int)sizeof(tcp_hdr_t));
-	if (flags & (TH_FIN | TH_SYN | TH_RST | TH_ACK | TH_URG))
-		ip_flags = IP_DF;
-	else
-		ip_flags = 0;
 
 	tcp_output(out, ip_hdr->src, flags, tcp_hdr->dst_port,
-		   tcp_hdr->src_port, seqid, ack, ip_flags);
+		   tcp_hdr->src_port, seqid, ack);
 }
 
 static void
