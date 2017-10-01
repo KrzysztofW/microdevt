@@ -120,10 +120,12 @@ static int unbind_port(sock_info_t *sock_info)
 
 	if (ht == NULL)
 		return -1;
+#ifdef CONFIG_TCP
 	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn) {
 		tcp_conn_delete(sock_info->trq.tcp_conn);
 		sock_info->trq.tcp_conn = NULL;
 	}
+#endif
 
 	sbuf_init(&key, &sock_info->port, sizeof(sock_info->port));
 	htable_del(ht, &key);

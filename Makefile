@@ -30,6 +30,9 @@ ifeq ($(DEBUG), 1)
 endif
 
 ifeq ($(TUN), 1)
+ifndef CONFIG_TCP
+$(error need CONFIG_TCP to compile the tun-driver)
+endif
 	CC = gcc
 	EXECUTABLE = tun-driver
 	TEST_SOURCES := $(filter-out tests.c, $(TEST_SOURCES))
@@ -57,7 +60,7 @@ all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
-	#if [ X$TUN != X ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
+	@if [ X$(TUN) != X ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
 
 .c.o: ring.h
 	$(CC) $(CFLAGS) $< -o $@

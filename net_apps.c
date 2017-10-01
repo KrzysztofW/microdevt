@@ -62,14 +62,13 @@ void tcp_app(void)
 	socklen_t addr_len;
 	static int client_fd = -1;
 
-	if (client_fd == -1) {
+	if (client_fd < 0) {
 		if ((client_fd = accept(tcp_fd, (struct sockaddr *)&addr, &addr_len)) >= 0)
 			printf("accepted connection from:0x%lX on port %u\n",
 			       ntohl(addr.sin_addr.s_addr),
 			       ntohs(addr.sin_port));
-	}
-	if (client_fd
-	    && socket_get_pkt(client_fd, &pkt, (struct sockaddr *)&addr) >= 0) {
+	} else
+	if (socket_get_pkt(client_fd, &pkt, (struct sockaddr *)&addr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
 		printf("got:%*s\n", sb.len, sb.data);
@@ -222,9 +221,8 @@ void tcp_app(void)
 				     &src_port) >= 0)
 			printf("accepted connection from:0x%lX on port %u\n",
 			       ntohl(src_addr), ntohs(src_port));
-	}
-	if (sock_info_client.trq.tcp_conn &&
-	    __socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) >= 0) {
+	} else
+	if (__socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
 		printf("got (len:%d):%.*s\n", sb.len, sb.len, sb.data);

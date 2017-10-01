@@ -164,7 +164,8 @@ int main(int argc, char *argv[])
 	}
 	while (1) {
 		pkt_t *pkt;
-		ssize_t nread = read(tun_fd,buf,sizeof(buf));
+		ssize_t nread = read(tun_fd, buf, sizeof(buf));
+
 		if (nread < 0 && errno == EAGAIN) {
 			sleep(1);
 			goto send;
