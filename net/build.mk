@@ -1,6 +1,10 @@
 NET_SRC = net/eth.c net/if.c net/arp.c net/ip.c
 NET_SRC += net/chksum.c net/pkt-mempool.c net/route.c
 
+ifdef CONFIG_IP_TTL
+CFLAGS += -DCONFIG_IP_TTL=$(CONFIG_IP_TTL)
+endif
+
 ifdef CONFIG_ICMP
 NET_SRC += net/icmp.c
 CFLAGS += -DCONFIG_ICMP

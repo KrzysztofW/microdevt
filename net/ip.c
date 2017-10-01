@@ -8,6 +8,10 @@
 #include "tcp.h"
 #include <assert.h>
 
+#ifndef CONFIG_IP_TTL
+#error "mandatory CONFIG_IP_TTL option not set"
+#endif
+
 void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 {
 	ip_hdr_t *ip = btod(out, ip_hdr_t *);
@@ -42,7 +46,7 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 	ip->len = htons(payload_len);
 	ip->id = 0;
 	ip->off = flags;
-	ip->ttl = 0x38;
+	ip->ttl = CONFIG_IP_TTL;
 	assert(ip->p); /* must be set by upper layer */
 	ip->chksum = 0;
 	ip->chksum = cksum(ip, sizeof(ip_hdr_t));
