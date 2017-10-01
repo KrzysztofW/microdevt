@@ -5,11 +5,11 @@
 
 #include "config.h"
 
-#define IFF_UP      (1 << 0)
-#define IFF_RUNNING (1 << 1)
-#define IFF_PROMISC (1 << 2)
-#define IFF_NOARP   (1 << 3)
-/*      IFF_LAST    (1 << 7) */
+#define IF_UP      (1 << 0)
+#define IF_RUNNING (1 << 1)
+#define IF_PROMISC (1 << 2)
+#define IF_NOARP   (1 << 3)
+/*      IF_LAST    (1 << 7) */
 
 struct iface {
 	uint8_t flags;

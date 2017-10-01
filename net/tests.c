@@ -20,7 +20,7 @@ uint16_t recv(buf_t *in)
 }
 
 iface_t iface = {
-	.flags = IFF_UP|IFF_RUNNING,
+	.flags = IF_UP|IF_RUNNING,
 	.mac_addr = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x40 },
 	.ip4_addr = { 192, 168, 2, 32 },
 	.send = &send,

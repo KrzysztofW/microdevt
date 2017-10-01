@@ -31,7 +31,7 @@
 int net_wd;
 
 iface_t eth0 = {
-	.flags = IFF_UP|IFF_RUNNING,
+	.flags = IF_UP|IF_RUNNING,
 	.mac_addr = { 0x62, 0x5F, 0x70, 0x72, 0x61, 0x79 },
 	.ip4_addr = { 192, 168, 0, 99 },
 	.ip4_mask = { 255, 255, 255, 0 },

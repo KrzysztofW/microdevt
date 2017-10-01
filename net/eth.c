@@ -7,7 +7,7 @@ void eth_input(pkt_t *pkt, iface_t *iface)
 {
 	eth_hdr_t *eh;
 
-	if ((iface->flags & IFF_UP) == 0)
+	if ((iface->flags & IF_UP) == 0)
 		goto unsupported;
 
 	eh = btod(pkt, eth_hdr_t *);
@@ -45,7 +45,7 @@ void eth_output(pkt_t *out, iface_t *iface, const uint8_t *mac_dst,
 	eth_hdr_t *eh;
 	int i;
 
-	if ((iface->flags & IFF_UP) == 0) {
+	if ((iface->flags & IF_UP) == 0) {
 		pkt_free(out);
 		return;
 	}
