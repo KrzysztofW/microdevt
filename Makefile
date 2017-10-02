@@ -27,6 +27,8 @@ TEST_SOURCES += sys/hash-tables.c
 ifeq ($(DEBUG), 1)
 	CFLAGS += -DDEBUG
 	SOURCES += usart0.c
+else
+	CFLAGS += -DNDEBUG
 endif
 
 ifeq ($(TUN), 1)
