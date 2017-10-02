@@ -75,7 +75,7 @@ static void tim_cb_led(void *arg)
 #define ANALOG_LOW_VAL 170
 #define ANALOG_HI_VAL  690
 
-void decode_rf_cmds(void)
+void rf_decode_cmds(void)
 {
 	if (ring_len(rf_ring) < CMD_SIZE)
 		return;

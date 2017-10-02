@@ -262,7 +262,7 @@ int main(void)
 			enc28j60_get_pkts();
 		}
 #ifdef CONFIG_RF
-		decode_rf_cmds();
+		rf_decode_cmds();
 #endif
 		sei();
 

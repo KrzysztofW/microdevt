@@ -5,6 +5,6 @@
 
 int rf_init(void);
 void rf_shutdown(void);
-void decode_rf_cmds(void);
+void rf_decode_cmds(void);
 
 #endif
