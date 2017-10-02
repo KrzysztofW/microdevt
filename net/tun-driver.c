@@ -62,7 +62,7 @@ uint16_t send(const buf_t *out)
 }
 
 iface_t iface = {
-	.flags = IFF_UP|IFF_RUNNING,
+	.flags = IF_UP|IF_RUNNING,
 	.mac_addr = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x41 },
 	.ip4_addr = { 1,1,2,2 },
 	.send = &send,
@@ -170,14 +170,14 @@ int main(int argc, char *argv[])
 			sleep(1);
 			goto send;
 		}
-		printf("read: %ld\n", nread);
 		CHECK(nread >= 0);
 		if (nread == 0)
 			break;
+		printf("read: %ld\n", nread);
 
 		if ((pkt = pkt_alloc()) == NULL) {
 			fprintf(stderr, "can't alloc a packet\n");
-			return -1;
+			goto send;
 		}
 
 		if (buf_add(&pkt->buf, buf, nread) < 0) {
