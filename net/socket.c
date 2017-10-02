@@ -317,10 +317,7 @@ int socket(int family, int type, int protocol)
 	int retries = 0;
 
 	(void)protocol;
-	if (family != AF_INET)
-		return -1;
-
-	if (family >= SOCK_LAST)
+	if (family != AF_INET || family >= SOCK_LAST)
 		return -1;
 
 	if ((sock_info = malloc(sizeof(sock_info_t))) == NULL)
@@ -356,9 +353,7 @@ int listen(int fd, int backlog)
 	if (sock_info == NULL)
 		return -1;
 
-	if (sock_info_listen(sock_info, backlog) < 0)
-		return -1;
-	return 0;
+	return sock_info_listen(sock_info, backlog);
 }
 #endif
 #endif
@@ -391,9 +386,8 @@ int sock_info_bind(sock_info_t *sock_info)
 		if (sock_info->port == 0)
 			return -1; /* no more available ports */
 	}
-	bind_on_port(sock_info->port, sock_info);
 	assert(sock_info->port != 0);
-	return 0;
+	return bind_on_port(sock_info->port, sock_info);
 }
 
 int sock_info_unbind(sock_info_t *sock_info)
@@ -449,10 +443,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	if ((sock_info = fd2sockinfo(sockfd)) == NULL)
 		return -1;
 
-	if (sock_info->type != SOCK_STREAM)
-		return -1;
-
-	if (sock_info->listen == NULL)
+	if (sock_info->type != SOCK_STREAM || sock_info->listen == NULL)
 		return -1;
 
 	if (list_empty(&sock_info->listen->tcp_conn_list_head)) {
@@ -494,13 +485,10 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 	if (sock_info_server->type != SOCK_STREAM)
 		return -1;
 
-	if (sock_info_server->listen == NULL)
-		return -1;
-
-	if (list_empty(&sock_info_server->listen->tcp_conn_list_head)) {
+	if (sock_info_server->listen == NULL ||
+	    list_empty(&sock_info_server->listen->tcp_conn_list_head))
 		/* EAGAIN */
 		return -1;
-	}
 	tcp_conn = list_first_entry(&sock_info_server->listen->tcp_conn_list_head,
 				    tcp_conn_t, list);
 	list_del(&tcp_conn->list);
