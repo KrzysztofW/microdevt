@@ -517,6 +517,8 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 #ifdef CONFIG_TCP
 	tcp_conn_t *tcp_conn;
 #endif
+	if (sbuf->len == 0)
+		return 0;
 
 	if ((pkt = pkt_alloc()) == NULL)
 		return -1;
@@ -540,14 +542,18 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 #endif
 #ifdef CONFIG_TCP
 	case SOCK_TYPE_TCP:
+		tcp_conn = sock_info->trq.tcp_conn;
+		if (tcp_conn->status == SOCK_CLOSED) {
+			goto error;
+		}
 		pkt_adj(pkt, (int)sizeof(tcp_hdr_t));
 		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
 			goto error;
 
 		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
-		tcp_conn = sock_info->trq.tcp_conn;
-		tcp_output(pkt, dst_addr, TH_PUSH | TH_ACK, sock_info->port,
-			   dst_port, tcp_conn->seqid, tcp_conn->ack);
+		tcp_output(pkt, tcp_conn->uid.src_addr, TH_PUSH | TH_ACK,
+			   sock_info->port, tcp_conn->uid.src_port,
+			   tcp_conn->seqid, tcp_conn->ack);
 		tcp_conn->seqid = htonl(ntohl(tcp_conn->seqid) + sbuf->len);
 		return 0;
 #endif
@@ -621,8 +627,13 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 		tcp_conn = tcp_conn_lookup(&sock_info->trq.tcp_conn->uid);
 		if (tcp_conn == NULL)
 			return -1;
-		if (list_empty(&tcp_conn->pkt_list_head))
+		if (list_empty(&tcp_conn->pkt_list_head)) {
+			if (tcp_conn->status == SOCK_CLOSED)
+				tcp_conn_delete(tcp_conn);
+			/* else */
+				/* errno = EAGAIN */
 			return -1;
+		}
 
 		pkt = list_first_entry(&tcp_conn->pkt_list_head, pkt_t, list);
 		list_del(&pkt->list);

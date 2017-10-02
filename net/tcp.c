@@ -269,12 +269,12 @@ void tcp_input(pkt_t *pkt)
 	set_tuid(&tuid, ip_hdr, tcp_hdr);
 	remote_seqid = ntohl(tcp_hdr->seq);
 	if ((tcp_conn = tcp_conn_lookup(&tuid)) != NULL) {
-		int flags = 0;
+		int flags = 0, plen;
 		uint32_t ack, remote_ack, seqid;
 		uint8_t remote_fin_set = 0;
 
-		if (tcp_hdr->ctrl & TH_RST) {
-			tcp_conn_delete(tcp_conn);
+		if (tcp_hdr->ctrl & TH_RST || tcp_conn->status == SOCK_CLOSED) {
+			tcp_conn->status = SOCK_CLOSED;
 			goto end;
 		}
 		ack = ntohl(tcp_conn->ack);
@@ -300,12 +300,14 @@ void tcp_input(pkt_t *pkt)
 		} else if (tcp_hdr->ctrl == TH_ACK
 			   && tcp_conn->status == SOCK_TCP_FIN_SENT
 			   && tcp_hdr->ack == tcp_conn->seqid) {
-			tcp_conn_delete(tcp_conn);
+			tcp_conn->status = SOCK_CLOSED;
 			goto end;
 		}
 		pkt_adj(pkt, tcp_hdr_len);
 		/* truncate pkt to the tcp payload length */
-		pkt->buf.len = ip_plen - tcp_hdr_len;
+		plen = ip_plen - tcp_hdr_len;
+		if (pkt->buf.len > plen)
+			pkt->buf.len = plen;
 
 		ack = remote_seqid + pkt->buf.len + remote_fin_set;
 		tcp_conn->ack = htonl(ack);
