@@ -177,7 +177,7 @@ void udp_app(void)
 #else	/* CONFIG_BSD_COMPAT */
 
 #ifdef CONFIG_TCP
-sock_info_t sock_info_server, sock_info_client;
+sock_info_t sock_info_server;
 
 int tcp_server(uint16_t port)
 {
@@ -210,26 +210,41 @@ int tcp_init(uint16_t port)
 	return 0;
 }
 
+#define TCP_CLIENTS 5
+sock_info_t sock_info_clients[TCP_CLIENTS];
+sbuf_t sb[TCP_CLIENTS];
+pkt_t *pkts[TCP_CLIENTS];
 void tcp_app(void)
 {
 	uint32_t src_addr;
 	uint16_t src_port;
-	pkt_t *pkt;
+	int i;
 
-	if (sock_info_client.trq.tcp_conn == NULL) {
-		if (sock_info_accept(&sock_info_server, &sock_info_client, &src_addr,
-				     &src_port) >= 0)
-			printf("accepted connection from:0x%lX on port %u\n",
-			       ntohl(src_addr), ntohs(src_port));
-	} else
-	if (__socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) >= 0) {
-		sbuf_t sb = PKT2SBUF(pkt);
-
-		printf("got (len:%d):%.*s\n", sb.len, sb.len, sb.data);
-		if (__socket_put_sbuf(&sock_info_client, &sb, src_addr,
-				      src_port) < 0)
-			printf("can't put sbuf to socket\n");
-		pkt_free(pkt);
+	for (i = 0; i < TCP_CLIENTS; i++) {
+		if (sock_info_clients[i].trq.tcp_conn == NULL) {
+			if (sock_info_accept(&sock_info_server, &sock_info_clients[i],
+					     &src_addr, &src_port) >= 0) {
+				printf("accepted connection from:0x%lX on port %u\n",
+				       ntohl(src_addr), ntohs(src_port));
+			}
+			continue;
+		}
+		if (sb[i].len == 0 &&
+		    __socket_get_pkt(&sock_info_clients[i], &pkts[i], &src_addr,
+				     &src_port) >= 0) {
+			sb[i] = PKT2SBUF(pkts[i]);
+			printf("[conn:%d]: got (len:%d):%.*s (pkt:%p)\n", i,
+			       sb[i].len, sb[i].len, sb[i].data, pkts[i]);
+		}
+		if (__socket_put_sbuf(&sock_info_clients[i], &sb[i], src_addr,
+				      src_port) < 0) {
+			printf("can't put sbuf to socket (%d) (pkt:%p)\n", sb[i].len, pkts[i]);
+			continue;
+		}
+		if (sb[i].len) {
+			sbuf_reset(&sb[i]);
+			pkt_free(pkts[i]);
+		}
 	}
 }
 #endif	/* CONFIG_TCP */

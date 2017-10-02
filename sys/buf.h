@@ -87,6 +87,10 @@ static inline void buf_reset(buf_t *buf)
 	buf->len = 0;
 	buf->skip = 0;
 }
+static inline void sbuf_reset(sbuf_t *sbuf)
+{
+	sbuf->len = 0;
+}
 
 static inline int buf_has_room(buf_t *buf, int len)
 {
