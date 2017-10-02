@@ -24,6 +24,7 @@ pkt_t *pkt_get(struct list_head *head)
 
 int pkt_put(struct list_head *head, pkt_t *pkt)
 {
+	assert(pkt->list.next == LIST_POISON1 && pkt->list.prev == LIST_POISON2);
 	list_add_tail(&pkt->list, head);
 	return 0;
 }
@@ -54,7 +55,7 @@ pkt_t *__pkt_alloc(const char *func, int line)
 	if (pkt) {
 		pkt->refcnt = 0;
 	}
-	printf("%s() in %s:%d\n", __func__, func, line);
+	printf("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
 	return pkt;
 }
 
@@ -63,13 +64,12 @@ int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
 	if (pkt->refcnt == 0) {
 		buf_reset(&pkt->buf);
-		printf("%s() in %s:%d\n", __func__, func, line);
+		printf("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
 		return pkt_put(pkt_pool, pkt);
 	}
 	pkt->refcnt--;
 	return 0;
 }
-#define pkt_free(pkt) __pkt_free(pkt, __func__, __LINE__)
 #else
 pkt_t *pkt_alloc(void)
 {
@@ -113,6 +113,10 @@ int pkt_mempool_init(void)
 #endif
 #ifndef RING_POOL
 		INIT_LIST_HEAD(&pkt->list);
+#ifdef DEBUG
+		/* mark pkt list as poisoned */
+		list_del(&pkt->list);
+#endif
 		pkt_put(pkt_pool, pkt);
 #else
 		pkt->offset = i;

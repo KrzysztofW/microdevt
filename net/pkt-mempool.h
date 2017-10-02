@@ -40,6 +40,7 @@ int pkt_put(struct list_head *head, pkt_t *pkt);
 pkt_t *__pkt_alloc(const char *func, int line);
 int __pkt_free(pkt_t *pkt, const char *func, int line);
 #define pkt_alloc() __pkt_alloc(__func__, __LINE__)
+#define pkt_free(pkt) __pkt_free(pkt, __func__, __LINE__)
 #else
 pkt_t *pkt_alloc(void);
 int pkt_free(pkt_t *pkt);
