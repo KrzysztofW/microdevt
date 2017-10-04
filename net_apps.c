@@ -71,7 +71,7 @@ void tcp_app(void)
 	if (socket_get_pkt(client_fd, &pkt, (struct sockaddr *)&addr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
-		printf("got:%*s\n", sb.len, sb.data);
+		printf("got:%.*s\n", sb.len, sb.data);
 		if (socket_put_sbuf(client_fd, &sb, (struct sockaddr *)&addr) < 0)
 			printf("can't put sbuf to socket\n");
 		pkt_free(pkt);

@@ -434,14 +434,14 @@ int net_udp_tests(void)
 		fprintf(stderr, "can't get udp pkt\n");
 		return -1;
 	}
-	printf("udp data: %*s\n", len, buf);
+	printf("udp data: %.*s\n", len, buf);
 #else
 	if (__socket_get_pkt(&sock_info, &pkt, &src_addr, &src_port) < 0) {
 		fprintf(stderr, "can't get udp pkt\n");
 		return -1;
 	}
 	len = pkt->buf.len;
-	printf("udp data: %*s\n", pkt->buf.len, buf_data(&pkt->buf));
+	printf("udp data: %.*s\n", pkt->buf.len, buf_data(&pkt->buf));
 #endif
 
 	sbuf_init(&sb, buf, len);
@@ -724,7 +724,7 @@ int net_tcp_tests(void)
 #endif
 	sb = PKT2SBUF(pkt);
 	sbuf_print(&sb);
-	printf("TCP: got: %*s\n", sb.len, sb.data);
+	printf("TCP: got: %.*s\n", sb.len, sb.data);
 
 	/* TCP CLIENT CLOSE */
 	buf_init(&pkt->buf, tcp_fin_ack_client_pkt, sizeof(tcp_fin_ack_client_pkt));

@@ -235,7 +235,7 @@ static int htable_check(int htable_size)
 			return -1;
 		}
 		if (htable_lookup(htable, &key, &val2) < 0) {
-			fprintf(stderr, "can't find key: %*s\n",
+			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
 		}
@@ -248,12 +248,12 @@ static int htable_check(int htable_size)
 		sbuf_init(&val, (unsigned char *)vals[i], strlen(vals[i]));
 
 		if (htable_lookup(htable, &key, &val2) < 0) {
-			fprintf(stderr, "can't find key: %*s\n",
+			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
 		}
 		if (sbuf_cmp(&val, val2) < 0) {
-			fprintf(stderr, "found val: `%*s' (expected: `%*s'\n",
+			fprintf(stderr, "found val: `%.*s' (expected: `%.*s'\n",
 				val.len, val.data, val2->len, val2->data);
 			return -1;
 		}
@@ -271,12 +271,12 @@ static int htable_check(int htable_size)
 		}
 
 		if (htable_del(htable, &key) < 0) {
-			fprintf(stderr, "can't delete key: %*s\n",
+			fprintf(stderr, "can't delete key: %.*s\n",
 				key.len, key.data);
 		}
 
 		if (htable_lookup(htable, &key, &val2) >= 0) {
-			fprintf(stderr, "key: %*s should not be present\n",
+			fprintf(stderr, "key: %.*s should not be present\n",
 				key.len, key.data);
 			return -1;
 		}
@@ -300,7 +300,7 @@ static int htable_check(int htable_size)
 			return -1;
 		}
 		if (htable_lookup(htable, &key, &val2) < 0) {
-			fprintf(stderr, "can't find key: %*s\n",
+			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
 		}
@@ -318,13 +318,13 @@ static int htable_check(int htable_size)
 		}
 
 		if (htable_lookup(htable, &key, &val2) < 0) {
-			fprintf(stderr, "can't find key: %*s\n",
+			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
 		}
 		htable_del_val(htable, val2);
 		if (htable_lookup(htable, &key, &val2) >= 0) {
-			fprintf(stderr, "found key: `%*s' but shouldn't\n",
+			fprintf(stderr, "found key: `%.*s' but shouldn't\n",
 				key.len, key.data);
 			return -1;
 		}
@@ -343,13 +343,13 @@ static int htable_check(int htable_size)
 			return -1;
 		}
 		if (htable_lookup(htable, &key, &val2) < 0) {
-			fprintf(stderr, "can't find key: %*s\n",
+			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
 		}
 		v2 = (uint16_t *)val2->data;
 		if (v != *v2) {
-			fprintf(stderr, "can't find key: %*s\n",
+			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
 		}
@@ -371,6 +371,7 @@ static void timer_cb(void *arg)
 {
 	timer_el_t *el = arg;
 
+	(void)el;
 	assert(val_g == el->val);
 	val_g++;
 }
