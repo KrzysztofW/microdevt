@@ -24,7 +24,7 @@ void timer_reschedule(tim_t *timer, unsigned long expiry_us);
 int timer_is_pending(tim_t *timer);
 
 #ifdef TEST
-void __zchk_timer_process(void);
+void __timer_process(void);
 #endif
 
 #endif

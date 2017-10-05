@@ -393,7 +393,7 @@ static int timer_check(void)
 	}
 
 	for (i = 0; i < TIMER_TABLE_SIZE * 2; i++) {
-		__zchk_timer_process();
+		__timer_process();
 	}
 
 	return 0;

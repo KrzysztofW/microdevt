@@ -1,21 +1,15 @@
-include config
-
-MCU = atmega328p
-BMCU = m328p
-F_CPU = 16000000
-
 LDFLAGS = -W
 CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
 
-include net/build.mk
-
 COMMON =
-SOURCES = alarm.c net_apps.c timer.c enc28j60.c adc.c
+SOURCES = net_apps.c timer.c enc28j60.c adc.c
+include config
 
-ifdef CONFIG_RF
-SOURCES += rf.c
-CFLAGS += -DCONFIG_RF
+ifeq "$(or $(TUN), $(TEST))" "1"
+	CONFIG_ARCH = X86_TUN_TAP
 endif
+include net/build.mk
+include build.mk
 
 SOURCES += $(NET_SRC) $(COMMON)
 
@@ -53,16 +47,13 @@ else
 	CC = avr-gcc
 	EXECUTABLE = alarm
 	OBJECTS = $(SOURCES:.c=.o)
-	LDFLAGS = -DF_CPU=${F_CPU} -mmcu=${MCU}
-	CFLAGS += -DF_CPU=$(F_CPU)
-	CFLAGS += -Wno-deprecated-declarations -D__PROG_TYPES_COMPAT__
 endif
 
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
-	@if [ X$(TUN) != X ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
+	@if [ -f tun-driver ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
 
 .c.o: ring.h
 	$(CC) $(CFLAGS) $< -o $@
@@ -71,11 +62,11 @@ upload: all
 	avr-size $(EXECUTABLE)
 	avr-objcopy -j .text -j .data -O ihex $(EXECUTABLE) $(EXECUTABLE).hex
 	avr-objcopy -O srec $(EXECUTABLE) $(EXECUTABLE).srec
-	sudo avrdude -V -c usbtiny -p ${BMCU} -U flash:w:$(EXECUTABLE).hex
+	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXECUTABLE).hex
 
 size: all
 	#avr-nm -S --size-sort -t d <obj-file>
-	avr-size -C --mcu=${MCU} alarm
+	avr-size -C --mcu=${CONFIG_AVR_MCU} alarm
 
 
 clean:
@@ -84,24 +75,22 @@ clean:
 #pdf: README.rst
 #	rst2pdf $< > $(<:.rst=.pdf)
 
-
-
 read_fuses:
-	sudo avrdude -p ${BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h
+	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h
 
 # FUSES see http://www.engbedded.com/fusecalc
 
 # 8MHZ (no internal clk/8)
 #write_fuses:
-#	sudo avrdude -p ${BMCU} -c usbtiny -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
+#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
 
 # 1MHZ (internal clk/8)
 #write_fuses:
-#	sudo avrdude -p ${BMCU} -c usbtiny -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
+#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
 
 # 16MHZ external crystal
 write_fuses:
-	sudo avrdude -p ${BMCU} -c usbtiny -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
+	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
 
 erase:
-	sudo avrdude -p ${BMCU} -c usbtiny -e -B128
+	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128

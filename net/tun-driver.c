@@ -9,11 +9,11 @@
 #include <string.h>
 
 #include <unistd.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include "../timer.h"
 #include "config.h"
 #include "tests.h"
 #include "arp.h"
@@ -73,7 +73,7 @@ iface_t iface = {
 #include <sys/capability.h>
 #endif
 
-int tun_alloc(char *dev)
+static int tun_alloc(char *dev)
 {
 	assert(dev != NULL);
 	int tun_fd = open("/dev/net/tun", O_RDWR);
@@ -144,7 +144,6 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	timer_subsystem_init(150000);
 	arp_init();
 	socket_init();
 	dft_route.iface = &iface;
