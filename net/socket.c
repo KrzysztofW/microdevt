@@ -520,8 +520,10 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 	if (sbuf->len == 0)
 		return 0;
 
-	if ((pkt = pkt_alloc()) == NULL)
+	if ((pkt = pkt_alloc()) == NULL && (pkt = pkt_alloc_emergency()) == NULL) {
+		errno = ENOBUFS;
 		return -1;
+	}
 
 	pkt_adj(pkt, (int)sizeof(eth_hdr_t));
 	pkt_adj(pkt, (int)sizeof(ip_hdr_t));

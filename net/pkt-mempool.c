@@ -9,6 +9,8 @@ struct list_head *pkt_pool = &__pkt_pool;
 ring_t *pkt_pool;
 #endif
 
+static uint8_t emergency_pkt_used;
+
 #ifndef RING_POOL
 pkt_t *pkt_get(struct list_head *head)
 {
@@ -59,6 +61,13 @@ pkt_t *__pkt_alloc(const char *func, int line)
 
 int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
+	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data + (NB_PKTS * PKT_SIZE)) ||
+	    (uintptr_t)pkt->buf.data < (uintptr_t)buffer_data) {
+		free(pkt);
+		emergency_pkt_used = 0;
+		return 0;
+	}
+
 	buf_reset(&pkt->buf);
 	return pkt_put(pkt_pool, pkt);
 }
@@ -70,11 +79,40 @@ pkt_t *pkt_alloc(void)
 
 int pkt_free(pkt_t *pkt)
 {
+	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data + (NB_PKTS * PKT_SIZE)) ||
+	    (uintptr_t)pkt->buf.data < (uintptr_t)buffer_data) {
+		free(pkt);
+		emergency_pkt_used = 0;
+		return 0;
+	}
 	buf_reset(&pkt->buf);
 	return pkt_put(pkt_pool, pkt);
 }
 
 #endif
+
+pkt_t *pkt_alloc_emergency(void)
+{
+	pkt_t *pkt;
+
+	if (emergency_pkt_used)
+		return NULL;
+
+	pkt = malloc(sizeof(pkt_t) + PKT_SIZE);
+	if (pkt == NULL) /* unrecoverable error => reset */
+		return NULL;
+	buf_init(&pkt->buf, ((uint8_t *)pkt) + sizeof(pkt_t), PKT_SIZE);
+	pkt->buf.len = 0;
+#ifndef RING_POOL
+	INIT_LIST_HEAD(&pkt->list);
+#ifdef DEBUG
+	/* mark pkt list as poisoned */
+	list_del(&pkt->list);
+#endif
+#endif
+	emergency_pkt_used = 1;
+	return pkt;
+}
 
 int pkt_mempool_init(void)
 {

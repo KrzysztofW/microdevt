@@ -96,12 +96,12 @@ static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 {
 	int i;
-	pkt_t *out = pkt_alloc();
+	pkt_t *out;
 	arp_hdr_t *ah;
 	uint8_t *data;
 	uint8_t arp_hdr_len;
 
-	if (out == NULL) {
+	if ((out = pkt_alloc()) == NULL && (out = pkt_alloc_emergency()) == NULL) {
 		/* inc stats */
 		return;
 	}

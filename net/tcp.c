@@ -181,8 +181,10 @@ tcp_send_pkt(const ip_hdr_t *ip_hdr, const tcp_hdr_t *tcp_hdr, uint8_t flags,
 	ip_hdr_t *ip_hdr_out;
 	pkt_t *out;
 
-	if ((out = pkt_alloc()) == NULL)
+	if ((out = pkt_alloc()) == NULL &&
+	    (out = pkt_alloc_emergency()) == NULL) {
 		return;
+	}
 
 	pkt_adj(out, (int)sizeof(eth_hdr_t));
 	ip_hdr_out = btod(out, ip_hdr_t *);
