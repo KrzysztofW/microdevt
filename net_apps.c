@@ -8,6 +8,7 @@
 #include "net_apps.h"
 
 #ifdef CONFIG_BSD_COMPAT
+#include "sys/errno.h"
 struct sockaddr_in addr_c;
 
 #ifdef CONFIG_TCP
@@ -66,8 +67,8 @@ void tcp_app(void)
 		if ((client_fd = accept(tcp_fd, (struct sockaddr *)&addr, &addr_len)) >= 0)
 			printf("accepted connection from:0x%lX on port %u\n",
 			       ntohl(addr.sin_addr.s_addr),
-			       ntohs(addr.sin_port));
-	} else
+			       (uint16_t)ntohs(addr.sin_port));
+	}
 	if (socket_get_pkt(client_fd, &pkt, (struct sockaddr *)&addr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
@@ -75,8 +76,13 @@ void tcp_app(void)
 		if (socket_put_sbuf(client_fd, &sb, (struct sockaddr *)&addr) < 0)
 			printf("can't put sbuf to socket\n");
 		pkt_free(pkt);
+		return;
 	}
-	/* close(client_fd); */
+	if (errno == EBADF) {
+		printf("closing fd:%d\n", client_fd);
+		close(client_fd);
+		client_fd = -1;
+	}
 }
 #endif	/* CONFIG_TCP */
 
@@ -225,7 +231,7 @@ void tcp_app(void)
 			if (sock_info_accept(&sock_info_server, &sock_info_clients[i],
 					     &src_addr, &src_port) >= 0) {
 				printf("accepted connection from:0x%lX on port %u\n",
-				       ntohl(src_addr), ntohs(src_port));
+				       ntohl(src_addr), (uint16_t)ntohs(src_port));
 			}
 			continue;
 		}

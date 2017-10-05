@@ -50,4 +50,5 @@ endif
 
 ifdef CONFIG_BSD_COMPAT
 CFLAGS += -DCONFIG_BSD_COMPAT
+NEED_ERRNO = yes
 endif

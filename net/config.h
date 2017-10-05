@@ -12,5 +12,8 @@
 #include "pkt-mempool.h"
 #include "proto_defs.h"
 #include "if.h"
+#if defined(CONFIG_BSD_COMPAT) && CONFIG_ARCH != X86_TUN_TAP
+#include "../sys/errno.h"
+#endif
 
 #endif

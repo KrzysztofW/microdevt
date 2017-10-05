@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "../sys/errno.h"
 #include "eth.h"
 #include "ip.h"
 #ifdef CONFIG_UDP
@@ -43,8 +44,10 @@ static sock_info_t *fd2sockinfo(int fd)
 	sbuf_t key = FD2SBUF(fd);
 	sbuf_t *val;
 
-	if (htable_lookup(fd_to_sock, &key, &val) < 0)
+	if (htable_lookup(fd_to_sock, &key, &val) < 0) {
+		errno = EINVAL;
 		return NULL;
+	}
 	return *(sock_info_t **)val->data;
 }
 #endif
@@ -61,6 +64,7 @@ static hash_table_t *get_hash_table(int type)
 		return tcp_binds;
 #endif
 	default:
+		errno = EINVAL;
 		return NULL;
 	}
 }
@@ -91,8 +95,10 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 
 	sock_info->fd = fd;
 	sock_info->listen = NULL;
-	if (htable_add(fd_to_sock, &key, &val) < 0)
+	if (htable_add(fd_to_sock, &key, &val) < 0) {
+		errno = EINVAL;
 		return -1;
+	}
 	return 0;
 }
 #endif
@@ -102,13 +108,21 @@ static int bind_on_port(uint16_t port, sock_info_t *sock_info)
 	hash_table_t *ht = get_hash_table(sock_info->type);
 	sbuf_t key, val;
 
-	if (ht == NULL)
+	if (ht == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EINTVAL;
+#endif
 		return -1;
+	}
 	sbuf_init(&key, &port, sizeof(port));
 	val = SOCKINFO2SBUF(sock_info);
 
-	if (htable_add(ht, &key, &val) < 0)
+	if (htable_add(ht, &key, &val) < 0) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EINVAL;
+#endif
 		return -1;
+	}
 	sock_info->port = port;
 	return 0;
 }
@@ -147,6 +161,7 @@ static sock_info_t *fd2sockinfo(int fd)
 		if (sock_info->fd == fd)
 			return sock_info;
 	}
+	errno = EINVAL;
 	return NULL;
 }
 #endif
@@ -185,8 +200,12 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 
 static int bind_on_port(uint16_t port, sock_info_t *sock_info)
 {
-	if (port2sockinfo(port, sock_info->type))
+	if (port2sockinfo(port, sock_info->type)) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EINVAL;
+#endif
 		return -1;
+	}
 	sock_info->port = port;
 	return 0;
 }
@@ -383,8 +402,12 @@ int sock_info_bind(sock_info_t *sock_info)
 {
 	if (sock_info->port == 0) { /* client */
 		sock_info->port = socket_get_ephemeral_port(sock_info->type);
-		if (sock_info->port == 0)
+		if (sock_info->port == 0) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EADDRINUSE;
+#endif
 			return -1; /* no more available ports */
+		}
 	}
 	assert(sock_info->port != 0);
 	return bind_on_port(sock_info->port, sock_info);
@@ -440,14 +463,23 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	struct sockaddr_in *sockaddr = (struct sockaddr_in *)addr;
 	int fd;
 
-	if ((sock_info = fd2sockinfo(sockfd)) == NULL)
+	if ((sock_info = fd2sockinfo(sockfd)) == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EBADF;
+#endif
 		return -1;
+	}
 
-	if (sock_info->type != SOCK_STREAM || sock_info->listen == NULL)
+	if (sock_info->type != SOCK_STREAM || sock_info->listen == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EBADF;
+#endif
 		return -1;
-
+	}
 	if (list_empty(&sock_info->listen->tcp_conn_list_head)) {
-		/* EAGAIN */
+#ifdef CONFIG_BSD_COMPAT
+		errno = EAGAIN;
+#endif
 		return -1;
 	}
 	tcp_conn = list_first_entry(&sock_info->listen->tcp_conn_list_head,
@@ -456,6 +488,9 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	sock_info->listen->backlog--;
 
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EBADF;
+#endif
 		tcp_conn_delete(tcp_conn);
 		return -1;
 	}
@@ -487,7 +522,6 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 
 	if (sock_info_server->listen == NULL ||
 	    list_empty(&sock_info_server->listen->tcp_conn_list_head))
-		/* EAGAIN */
 		return -1;
 	tcp_conn = list_first_entry(&sock_info_server->listen->tcp_conn_list_head,
 				    tcp_conn_t, list);
@@ -521,7 +555,9 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		return 0;
 
 	if ((pkt = pkt_alloc()) == NULL && (pkt = pkt_alloc_emergency()) == NULL) {
+#ifdef CONFIG_BSD_COMPAT
 		errno = ENOBUFS;
+#endif
 		return -1;
 	}
 
@@ -535,8 +571,12 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 #ifdef CONFIG_UDP
 	case SOCK_TYPE_UDP:
 		pkt_adj(pkt, (int)sizeof(udp_hdr_t));
-		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
+		if (buf_addsbuf(&pkt->buf, sbuf) < 0) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = ENOBUFS;
+#endif
 			goto error;
+		}
 
 		pkt_adj(pkt, -(int)sizeof(udp_hdr_t));
 		udp_output(pkt, dst_addr, sock_info->port, dst_port);
@@ -546,11 +586,18 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 	case SOCK_TYPE_TCP:
 		tcp_conn = sock_info->trq.tcp_conn;
 		if (tcp_conn->status == SOCK_CLOSED) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EBADF;
+#endif
 			goto error;
 		}
 		pkt_adj(pkt, (int)sizeof(tcp_hdr_t));
-		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
+		if (buf_addsbuf(&pkt->buf, sbuf) < 0) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = ENOBUFS;
+#endif
 			goto error;
+		}
 
 		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
 		tcp_output(pkt, tcp_conn->uid.src_addr, TH_PUSH | TH_ACK,
@@ -574,8 +621,12 @@ int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
 	sock_info_t *sock_info = fd2sockinfo(fd);
 	const struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
 
-	if (sock_info == NULL)
+	if (sock_info == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EBADF;
+#endif
 		return -1;
+	}
 	return __socket_put_sbuf(sock_info, sbuf, addr_in->sin_addr.s_addr,
 				 addr_in->sin_port);
 }
@@ -610,7 +661,9 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 #ifdef CONFIG_UDP
 	case SOCK_DGRAM:
 		if (list_empty(&sock_info->trq.pkt_list)) {
-			/* errno = EAGAIN; */
+#ifdef CONFIG_BSD_COMPAT
+			errno = EAGAIN;
+#endif
 			return -1;
 		}
 
@@ -624,16 +677,26 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 #endif
 #ifdef CONFIG_TCP
 	case SOCK_STREAM:
-		if (sock_info->trq.tcp_conn == NULL)
+		if (sock_info->trq.tcp_conn == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EBADF;
+#endif
 			return -1;
+		}
 		tcp_conn = tcp_conn_lookup(&sock_info->trq.tcp_conn->uid);
-		if (tcp_conn == NULL)
+		if (tcp_conn == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EBADF;
+#endif
 			return -1;
+		}
 		if (list_empty(&tcp_conn->pkt_list_head)) {
 			if (tcp_conn->status == SOCK_CLOSED)
 				tcp_conn_delete(tcp_conn);
-			/* else */
-				/* errno = EAGAIN */
+#ifdef CONFIG_BSD_COMPAT
+			else
+				errno = EAGAIN;
+#endif
 			return -1;
 		}
 
@@ -646,6 +709,9 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 		break;
 #endif
 	default:
+#ifdef CONFIG_BSD_COMPAT
+		errno = EBADF;
+#endif
 		return -1;
 	}
 	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
@@ -666,7 +732,9 @@ int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
 	int ret;
 
 	if (sock_info == NULL) {
-		/* errno = CLOSED */
+#ifdef CONFIG_BSD_COMPAT
+		errno = EBADF;
+#endif
 		return -1;
 	}
 	ret = __socket_get_pkt(sock_info, pktp, &addr_in->sin_addr.s_addr,
