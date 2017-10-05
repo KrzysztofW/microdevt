@@ -52,9 +52,6 @@ pkt_t *__pkt_alloc(const char *func, int line)
 	pkt_t *pkt;
 
 	pkt = pkt_get(pkt_pool);
-	if (pkt) {
-		pkt->refcnt = 0;
-	}
 	printf("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
 	return pkt;
 }
@@ -62,31 +59,19 @@ pkt_t *__pkt_alloc(const char *func, int line)
 
 int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
-	if (pkt->refcnt == 0) {
-		buf_reset(&pkt->buf);
-		printf("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
-		return pkt_put(pkt_pool, pkt);
-	}
-	pkt->refcnt--;
-	return 0;
+	buf_reset(&pkt->buf);
+	return pkt_put(pkt_pool, pkt);
 }
 #else
 pkt_t *pkt_alloc(void)
 {
-	pkt_t *pkt = pkt_get(pkt_pool);
-
-	if (pkt)
-		pkt->refcnt = 0;
-	return pkt;
+	return pkt_get(pkt_pool);
 }
+
 int pkt_free(pkt_t *pkt)
 {
-	if (pkt->refcnt == 0) {
-		buf_reset(&pkt->buf);
-		return pkt_put(pkt_pool, pkt);
-	}
-	pkt->refcnt--;
-	return 0;
+	buf_reset(&pkt->buf);
+	return pkt_put(pkt_pool, pkt);
 }
 
 #endif
