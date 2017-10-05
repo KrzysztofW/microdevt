@@ -42,7 +42,7 @@ pkt_t *pkt_get(ring_t *ring)
 
 int pkt_put(ring_t *ring, pkt_t *pkt)
 {
-	return ring_addc_finish(ring, pkt->offset);
+	return ring_addc(ring, pkt->offset);
 }
 #endif
 
@@ -120,7 +120,7 @@ int pkt_mempool_init(void)
 		pkt_put(pkt_pool, pkt);
 #else
 		pkt->offset = i;
-		ring_addc_finish(pkt_pool, i);
+		ring_addc(pkt_pool, i);
 #endif
 	}
 	return 0;
