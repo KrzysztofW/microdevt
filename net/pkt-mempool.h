@@ -5,9 +5,6 @@
 #include "../sys/ring.h"
 #include "../sys/list.h"
 
-#define PKT_SIZE 128
-#define NB_PKTS    3
-
 struct pkt {
 	buf_t buf;
 #ifndef RING_POOL

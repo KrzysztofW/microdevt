@@ -1,7 +1,7 @@
 #include "pkt-mempool.h"
 
-unsigned char buffer_data[PKT_SIZE * NB_PKTS];
-pkt_t buffer_pool[NB_PKTS];
+unsigned char buffer_data[CONFIG_PKT_SIZE * CONFIG_PKT_NB_MAX];
+pkt_t buffer_pool[CONFIG_PKT_NB_MAX];
 #ifndef RING_POOL
 struct list_head __pkt_pool;
 struct list_head *pkt_pool = &__pkt_pool;
@@ -61,7 +61,8 @@ pkt_t *__pkt_alloc(const char *func, int line)
 
 int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
-	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data + (NB_PKTS * PKT_SIZE)) ||
+	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data
+						   + (CONFIG_PKT_NB_MAX * CONFIG_PKT_SIZE)) ||
 	    (uintptr_t)pkt->buf.data < (uintptr_t)buffer_data) {
 		free(pkt);
 		emergency_pkt_used = 0;
@@ -79,7 +80,8 @@ pkt_t *pkt_alloc(void)
 
 int pkt_free(pkt_t *pkt)
 {
-	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data + (NB_PKTS * PKT_SIZE)) ||
+	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data
+						   + (CONFIG_PKT_NB_MAX * CONFIG_PKT_SIZE)) ||
 	    (uintptr_t)pkt->buf.data < (uintptr_t)buffer_data) {
 		free(pkt);
 		emergency_pkt_used = 0;
@@ -98,10 +100,10 @@ pkt_t *pkt_alloc_emergency(void)
 	if (emergency_pkt_used)
 		return NULL;
 
-	pkt = malloc(sizeof(pkt_t) + PKT_SIZE);
+	pkt = malloc(sizeof(pkt_t) + CONFIG_PKT_SIZE);
 	if (pkt == NULL) /* unrecoverable error => reset */
 		return NULL;
-	buf_init(&pkt->buf, ((uint8_t *)pkt) + sizeof(pkt_t), PKT_SIZE);
+	buf_init(&pkt->buf, ((uint8_t *)pkt) + sizeof(pkt_t), CONFIG_PKT_SIZE);
 	pkt->buf.len = 0;
 #ifndef RING_POOL
 	INIT_LIST_HEAD(&pkt->list);
@@ -121,15 +123,16 @@ int pkt_mempool_init(void)
 #ifndef RING_POOL
 	INIT_LIST_HEAD(pkt_pool);
 #else
-	pkt_pool = ring_create(NB_PKTS + 1);
+	pkt_pool = ring_create(CONFIG_PKT_NB_MAX + 1);
 	if (pkt_pool == NULL)
 		return -1;
 #endif
-	STATIC_ASSERT(NB_PKTS < 256);
-	for (i = 0; i < NB_PKTS; i++) {
+	STATIC_ASSERT(CONFIG_PKT_NB_MAX < 256);
+	for (i = 0; i < CONFIG_PKT_NB_MAX; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
-		buf_init(&pkt->buf, &buffer_data[i * PKT_SIZE], PKT_SIZE);
+		buf_init(&pkt->buf, &buffer_data[i * CONFIG_PKT_SIZE],
+			 CONFIG_PKT_SIZE);
 		pkt->buf.len = 0;
 #ifdef DEBUG
 		pkt->pkt_nb = i;

@@ -137,7 +137,7 @@ static int tcp_set_options(void *data)
 	opts[0] = TCPOPT_MAXSEG;
 	opts[1] = TCPOLEN_MAXSEG;
 	opts += 2;
-	opts_len = PKT_SIZE - sizeof(eth_hdr_t)
+	opts_len = CONFIG_PKT_SIZE - sizeof(eth_hdr_t)
 		- sizeof(ip_hdr_t) - sizeof(tcp_hdr_t) - TCPOLEN_MAXSEG;
 	*(uint16_t *)opts = htons(opts_len);
 	return TCPOLEN_MAXSEG;
