@@ -35,6 +35,10 @@ static inline void __list_add(struct list_head *new,
 	prev->next = new;
 }
 
+#ifdef LIST_DEBUG
+#define list_add(new, head) printf("%s:%d add:%p\n", __func__, __LINE__, new); __list_add((new), (head), (head)->next)
+#define list_add_tail(new, head) printf("%s:%d add:%p\n", __func__, __LINE__, new); __list_add((new), (head)->prev, (head))
+#else
 static inline void list_add(struct list_head *new, struct list_head *head)
 {
 	__list_add(new, head, head->next);
@@ -44,6 +48,7 @@ static inline void list_add_tail(struct list_head *new, struct list_head *head)
 {
 	__list_add(new, head->prev, head);
 }
+#endif
 
 static inline void __list_del(struct list_head * prev, struct list_head * next)
 {
