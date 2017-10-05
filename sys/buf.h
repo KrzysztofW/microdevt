@@ -176,17 +176,19 @@ static inline int buf_read_file(buf_t *buf, const char *filename)
 }
 #endif
 
+#if defined(TEST) || defined(DEBUG)
 static inline void sbuf_print(const sbuf_t *buf)
 {
-#if defined(TEST) || defined(DEBUG)
 	int i;
 
 	for (i = 0; i < buf->len; i++) {
 		printf(" 0x%02X", buf->data[i]);
 	}
 	puts("");
-#endif
 }
+#else
+#define sbuf_print(x)
+#endif
 
 static inline void buf_print(const buf_t *buf)
 {
