@@ -209,7 +209,7 @@ uint16_t ENC28J60_PacketReceive(buf_t *buf) {
     rxstat = ENC28J60_ReadOp(RBM,0);
     rxstat |= ((uint16_t)ENC28J60_ReadOp(RBM,0))<<8;
 
-    if (len > buf->size) {
+    if (len > (unsigned)buf->size) {
 	    /* XXX check pkt sizes (> PKT_SIZE) icmp: pkt too big? */
 	    len = buf->size;
     }
