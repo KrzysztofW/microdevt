@@ -31,9 +31,7 @@ unsigned char arp_request_pkt[] = {
 	0xE4, 0xDA, 0x65, 0x08, 0x06, 0x00, 0x01, 0x08, 0x00,
 	0x06, 0x04, 0x00, 0x01, 0x48, 0x4D, 0x7E, 0xE4, 0xDA,
 	0x65, 0xC0, 0xA8, 0x02, 0xA3, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0xC0, 0xA8, 0x02, 0x20, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	0x00, 0x00, 0xC0, 0xA8, 0x02, 0x20
 };
 unsigned char arp_reply_pkt[] = {
 	0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65, 0x54, 0x52, 0x00,
@@ -87,7 +85,7 @@ static void net_arp_print_entries(void)
 	}
 }
 
-static int net_arp_request_test(pkt_t *pkt, iface_t ifa)
+static int net_arp_request_test(iface_t *ifa)
 {
 	uint8_t dst_mac[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -98,23 +96,27 @@ static int net_arp_request_test(pkt_t *pkt, iface_t ifa)
 	uint8_t src_mac[] = { 0x48, 0x4D, 0x7E, 0xE4, 0xDA, 0x65 };
 	uint8_t src_ip[] = { 192, 168, 2, 163 };
 	int i;
-	pkt_t *out;
+	pkt_t *out, *pkt;
 
-	memcpy(ifa.mac_addr, src_mac, 6);
-	memcpy(ifa.ip4_addr, src_ip, 4);
+	memcpy(ifa->mac_addr, src_mac, 6);
+	memcpy(ifa->ip4_addr, src_ip, 4);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "can't alloc a packet\n");
 		return -1;
 	}
-	memset(pkt->buf.data, 0, pkt->buf.size);
+	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
-	arp_output(&ifa, ARPOP_REQUEST, dst_mac, (uint8_t *)&dst_ip);
-	if ((out = pkt_get(&ifa.tx)) == NULL) {
+	arp_output(ifa, ARPOP_REQUEST, dst_mac, (uint8_t *)&dst_ip);
+	if ((out = pkt_get(&ifa->tx)) == NULL) {
 		fprintf(stderr, "can't get tx packet\n");
 		return -1;
 	}
-	for (i = 0; i < pkt->buf.len; i++) {
+	if (out->buf.len == 0) {
+		fprintf(stderr, "got empty packet\n");
+		return -1;
+	}
+	for (i = 0; i < out->buf.len; i++) {
 		if (pkt->buf.data[i] != out->buf.data[i]) {
 			fprintf(stderr, "failed serializing arp request\n");
 			printf("got:\n");
@@ -213,7 +215,7 @@ int net_arp_tests(void)
 			goto end;
 		}
 	}
-	if (net_arp_request_test(pkt, iface) < 0)
+	if (net_arp_request_test(&iface) < 0)
 		ret = -1;
  end:
 	pkt_free(pkt);
