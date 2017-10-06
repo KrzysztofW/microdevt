@@ -61,14 +61,12 @@ pkt_t *__pkt_alloc(const char *func, int line)
 
 int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
-	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data
-						   + (CONFIG_PKT_NB_MAX * CONFIG_PKT_SIZE)) ||
-	    (uintptr_t)pkt->buf.data < (uintptr_t)buffer_data) {
+	if (pkt > buffer_pool + CONFIG_PKT_NB_MAX || pkt < buffer_pool) {
+		assert(emergency_pkt_used);
 		free(pkt);
 		emergency_pkt_used = 0;
 		return 0;
 	}
-
 	buf_reset(&pkt->buf);
 	return pkt_put(pkt_pool, pkt);
 }
@@ -80,9 +78,8 @@ pkt_t *pkt_alloc(void)
 
 int pkt_free(pkt_t *pkt)
 {
-	if ((uintptr_t)pkt->buf.data > (uintptr_t)(buffer_data
-						   + (CONFIG_PKT_NB_MAX * CONFIG_PKT_SIZE)) ||
-	    (uintptr_t)pkt->buf.data < (uintptr_t)buffer_data) {
+	if (pkt > buffer_pool + CONFIG_PKT_NB_MAX || pkt < buffer_pool) {
+		assert(emergency_pkt_used);
 		free(pkt);
 		emergency_pkt_used = 0;
 		return 0;
