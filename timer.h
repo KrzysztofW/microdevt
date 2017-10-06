@@ -23,7 +23,7 @@ void timer_del(tim_t *timer);
 void timer_reschedule(tim_t *timer, unsigned long expiry_us);
 int timer_is_pending(tim_t *timer);
 
-#ifdef TEST
+#ifdef X86
 void __timer_process(void);
 #endif
 

@@ -38,7 +38,7 @@ typedef uint8_t sa_family_t;
 typedef uint8_t socklen_t;
 #endif
 
-#ifndef TEST
+#ifndef X86
 typedef int ssize_t;
 #endif
 

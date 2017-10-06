@@ -1,52 +1,19 @@
-LDFLAGS = -W
-CFLAGS = -Wall -Werror -Os -g -c $(LDFLAGS)
+#LDFLAGS = -W -Wl,--as-needed
+CFLAGS = -Wall -Werror -Os -g -c
 
 COMMON =
-SOURCES = net_apps.c timer.c enc28j60.c adc.c
+SOURCES =
 include config
 
-ifeq "$(or $(TUN), $(TEST))" "1"
-	CONFIG_ARCH = X86_TUN_TAP
-endif
 include net/build.mk
 include build.mk
 
-SOURCES += $(NET_SRC) $(COMMON)
-
-TEST_SOURCES = timer.c tests.c net/tests.c ${NET_SRC} $(COMMON)
-# sys/hash-tables.c might be already in NET_SRC
-TEST_SOURCES := $(filter-out sys/hash-tables.c, $(TEST_SOURCES))
-TEST_SOURCES += sys/hash-tables.c
+SOURCES += $(COMMON)
 
 ifeq ($(DEBUG), 1)
 	CFLAGS += -DDEBUG
-	SOURCES += usart0.c
 else
 	CFLAGS += -DNDEBUG
-endif
-
-ifeq ($(TUN), 1)
-ifndef CONFIG_TCP
-$(error need CONFIG_TCP to compile the tun-driver)
-endif
-	CC = gcc
-	EXECUTABLE = tun-driver
-	TEST_SOURCES := $(filter-out tests.c, $(TEST_SOURCES))
-	TEST_SOURCES := $(filter-out net/tests.c, $(TEST_SOURCES))
-	SOURCES = net/tun-driver.c net_apps.c ${TEST_SOURCES}
-	OBJECTS = $(SOURCES:.c=.o)
-	CFLAGS += -DTEST -DTUN -O0
-	LDFLAGS += -lcap
-else ifeq ($(TEST), 1)
-	CC = gcc
-	EXECUTABLE = tests
-	SOURCES = ${TEST_SOURCES}
-	OBJECTS = $(SOURCES:.c=.o)
-	CFLAGS += -DTEST -O0
-else
-	CC = avr-gcc
-	EXECUTABLE = alarm
-	OBJECTS = $(SOURCES:.c=.o)
 endif
 
 all: $(SOURCES) $(EXECUTABLE)

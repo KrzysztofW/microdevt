@@ -1,7 +1,7 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
-#ifndef TEST
+#ifdef CONFIG_AVR_MCU
 #include <avr/io.h>
 #else
 #include <stdint.h>

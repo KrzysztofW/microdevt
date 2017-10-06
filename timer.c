@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdlib.h>
-#ifndef TEST
+#ifdef CONFIG_AVR_MCU
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #endif
@@ -32,9 +32,12 @@
  *       8 = prescaler value
  *       <=> (65535 - (150*(16000000/8))/1000000)
  */
+#ifdef CONFIG_AVR_MCU
 #define MIN_TIMER_RES 150UL // XXX the scope show a resolution of 200us!
 #define TIM_COUNTER (UINT16_MAX - (MIN_TIMER_RES*(CONFIG_AVR_F_CPU/8))/1000000)
-
+#else
+#define MIN_TIMER_RES 1
+#endif
 static unsigned long timer_resolution_us = MIN_TIMER_RES;
 
 struct timer_state {

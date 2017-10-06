@@ -1,4 +1,4 @@
-#ifndef TUN
+#ifdef CONFIG_AVR_MCU
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #else

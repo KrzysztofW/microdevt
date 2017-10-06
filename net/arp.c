@@ -227,7 +227,7 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
 	/* The following assert is false on x86-64 arch.
 	 * The arp resolution cannot be tested.
 	 */
-#ifndef TEST
+#ifndef X86
 	STATIC_ASSERT(sizeof(arp_res_t) <
 		      sizeof(eth_hdr_t) + sizeof(ip_hdr_t) - sizeof(uint32_t) * 2);
 #endif
