@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
+#include "../timer.h"
 #include "config.h"
 #include "tests.h"
 #include "arp.h"
@@ -88,6 +89,24 @@ static int tun_alloc(char *dev)
 	return tun_fd;
 }
 
+static inline void process_timers(int signo);
+static void init_timers(void)
+{
+	if (signal(SIGALRM, process_timers) == SIG_ERR) {
+		fprintf(stderr, "\ncan't catch SIGALRM\n");
+		return;
+	}
+
+	alarm(1);
+}
+
+static inline void process_timers(int signo)
+{
+	(void)signo;
+	__timer_process();
+	init_timers();
+}
+
 int main(int argc, char *argv[])
 {
 	uint8_t buf[2048];
@@ -143,6 +162,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "can't initialize pkt pool\n");
 		return -1;
 	}
+
+	timer_subsystem_init(150000);
+	init_timers();
 
 	arp_init();
 	socket_init();
