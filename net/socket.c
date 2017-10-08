@@ -585,6 +585,12 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 #ifdef CONFIG_TCP
 	case SOCK_TYPE_TCP:
 		tcp_conn = sock_info->trq.tcp_conn;
+		if (tcp_conn == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EAGAIN;
+#endif
+			goto error;
+		}
 		if (tcp_conn->status == SOCK_CLOSED) {
 #ifdef CONFIG_BSD_COMPAT
 			errno = EBADF;
