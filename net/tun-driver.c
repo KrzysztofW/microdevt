@@ -169,12 +169,12 @@ int main(int argc, char *argv[])
 	arp_init();
 	socket_init();
 	dft_route.iface = &iface;
-	if (udp_init(0x01020101, 777) < 0) {
+	if (udp_init() < 0) {
 		fprintf(stderr, "can't init udp server\n");
 		return -1;
 	}
 
-	if (tcp_init(777) < 0) {
+	if (tcp_init() < 0) {
 		fprintf(stderr, "can't init tcp server\n");
 		return -1;
 	}

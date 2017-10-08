@@ -158,8 +158,9 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 	       const struct sockaddr *dest_addr, socklen_t addrlen);
 ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 		 struct sockaddr *src_addr, socklen_t *addrlen);
-int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr *addr);
-int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr);
+int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr_in *addr);
+int
+socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr_in *addr);
 int socket_close(int fd);
 #endif
 int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,

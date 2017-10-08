@@ -709,7 +709,7 @@ int net_tcp_tests(void)
 		fprintf(stderr, "TCP: cannot accept connections\n");
 		return -1;
 	}
-	if (socket_get_pkt(client_fd, &pkt, (struct sockaddr *)&addr) < 0) {
+	if (socket_get_pkt(client_fd, &pkt, &addr) < 0) {
 		fprintf(stderr, "TCP: can't get pkt from a tcp connection\n");
 		return -1;
 	}

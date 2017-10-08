@@ -7,12 +7,15 @@
 
 #include "net_apps.h"
 
+uint16_t port = 777; /* little endian */
+uint32_t client_addr = 0x01020101; /* big endian */
+
 #ifdef CONFIG_BSD_COMPAT
 #include "sys/errno.h"
 struct sockaddr_in addr_c;
 
 #ifdef CONFIG_TCP
-int tcp_server(uint16_t port)
+int tcp_server(void)
 {
 	int fd = 0;
 	struct sockaddr_in sockaddr;
@@ -44,9 +47,9 @@ int tcp_server(uint16_t port)
 }
 
 int tcp_fd;
-int tcp_init(uint16_t port)
+int tcp_init(void)
 {
-	tcp_fd = tcp_server(port);
+	tcp_fd = tcp_server();
 	if (tcp_fd < 0) {
 #ifdef DEBUG
 		printf(PSTR("can't create TCP socket\n"));
@@ -69,11 +72,11 @@ void tcp_app(void)
 			       ntohl(addr.sin_addr.s_addr),
 			       (uint16_t)ntohs(addr.sin_port));
 	}
-	if (socket_get_pkt(client_fd, &pkt, (struct sockaddr *)&addr) >= 0) {
+	if (socket_get_pkt(client_fd, &pkt, &addr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
 		printf("got:%.*s\n", sb.len, sb.data);
-		if (socket_put_sbuf(client_fd, &sb, (struct sockaddr *)&addr) < 0)
+		if (socket_put_sbuf(client_fd, &sb, &addr) < 0)
 			printf("can't put sbuf to socket\n");
 		pkt_free(pkt);
 		return;
@@ -84,10 +87,10 @@ void tcp_app(void)
 		client_fd = -1;
 	}
 }
-#endif	/* CONFIG_TCP */
+#endif
 
 #ifdef CONFIG_UDP
-int udp_server(uint16_t port)
+int udp_server(void)
 {
 	int fd;
 	struct sockaddr_in sockaddr;
@@ -112,7 +115,7 @@ int udp_server(uint16_t port)
 	return fd;
 }
 
-int udp_client(struct sockaddr_in *sockaddr, uint32_t addr, uint16_t port)
+int udp_client(struct sockaddr_in *sockaddr)
 {
 	int fd;
 
@@ -123,18 +126,18 @@ int udp_client(struct sockaddr_in *sockaddr, uint32_t addr, uint16_t port)
 		return -1;
 	}
 	sockaddr->sin_family = AF_INET;
-	sockaddr->sin_addr.s_addr = addr;
-	sockaddr->sin_port = port;
+	sockaddr->sin_addr.s_addr = client_addr;
+	sockaddr->sin_port = htons(port + 1);
 
 	return fd;
 }
 
 int udp_fd;
 int udp_fd_client;
-int udp_init(uint32_t dst_addr, uint16_t port)
+int udp_init(void)
 {
-	udp_fd = udp_server(port);
-	udp_fd_client = udp_client(&addr_c, dst_addr, htons(port));
+	udp_fd = udp_server();
+	udp_fd_client = udp_client(&addr_c);
 
 	if (udp_fd < 0 || udp_fd_client < 0) {
 #ifdef DEBUG
@@ -151,10 +154,10 @@ void udp_app(void)
 	struct sockaddr_in addr;
 	static int a;
 
-	if (socket_get_pkt(udp_fd, &pkt, (struct sockaddr *)&addr) >= 0) {
+	if (socket_get_pkt(udp_fd, &pkt, &addr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
-		if (socket_put_sbuf(udp_fd, &sb, (struct sockaddr *)&addr) < 0)
+		if (socket_put_sbuf(udp_fd, &sb, &addr) < 0)
 			printf("can't put sbuf to socket\n");
 		pkt_free(pkt);
 	}
@@ -164,10 +167,10 @@ void udp_app(void)
 	if (a == 100) {
 		sbuf_t sb = SBUF_INITS("blabla\n");
 
-		if (socket_put_sbuf(udp_fd_client, &sb, (struct sockaddr *)&addr_c) < 0)
+		if (socket_put_sbuf(udp_fd_client, &sb, &addr_c) < 0)
 			printf("can't put sbuf to socket\n");
 		a = 0;
-		if (socket_get_pkt(udp_fd_client, &pkt, (struct sockaddr *)&addr) >= 0) {
+		if (socket_get_pkt(udp_fd_client, &pkt, &addr) >= 0) {
 			sbuf_t sb = PKT2SBUF(pkt);
 			char *s = (char *)sb.data;
 			s[sb.len] = 0;
@@ -185,7 +188,7 @@ void udp_app(void)
 #ifdef CONFIG_TCP
 sock_info_t sock_info_server;
 
-int tcp_server(uint16_t port)
+int tcp_server(void)
 {
 	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
 		fprintf(stderr, "can't init tcp sock_info\n");
@@ -205,9 +208,9 @@ int tcp_server(uint16_t port)
 	return 0;
 }
 
-int tcp_init(uint16_t port)
+int tcp_init(void)
 {
-	if (tcp_server(port) < 0) {
+	if (tcp_server() < 0) {
 #ifdef DEBUG
 		printf(PSTR("can't create TCP socket\n"));
 #endif
@@ -254,9 +257,10 @@ void tcp_app(void)
 	}
 }
 #endif	/* CONFIG_TCP */
+
 #ifdef CONFIG_UDP
 sock_info_t sock_info_udp_server, sock_info_udp_client;
-int udp_server(uint16_t port)
+int udp_server(void)
 {
 	if (sock_info_init(&sock_info_udp_server, 0, SOCK_DGRAM, htons(port)) < 0) {
 		fprintf(stderr, "can't init udp sock_info\n");
@@ -274,21 +278,21 @@ int udp_server(uint16_t port)
 uint32_t src_addr_c;
 uint16_t src_port_c;
 
-int udp_client(uint32_t dst_addr, uint16_t port)
+int udp_client(void)
 {
 	if (sock_info_init(&sock_info_udp_client, 0, SOCK_DGRAM, 0) < 0) {
 		fprintf(stderr, "can't init udp sock_info\n");
 		return -1;
 	}
 	__sock_info_add(&sock_info_udp_client);
-	src_addr_c = dst_addr;
+	src_addr_c = client_addr;
 	src_port_c = htons(port);
 	return 0;
 }
 
-int udp_init(uint32_t dst_addr, uint16_t port)
+int udp_init(void)
 {
-	if (udp_server(port) < 0 || udp_client(dst_addr, port) < 0)
+	if (udp_server() < 0 || udp_client() < 0)
 		return -1;
 	return 0;
 }

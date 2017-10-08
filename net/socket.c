@@ -616,10 +616,10 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 }
 
 #ifdef CONFIG_BSD_COMPAT
-int socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr *addr)
+int
+socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr_in *addr_in)
 {
 	sock_info_t *sock_info = fd2sockinfo(fd);
-	const struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
 
 	if (sock_info == NULL) {
 #ifdef CONFIG_BSD_COMPAT
@@ -640,7 +640,7 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 	if (addrlen != sizeof(struct sockaddr_in))
 		return -1;
 	sbuf_init(&sb, buf, len);
-	return socket_put_sbuf(sockfd, &sb, dest_addr);
+	return socket_put_sbuf(sockfd, &sb, (const struct sockaddr_in *)dest_addr);
 }
 #endif
 
@@ -725,10 +725,9 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 }
 
 #ifdef CONFIG_BSD_COMPAT
-int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr *addr)
+int socket_get_pkt(int fd, pkt_t **pktp, struct sockaddr_in *addr_in)
 {
 	sock_info_t *sock_info = fd2sockinfo(fd);
-	struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
 	int ret;
 
 	if (sock_info == NULL) {
@@ -753,7 +752,7 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 	int __len;
 
 	(void)flags;
-	if (socket_get_pkt(sockfd, &pkt, src_addr) < 0)
+	if (socket_get_pkt(sockfd, &pkt, (struct sockaddr_in *)src_addr) < 0)
 		return -1;
 	*addrlen = sizeof(struct sockaddr_in);
 	__len = MIN((int)len, pkt->buf.len);
