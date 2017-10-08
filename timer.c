@@ -99,6 +99,8 @@ ISR(TIMER1_OVF_vect)
 	TCNT1L = TIM_COUNTER & 0xFF;
 }
 
+#endif
+
 int timer_subsystem_init(unsigned long resolution_us)
 {
 	TIMER_PRINTF("timer initialization\n");
