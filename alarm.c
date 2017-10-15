@@ -209,29 +209,37 @@ void apps(void)
 #endif
 }
 
+static void wdt_shutdown(void)
+{
+	wdt_reset();
+	MCUSR=0;
+	WDTCSR|=_BV(WDCE) | _BV(WDE);
+	WDTCSR=0;
+}
+
 int main(void)
 {
 #ifdef NET
 	tim_t timer_wd;
 #endif
-	wdt_enable(WDTO_8S);
+
 	init_adc();
 #ifdef DEBUG
 	init_streams();
 	printf_P(PSTR("KW alarm v0.2\n"));
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
-#ifdef CONFIG_RF
-	if (rf_init() < 0) {
-#ifdef DEBUG
-		printf_P(PSTR("can't initialize RF\n"));
+
+#ifdef CONFIG_TIMER_CHECKS
+	wdt_shutdown();
+	delay_ms(1000); /* wait for system to be initialized */
+	timer_checks();
 #endif
-		return -1;
-	}
-#endif
+
 #ifdef NET
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
+
 	if (if_init(&eth0, &ENC28J60_PacketSend, &ENC28J60_PacketReceive) < 0) {
 #ifdef DEBUG
 		printf_P(PSTR("can't initialize interface\n"));
@@ -251,7 +259,9 @@ int main(void)
 #if defined(CONFIG_UDP) || defined(CONFIG_TCP)
 	socket_init();
 #endif
+#ifdef NET
 	net_reset();
+#endif
 
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
@@ -259,11 +269,25 @@ int main(void)
 	if (apps_init() < 0)
 		return -1;
 
+	wdt_enable(WDTO_8S);
+
+#ifdef CONFIG_RF
+	if (rf_init() < 0) {
+#ifdef DEBUG
+		printf_P(PSTR("can't initialize RF\n"));
+#endif
+		return -1;
+	}
+#endif
+
 	while (1) {
 		/* slow functions */
+#ifdef NET
 		pkt_t *pkt;
+#endif
 
 		cli();
+#ifdef NET
 		if ((pkt = pkt_get(&eth0.rx)) != NULL) {
 			eth_input(pkt, &eth0);
 		}
@@ -272,12 +296,15 @@ int main(void)
 			pkt_free(pkt);
 			enc28j60_get_pkts();
 		}
+#endif
 #ifdef CONFIG_RF
 		rf_decode_cmds();
 #endif
 		sei();
 
+#ifdef NET
 		apps();
+#endif
 
 		delay_ms(10);
 		wdt_reset();
