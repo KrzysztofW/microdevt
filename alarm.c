@@ -27,6 +27,15 @@
 #include "enc28j60.h"
 #include "net_apps.h"
 
+#ifdef CONFIG_AVR_SIMU
+/* ../simulavr/src/simulavr  -f alarm -d atmega328 -F 16000000 */
+#include "../simulavr/src/simulavr_info.h"
+SIMINFO_DEVICE("atmega328");
+SIMINFO_CPUFREQUENCY(F_CPU);
+SIMINFO_SERIAL_IN("D0", "-", SERIAL_SPEED);
+SIMINFO_SERIAL_OUT("D1", "-", SERIAL_SPEED);
+#endif
+
 #ifdef NET
 int net_wd;
 
@@ -167,8 +176,10 @@ void tim_cb_wd(void *arg)
 #ifdef DEBUG
 		puts("resetting net device");
 #endif
+#ifndef CONFIG_AVR_SIMU
 		ENC28J60_reset();
 		net_reset();
+#endif
 	}
 	net_wd++;
 	timer_reschedule(timer, 10000000UL);

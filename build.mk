@@ -18,6 +18,10 @@ SOURCES += rf.c
 CFLAGS += -DCONFIG_RF
 endif
 
+ifdef CONFIG_AVR_SIMU
+CFLAGS += -DCONFIG_AVR_SIMU
+endif
+
 else ifeq ($(CONFIG_ARCH),X86_TUN_TAP)
 ifndef CONFIG_TCP
 $(error need CONFIG_TCP to compile the tun-driver)
