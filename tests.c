@@ -384,7 +384,7 @@ static int timer_check(void)
 	int i;
 
 	memset(timer_els, 0, sizeof(timer_el_t) * TIM_CNT);
-	if (timer_subsystem_init(1) < 0) {
+	if (timer_subsystem_init(1000000) < 0) {
 		fprintf(stderr, "can't initialize timer subsystem\n");
 		return -1;
 	}
@@ -396,7 +396,7 @@ static int timer_check(void)
 	}
 
 	for (i = 0; i < TIMER_TABLE_SIZE * 2; i++) {
-		__timer_process();
+		timer_process();
 	}
 
 	return 0;

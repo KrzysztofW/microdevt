@@ -34,19 +34,20 @@ CC = gcc
 EXECUTABLE = tun-driver
 SOURCES := $(filter-out tests.c, $(SOURCES))
 SOURCES := $(filter-out net/tests.c, $(SOURCES))
-SOURCES += net/tun-driver.c net_apps.c timer.c
+SOURCES += net/tun-driver.c net_apps.c timer.c arch/x86/timer.c
 OBJECTS = $(SOURCES:.c=.o)
-CFLAGS += -O0 -DX86
+
+CFLAGS += -O0 -DX86 -Iarch/x86
 LDFLAGS += -lcap
 else ifeq ($(CONFIG_ARCH),X86_TEST)
 CC = gcc
 EXECUTABLE = tests
-SOURCES += tests.c net/tests.c $(COMMON) timer.c
+SOURCES += tests.c net/tests.c $(COMMON) timer.c arch/x86/timer.c
 # sys/hash-tables.c might be already in SOURCES
 SOURCES := $(filter-out sys/hash-tables.c, $(SOURCES))
 SOURCES += sys/hash-tables.c
 OBJECTS = $(SOURCES:.c=.o)
-CFLAGS += -O0 -DTEST -DX86
+CFLAGS += -O0 -DTEST -DX86 -Iarch/x86
 endif
 
 ifdef NEED_ERRNO
