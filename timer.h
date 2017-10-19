@@ -1,5 +1,7 @@
 #ifndef _TIMER_H_
 #define _TIMER_H_
+
+#include <timer.h>
 #include "sys/list.h"
 
 typedef enum status {
@@ -23,9 +25,6 @@ void timer_del(tim_t *timer);
 void timer_reschedule(tim_t *timer, unsigned long expiry_us);
 int timer_is_pending(tim_t *timer);
 void timer_checks(void);
-
-#ifdef X86
-void __timer_process(void);
-#endif
+void timer_process(void);
 
 #endif
