@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "sys/log.h"
+#include <log.h>
 #include "timer.h"
 
 #define TIMER_TABLE_SIZE 8

@@ -13,7 +13,7 @@
 #define SERIAL_SPEED 57600
 #define SYSTEM_CLOCK F_CPU
 #endif
-#include "sys/log.h"
+#include <log.h>
 #include "avr_utils.h"
 #include "sys/ring.h"
 #include "timer.h"

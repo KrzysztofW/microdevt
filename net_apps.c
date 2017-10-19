@@ -4,7 +4,7 @@
 #endif
 
 #include "net_apps.h"
-#include "sys/log.h"
+#include <log.h>
 
 uint16_t port = 777; /* little endian */
 uint32_t client_addr = 0x01020101; /* big endian */
