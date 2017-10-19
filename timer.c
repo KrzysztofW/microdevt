@@ -6,13 +6,14 @@
 #endif
 #include <stdio.h>
 
+#include "sys/log.h"
 #include "timer.h"
 
 #define TIMER_TABLE_SIZE 8
 #define TIMER_TABLE_MASK (TIMER_TABLE_SIZE - 1)
 
 #ifdef TIMER_DEBUG
-#define TIMER_PRINTF(args...) printf(args)
+#define TIMER_PRINTF(args...) LOG(args)
 #else
 #define TIMER_PRINTF(args...)
 #endif

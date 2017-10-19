@@ -13,6 +13,7 @@
 #define SERIAL_SPEED 57600
 #define SYSTEM_CLOCK F_CPU
 #endif
+#include "sys/log.h"
 #include "avr_utils.h"
 #include "sys/ring.h"
 #include "timer.h"
@@ -124,7 +125,7 @@ static void enc28j60_get_pkts(void)
 	} else {
 		freespace = erxrdpt - erxwrpt - 1;
 	}
-	printf("int:0x%X freespace:%u\n", eint, freespace);
+	LOG("int:0x%X freespace:%u\n", eint, freespace);
 #endif
 	if (eint & TXERIF) {
 		ENC28J60_WriteOp(BFC, EIE, TXERIF);
@@ -140,14 +141,14 @@ static void enc28j60_get_pkts(void)
 
 	if ((pkt = pkt_alloc()) == NULL) {
 #ifdef DEBUG
-		printf("out of packets\n");
+		LOG("out of packets\n");
 #endif
 		return;
 	}
 
 	plen = eth0.recv(&pkt->buf);
 #ifdef DEBUG
-	printf("len:%u\n", plen);
+	LOG("len:%u\n", plen);
 #endif
 	if (plen == 0)
 		goto end;
@@ -226,7 +227,7 @@ int main(void)
 	init_adc();
 #ifdef DEBUG
 	init_streams();
-	printf_P(PSTR("KW alarm v0.2\n"));
+	LOG("KW alarm v0.2\n");
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
 
@@ -242,13 +243,13 @@ int main(void)
 
 	if (if_init(&eth0, &ENC28J60_PacketSend, &ENC28J60_PacketReceive) < 0) {
 #ifdef DEBUG
-		printf_P(PSTR("can't initialize interface\n"));
+		LOG("can't initialize interface\n");
 #endif
 		return -1;
 	}
 	if (pkt_mempool_init() < 0) {
 #ifdef DEBUG
-		printf(PSTR("can't initialize pkt pool\n"));
+		LOG("can't initialize pkt pool\n");
 #endif
 		return -1;
 	}
@@ -274,7 +275,7 @@ int main(void)
 #ifdef CONFIG_RF
 	if (rf_init() < 0) {
 #ifdef DEBUG
-		printf_P(PSTR("can't initialize RF\n"));
+		LOG("can't initialize RF\n");
 #endif
 		return -1;
 	}
