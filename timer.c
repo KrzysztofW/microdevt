@@ -207,17 +207,19 @@ int timer_is_pending(tim_t *timer)
 #define TIM_CNT 64UL
 tim_t timers[TIM_CNT];
 unsigned long timer_iters;
+uint8_t is_random;
 
 static void timer_cb(void *arg)
 {
 	tim_t *tim = arg;
+	unsigned long expiry = is_random ? rand() : 0;
 
-	if (timer_iters < 3000*TIM_CNT)
-		timer_reschedule(tim, 0);
+	if (timer_iters < 1000*TIM_CNT)
+		timer_reschedule(tim, expiry);
 	timer_iters++;
 }
 
-static void timer_arm(uint8_t is_random)
+static void timer_arm(void)
 {
 	int i;
 
@@ -244,26 +246,50 @@ static void timer_wait_to_finish(void)
 	}
 }
 
+static int timer_check_stopped(void)
+{
+	int i;
+
+	for (i = 0; i < TIM_CNT; i++) {
+		if (timer_is_pending(&timers[i]))
+			return -1;
+	}
+	return 0;
+}
+
+static void timer_delete_timers(void)
+{
+	int i;
+
+	for (i = TIM_CNT - 1; i >= 0; i--)
+		timer_del(&timers[i]);
+}
+
 void timer_checks(void)
 {
 	int i;
 
-	printf("\n=== starting timer tests ===\n\n");
+	LOG("\n=== starting timer tests ===\n\n");
 
-	timer_arm(0);
-	for (i = TIM_CNT - 1; i >= 0; i--)
-		timer_del(&timers[i]);
+	for (i = 0; i < 300; i++) {
+		timer_arm();
+		timer_delete_timers();
+		if (timer_check_stopped() < 0) {
+			LOG("timer deletion test failed\n");
+			return;
+		}
+	}
+	LOG("timer deletion test passed\n");
+
+	timer_arm();
 	timer_wait_to_finish();
-	printf("timer deletion test passed\n");
+	LOG("timer reschedule test passed\n");
 
-	timer_arm(0);
+	is_random = 1;
+	timer_arm();
 	timer_wait_to_finish();
-	printf("timer reschedule test passed\n");
+	LOG("timer random reschedule test passed\n");
 
-	timer_arm(1);
-	timer_wait_to_finish();
-	printf("timer random reschedule test passed\n");
-
-	printf("\n=== timer tests passed ===\n\n");
+	LOG("\n=== timer tests passed ===\n\n");
 }
 #endif
