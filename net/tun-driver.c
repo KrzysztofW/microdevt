@@ -93,8 +93,9 @@ int main(int argc, char *argv[])
 	uint8_t buf[2048];
 	char dev[IFNAMSIZ+1];
 
-	memset(dev,0,sizeof(dev));
-	if (argc > 1) strncpy(dev,argv[1],sizeof(dev)-1);
+	memset(dev, 0, sizeof(dev));
+	if (argc > 1)
+		strncpy(dev, argv[1], sizeof(dev) - 1);
 
 #if defined USE_CAPABILITIES
 	cap_t caps = cap_get_proc();
