@@ -1,5 +1,6 @@
 #include <avr/io.h>
 #include <util/delay.h>
+#include "log.h"
 #include "enc28j60.h"
 #include "config.h"
 
