@@ -3,4 +3,10 @@
 
 #define LOG(s, ...) printf(s, ##__VA_ARGS__)
 
+#ifdef DEBUG
+#define DEBUG_LOG LOG
+#else
+#define DEBUG_LOG(s, ...)
+#endif
+
 #endif

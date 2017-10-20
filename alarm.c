@@ -40,13 +40,10 @@ void tim_cb_wd(void *arg)
 {
 	tim_t *timer = arg;
 
-#ifdef DEBUG
-	puts("bip");
-#endif
+	DEBUG_LOG("bip\n");
+
 	if (net_wd > 0) {
-#ifdef DEBUG
-		puts("resetting net device");
-#endif
+		DEBUG_LOG("resetting net device\n");
 #ifndef CONFIG_AVR_SIMU
 		ENC28J60_reset();
 		enc28j60_iface_reset(&eth0);
@@ -89,7 +86,7 @@ int main(void)
 	init_adc();
 #ifdef DEBUG
 	init_streams();
-	LOG("KW alarm v0.2\n");
+	DEBUG_LOG("KW alarm v0.2\n");
 #endif
 	timer_subsystem_init(TIMER_RESOLUTION_US);
 
@@ -104,15 +101,11 @@ int main(void)
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
 
 	if (if_init(&eth0, &ENC28J60_PacketSend, &ENC28J60_PacketReceive) < 0) {
-#ifdef DEBUG
-		LOG("can't initialize interface\n");
-#endif
+		DEBUG_LOG("can't initialize interface\n");
 		return -1;
 	}
 	if (pkt_mempool_init() < 0) {
-#ifdef DEBUG
-		LOG("can't initialize pkt pool\n");
-#endif
+		DEBUG_LOG("can't initialize pkt pool\n");
 		return -1;
 	}
 
@@ -136,9 +129,7 @@ int main(void)
 
 #ifdef CONFIG_RF
 	if (rf_init() < 0) {
-#ifdef DEBUG
-		LOG("can't initialize RF\n");
-#endif
+		DEBUG_LOG("can't initialize RF\n");
 		return -1;
 	}
 #endif

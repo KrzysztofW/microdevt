@@ -303,7 +303,7 @@ void enc28j60_get_pkts(iface_t *iface)
 	} else {
 		freespace = erxrdpt - erxwrpt - 1;
 	}
-	LOG("int:0x%X freespace:%u\n", eint, freespace);
+	DEBUG_LOG("int:0x%X freespace:%u\n", eint, freespace);
 #endif
 	if (eint & TXERIF) {
 		ENC28J60_WriteOp(BFC, EIE, TXERIF);
@@ -318,16 +318,12 @@ void enc28j60_get_pkts(iface_t *iface)
 	}
 
 	if ((pkt = pkt_alloc()) == NULL) {
-#ifdef DEBUG
-		LOG("out of packets\n");
-#endif
+		DEBUG_LOG("out of packets\n");
 		return;
 	}
 
 	plen = iface->recv(&pkt->buf);
-#ifdef DEBUG
-	LOG("len:%u\n", plen);
-#endif
+	DEBUG_LOG("len:%u\n", plen);
 	if (plen == 0)
 		goto end;
 

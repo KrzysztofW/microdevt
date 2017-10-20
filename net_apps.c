@@ -20,9 +20,7 @@ int tcp_server(void)
 	struct sockaddr_in sockaddr;
 
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-#ifdef DEBUG
-		LOG("can't create socket\n");
-#endif
+		DEBUG_LOG("can't create socket\n");
 		return -1;
 	}
 	sockaddr.sin_family = AF_INET;
@@ -31,15 +29,11 @@ int tcp_server(void)
 
 	if (bind(fd, (struct sockaddr *)&sockaddr,
 		 sizeof(struct sockaddr_in)) < 0) {
-#ifdef DEBUG
-		LOG("can't bind\n");
-#endif
+		DEBUG_LOG("can't bind\n");
 		return -1;
 	}
 	if (listen(fd, 5) < 0) {
-#ifdef DEBUG
-		LOG("can't listen\n");
-#endif
+		DEBUG_LOG("can't listen\n");
 		return -1;
 	}
 	return fd;
@@ -50,9 +44,7 @@ int tcp_init(void)
 {
 	tcp_fd = tcp_server();
 	if (tcp_fd < 0) {
-#ifdef DEBUG
-		LOG("can't create TCP socket\n");
-#endif
+		DEBUG_LOG("can't create TCP socket\n");
 		return -1;
 	}
 	return 0;
@@ -67,21 +59,21 @@ void tcp_app(void)
 
 	if (client_fd < 0) {
 		if ((client_fd = accept(tcp_fd, (struct sockaddr *)&addr, &addr_len)) >= 0)
-			LOG("accepted connection from:0x%lX on port %u\n",
+			DEBUG_LOG("accepted connection from:0x%lX on port %u\n",
 			       ntohl(addr.sin_addr.s_addr),
 			       (uint16_t)ntohs(addr.sin_port));
 	}
 	if (socket_get_pkt(client_fd, &pkt, &addr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
-		LOG("got:%.*s\n", sb.len, sb.data);
+		DEBUG_LOG("got:%.*s\n", sb.len, sb.data);
 		if (socket_put_sbuf(client_fd, &sb, &addr) < 0)
-			LOG("can't put sbuf to socket\n");
+			DEBUG_LOG("can't put sbuf to socket\n");
 		pkt_free(pkt);
 		return;
 	}
 	if (errno == EBADF) {
-		LOG("closing fd:%d\n", client_fd);
+		DEBUG_LOG("closing fd:%d\n", client_fd);
 		close(client_fd);
 		client_fd = -1;
 	}
@@ -95,9 +87,7 @@ int udp_server(void)
 	struct sockaddr_in sockaddr;
 
 	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-#ifdef DEBUG
-		LOG("can't create socket\n");
-#endif
+		DEBUG_LOG("can't create socket\n");
 		return -1;
 	}
 	sockaddr.sin_family = AF_INET;
@@ -106,9 +96,7 @@ int udp_server(void)
 
 	if (bind(fd, (struct sockaddr *)&sockaddr,
 		 sizeof(struct sockaddr_in)) < 0) {
-#ifdef DEBUG
-		LOG("can't bind\n");
-#endif
+		DEBUG_LOG("can't bind\n");
 		return -1;
 	}
 	return fd;
@@ -119,9 +107,7 @@ int udp_client(struct sockaddr_in *sockaddr)
 	int fd;
 
 	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-#ifdef DEBUG
-		LOG("can't create socket\n");
-#endif
+		DEBUG_LOG("can't create socket\n");
 		return -1;
 	}
 	sockaddr->sin_family = AF_INET;
@@ -139,9 +125,7 @@ int udp_init(void)
 	udp_fd_client = udp_client(&addr_c);
 
 	if (udp_fd < 0 || udp_fd_client < 0) {
-#ifdef DEBUG
-		LOG("can't create UDP sockets\n");
-#endif
+		DEBUG_LOG("can't create UDP sockets\n");
 		return -1;
 	}
 	return 0;
@@ -157,7 +141,7 @@ void udp_app(void)
 		sbuf_t sb = PKT2SBUF(pkt);
 
 		if (socket_put_sbuf(udp_fd, &sb, &addr) < 0)
-			LOG("can't put sbuf to socket\n");
+			DEBUG_LOG("can't put sbuf to socket\n");
 		pkt_free(pkt);
 	}
 
@@ -167,13 +151,13 @@ void udp_app(void)
 		sbuf_t sb = SBUF_INITS("blabla\n");
 
 		if (socket_put_sbuf(udp_fd_client, &sb, &addr_c) < 0)
-			LOG("can't put sbuf to socket\n");
+			DEBUG_LOG("can't put sbuf to socket\n");
 		a = 0;
 		if (socket_get_pkt(udp_fd_client, &pkt, &addr) >= 0) {
 			sbuf_t sb = PKT2SBUF(pkt);
 			char *s = (char *)sb.data;
 			s[sb.len] = 0;
-			LOG("%s\n", s);
+			DEBUG_LOG("%s\n", s);
 			pkt_free(pkt);
 		}
 	}
@@ -190,17 +174,17 @@ sock_info_t sock_info_server;
 int tcp_server(void)
 {
 	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
-		LOG("can't init tcp sock_info\n");
+		DEBUG_LOG("can't init tcp sock_info\n");
 		return -1;
 	}
 	__sock_info_add(&sock_info_server);
 	if (sock_info_listen(&sock_info_server, 5) < 0) {
-		LOG("can't listen on tcp sock_info\n");
+		DEBUG_LOG("can't listen on tcp sock_info\n");
 		return -1;
 	}
 
 	if (sock_info_bind(&sock_info_server) < 0) {
-		LOG("can't start tcp server\n");
+		DEBUG_LOG("can't start tcp server\n");
 		return -1;
 	}
 
@@ -210,9 +194,7 @@ int tcp_server(void)
 int tcp_init(void)
 {
 	if (tcp_server() < 0) {
-#ifdef DEBUG
-		LOG("can't create TCP socket\n");
-#endif
+		DEBUG_LOG("can't create TCP socket\n");
 		return -1;
 	}
 	return 0;
@@ -232,7 +214,7 @@ void tcp_app(void)
 		if (sock_info_clients[i].trq.tcp_conn == NULL) {
 			if (sock_info_accept(&sock_info_server, &sock_info_clients[i],
 					     &src_addr, &src_port) >= 0) {
-				LOG("accepted connection from:0x%lX on port %u\n",
+				DEBUG_LOG("accepted connection from:0x%lX on port %u\n",
 				       ntohl(src_addr), (uint16_t)ntohs(src_port));
 			}
 			continue;
@@ -241,12 +223,12 @@ void tcp_app(void)
 		    __socket_get_pkt(&sock_info_clients[i], &pkts[i], &src_addr,
 				     &src_port) >= 0) {
 			sb[i] = PKT2SBUF(pkts[i]);
-			LOG("[conn:%d]: got (len:%d):%.*s (pkt:%p)\n", i,
+			DEBUG_LOG("[conn:%d]: got (len:%d):%.*s (pkt:%p)\n", i,
 			       sb[i].len, sb[i].len, sb[i].data, pkts[i]);
 		}
 		if (__socket_put_sbuf(&sock_info_clients[i], &sb[i], src_addr,
 				      src_port) < 0) {
-			LOG("can't put sbuf to socket (%d) (pkt:%p)\n", sb[i].len, pkts[i]);
+			DEBUG_LOG("can't put sbuf to socket (%d) (pkt:%p)\n", sb[i].len, pkts[i]);
 			continue;
 		}
 		if (sb[i].len) {
@@ -262,13 +244,13 @@ sock_info_t sock_info_udp_server, sock_info_udp_client;
 int udp_server(void)
 {
 	if (sock_info_init(&sock_info_udp_server, 0, SOCK_DGRAM, htons(port)) < 0) {
-		LOG("can't init udp sock_info\n");
+		DEBUG_LOG("can't init udp sock_info\n");
 		return -1;
 	}
 	__sock_info_add(&sock_info_udp_server);
 
 	if (sock_info_bind(&sock_info_udp_server) < 0) {
-		LOG("can't start udp server\n");
+		DEBUG_LOG("can't start udp server\n");
 		return -1;
 	}
 	return 0;
@@ -280,7 +262,7 @@ uint16_t src_port_c;
 int udp_client(void)
 {
 	if (sock_info_init(&sock_info_udp_client, 0, SOCK_DGRAM, 0) < 0) {
-		LOG("can't init udp sock_info\n");
+		DEBUG_LOG("can't init udp sock_info\n");
 		return -1;
 	}
 	__sock_info_add(&sock_info_udp_client);
@@ -309,7 +291,7 @@ void udp_app(void)
 
 		if (__socket_put_sbuf(&sock_info_udp_server, &sb, src_addr,
 				      src_port) < 0)
-			LOG("can't put sbuf to udp socket\n");
+			DEBUG_LOG("can't put sbuf to udp socket\n");
 		pkt_free(pkt);
 	}
 	(void)a;
@@ -319,14 +301,14 @@ void udp_app(void)
 
 		if (__socket_put_sbuf(&sock_info_udp_client, &sb, src_addr_c,
 				      src_port_c) < 0)
-			LOG("can't put sbuf to socket\n");
+			DEBUG_LOG("can't put sbuf to socket\n");
 		a = 0;
 		if (__socket_get_pkt(&sock_info_udp_client, &pkt, &src_addr_c,
 				     &src_port_c) >= 0) {
 			sbuf_t sb = PKT2SBUF(pkt);
 			char *s = (char *)sb.data;
 			s[sb.len] = 0;
-			LOG("%s\n", s);
+			DEBUG_LOG("%s\n", s);
 			pkt_free(pkt);
 		}
 	}
