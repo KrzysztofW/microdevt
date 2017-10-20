@@ -6,6 +6,7 @@
 #else
 #include <stdint.h>
 #endif
+#include <stdio.h>
 
 #include "../sys/buf.h"
 #include "../sys/utils.h"

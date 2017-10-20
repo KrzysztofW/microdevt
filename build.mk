@@ -3,7 +3,8 @@ CC = avr-gcc
 EXECUTABLE = alarm
 SOURCES += alarm.c enc28j60.c adc.c net_apps.c timer.c arch/avr/timer.c
 ifeq ($(DEBUG), 1)
-	SOURCES += usart0.c
+	SOURCES += arch/avr/_stdio.c
+	SOURCES += arch/avr/usart0.c
 endif
 AVR_FLAGS = -DF_CPU=${CONFIG_AVR_F_CPU} -mmcu=${CONFIG_AVR_MCU} -Iarch/avr
 AVR_FLAGS += -DF_CPU=$(CONFIG_AVR_F_CPU) -DCONFIG_AVR_MCU
@@ -55,3 +56,4 @@ COMMON += sys/errno.c
 endif
 
 CFLAGS += -DCONFIG_TIMER_RESOLUTION=$(CONFIG_TIMER_RESOLUTION)
+CFLAGS += -DCONFIG_SERIAL_SPEED=$(CONFIG_SERIAL_SPEED)

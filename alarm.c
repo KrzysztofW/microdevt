@@ -8,12 +8,8 @@
 
 #define NET
 
-#ifdef DEBUG
-#include "usart0.h"
-#define SERIAL_SPEED 57600
-#define SYSTEM_CLOCK F_CPU
-#endif
 #include <log.h>
+#include <_stdio.h>
 #include "avr_utils.h"
 #include "sys/ring.h"
 #include "timer.h"
@@ -33,8 +29,8 @@
 #include "../simulavr/src/simulavr_info.h"
 SIMINFO_DEVICE("atmega328");
 SIMINFO_CPUFREQUENCY(F_CPU);
-SIMINFO_SERIAL_IN("D0", "-", SERIAL_SPEED);
-SIMINFO_SERIAL_OUT("D1", "-", SERIAL_SPEED);
+SIMINFO_SERIAL_IN("D0", "-", CONFIG_SERIAL_SPEED);
+SIMINFO_SERIAL_OUT("D1", "-", CONFIG_SERIAL_SPEED);
 #endif
 
 #ifdef NET
@@ -46,40 +42,6 @@ iface_t eth0 = {
 	.ip4_addr = { 192, 168, 0, 99 },
 	.ip4_mask = { 255, 255, 255, 0 },
 };
-#endif
-
-#ifdef DEBUG
-static int my_putchar(char c, FILE *stream)
-{
-	(void)stream;
-	if (c == '\r') {
-		usart0_put('\r');
-		usart0_put('\n');
-	}
-	usart0_put(c);
-	return 0;
-}
-
-static int my_getchar(FILE * stream)
-{
-	(void)stream;
-	return usart0_get();
-}
-
-/*
- * Define the input and output streams.
- * The stream implemenation uses pointers to functions.
- */
-static FILE my_stream =
-	FDEV_SETUP_STREAM (my_putchar, my_getchar, _FDEV_SETUP_RW);
-
-static void init_streams(void)
-{
-	/* initialize the standard streams to the user defined one */
-	stdout = &my_stream;
-	stdin = &my_stream;
-	usart0_init(BAUD_RATE(SYSTEM_CLOCK, SERIAL_SPEED));
-}
 #endif
 
 #ifdef NET

@@ -2,7 +2,8 @@
 #define _BUF_H_
 #include <assert.h>
 #include <string.h>
-#include "ring.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include "utils.h"
 
 struct static_buf {

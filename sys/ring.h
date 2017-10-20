@@ -2,7 +2,6 @@
 #define _RING_H_
 
 #include <stdlib.h>
-#include <stdio.h>
 #include "utils.h"
 
 struct byte {

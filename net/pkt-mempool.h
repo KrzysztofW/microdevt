@@ -1,6 +1,7 @@
 #ifndef _BUF_MEMPOOL_H_
 #define _BUF_MEMPOOL_H_
 #include <stdint.h>
+#include <stdio.h>
 #include "../sys/buf.h"
 #include "../sys/ring.h"
 #include "../sys/list.h"
