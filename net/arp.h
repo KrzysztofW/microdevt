@@ -61,7 +61,6 @@ static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface);
 
 void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
 		 uint8_t retries);
-void arp_init(void);
 
 #ifdef TEST
 arp_entries_t *arp_get_entries(void);

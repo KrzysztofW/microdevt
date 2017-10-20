@@ -27,12 +27,7 @@ struct arp_res {
 } __attribute__((__packed__));
 typedef struct arp_res arp_res_t;
 
-struct list_head arp_wait_list;
-
-void arp_init(void)
-{
-	INIT_LIST_HEAD(&arp_wait_list);
-}
+struct list_head arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
 
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 {

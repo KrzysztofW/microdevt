@@ -159,7 +159,6 @@ int net_arp_tests(void)
 		fprintf(stderr, "can't alloc a packet\n");
 		return -1;
 	}
-	arp_init();
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
@@ -381,7 +380,6 @@ int net_udp_tests(void)
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
 
-	arp_init();
 	socket_init();
 
 	arp_add_entry(mac_src, (uint8_t *)&ip_src, &iface);
@@ -601,7 +599,6 @@ int net_tcp_tests(void)
 		return -1;
 	}
 
-	arp_init();
 	socket_init();
 	dft_route.iface = &iface;
 	arp_add_entry(mac_src, (uint8_t *)&ip_src, &iface);

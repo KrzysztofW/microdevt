@@ -109,7 +109,6 @@ int main(void)
 		return -1;
 	}
 
-	arp_init();
 	dft_route.iface = &eth0;
 	dft_route.ip = 0x0100a8c0;
 #if defined(CONFIG_UDP) || defined(CONFIG_TCP)

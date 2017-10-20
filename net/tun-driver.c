@@ -147,7 +147,6 @@ int main(int argc, char *argv[])
 
 	timer_subsystem_init(1000000);
 
-	arp_init();
 	socket_init();
 	dft_route.iface = &iface;
 	if (udp_init() < 0) {
