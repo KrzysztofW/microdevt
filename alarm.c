@@ -172,6 +172,7 @@ void apps(void)
 #endif
 }
 
+#ifdef CONFIG_TIMER_CHECKS
 static void wdt_shutdown(void)
 {
 	wdt_reset();
@@ -179,6 +180,7 @@ static void wdt_shutdown(void)
 	WDTCSR|=_BV(WDCE) | _BV(WDE);
 	WDTCSR=0;
 }
+#endif
 
 int main(void)
 {
