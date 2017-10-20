@@ -1,27 +1,21 @@
-#include <avr/io.h>
-#include <stdio.h>
-#include <avr/power.h>
-#include <avr/pgmspace.h>
-#include <avr/interrupt.h>
-#include <avr/sleep.h>
-#include <avr/wdt.h>
-
 #define NET
 
 #include <log.h>
 #include <_stdio.h>
-#include "avr_utils.h"
+#include <common.h>
+#include <watchdog.h>
+#include <adc.h>
+#include <enc28j60.h>
+
 #include "sys/ring.h"
 #include "timer.h"
 #include "rf.h"
-#include "adc.h"
 #include "net/config.h"
 #include "net/eth.h"
 #include "net/arp.h"
 #include "net/route.h"
 #include "net/udp.h"
 #include "net/socket.h"
-#include "enc28j60.h"
 #include "net_apps.h"
 
 #ifdef CONFIG_AVR_SIMU
@@ -34,7 +28,7 @@ SIMINFO_SERIAL_OUT("D1", "-", CONFIG_SERIAL_SPEED);
 #endif
 
 #ifdef NET
-int net_wd;
+uint8_t net_wd;
 
 iface_t eth0 = {
 	.flags = IF_UP|IF_RUNNING,
@@ -45,87 +39,10 @@ iface_t eth0 = {
 #endif
 
 #ifdef NET
-static void net_reset(void)
-{
-	CLKPR = (1<<CLKPCE);
-	CLKPR = 0;
-	_delay_loop_1(50);
-	ENC28J60_Init(eth0.mac_addr);
-	ENC28J60_ClkOut(2);
-	_delay_loop_1(50);
-	ENC28J60_PhyWrite(PHLCON,0x0476);
-	_delay_loop_1(50);
-}
-
-static void enc28j60_get_pkts(void)
-{
-	uint8_t eint = ENC28J60_Read(EIR);
-	uint16_t plen;
-	pkt_t *pkt;
-//	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
-
-	net_wd = 0;
-	if (eint == 0)
-		return;
-#if 0
-	erxwrpt = ENC28J60_Read(ERXWRPTL);
-	erxwrpt |= ENC28J60_Read(ERXWRPTH) << 8;
-
-	erxrdpt = ENC28J60_Read(ERXRDPTL);
-	erxrdpt |= ENC28J60_Read(ERXRDPTH) << 8;
-
-	erxnd = ENC28J60_Read(ERXNDL);
-	erxnd |= ENC28J60_Read(ERXNDH) << 8;
-
-	erxst = ENC28J60_Read(ERXSTL);
-	erxst |= ENC28J60_Read(ERXSTH) << 8;
-
-	if (erxwrpt > erxrdpt) {
-		freespace = (erxnd - erxst) - (erxwrpt - erxrdpt);
-	} else if (erxwrpt == erxrdpt) {
-		freespace = erxnd - erxst;
-	} else {
-		freespace = erxrdpt - erxwrpt - 1;
-	}
-	LOG("int:0x%X freespace:%u\n", eint, freespace);
-#endif
-	if (eint & TXERIF) {
-		ENC28J60_WriteOp(BFC, EIE, TXERIF);
-	}
-
-	if (eint & RXERIF) {
-		ENC28J60_WriteOp(BFC, EIE, RXERIF);
-	}
-
-	if (!(eint & PKTIF)) {
-		return;
-	}
-
-	if ((pkt = pkt_alloc()) == NULL) {
-#ifdef DEBUG
-		LOG("out of packets\n");
-#endif
-		return;
-	}
-
-	plen = eth0.recv(&pkt->buf);
-#ifdef DEBUG
-	LOG("len:%u\n", plen);
-#endif
-	if (plen == 0)
-		goto end;
-
-	if (pkt_put(&eth0.rx, pkt) < 0)
-		pkt_free(pkt);
-
-	return;
- end:
-	pkt_free(pkt);
-}
 
 ISR(PCINT0_vect)
 {
-	enc28j60_get_pkts();
+	enc28j60_get_pkts(&eth0);
 }
 
 void tim_cb_wd(void *arg)
@@ -141,7 +58,7 @@ void tim_cb_wd(void *arg)
 #endif
 #ifndef CONFIG_AVR_SIMU
 		ENC28J60_reset();
-		net_reset();
+		enc28j60_iface_reset(&eth0);
 #endif
 	}
 	net_wd++;
@@ -172,16 +89,6 @@ void apps(void)
 #endif
 }
 
-#ifdef CONFIG_TIMER_CHECKS
-static void wdt_shutdown(void)
-{
-	wdt_reset();
-	MCUSR=0;
-	WDTCSR|=_BV(WDCE) | _BV(WDE);
-	WDTCSR=0;
-}
-#endif
-
 int main(void)
 {
 #ifdef NET
@@ -196,7 +103,7 @@ int main(void)
 	timer_subsystem_init(TIMER_RESOLUTION_US);
 
 #ifdef CONFIG_TIMER_CHECKS
-	wdt_shutdown();
+	watchdog_shutdown();
 	delay_ms(1000); /* wait for system to be initialized */
 	timer_checks();
 #endif
@@ -225,7 +132,7 @@ int main(void)
 	socket_init();
 #endif
 #ifdef NET
-	net_reset();
+	enc28j60_iface_reset(&eth0);
 #endif
 
 	PCICR |= _BV(PCIE0);
@@ -234,7 +141,7 @@ int main(void)
 	if (apps_init() < 0)
 		return -1;
 
-	wdt_enable(WDTO_8S);
+	watchdog_enable();
 
 #ifdef CONFIG_RF
 	if (rf_init() < 0) {
@@ -259,7 +166,6 @@ int main(void)
 		if ((pkt = pkt_get(&eth0.tx)) != NULL) {
 			eth0.send(&pkt->buf);
 			pkt_free(pkt);
-			enc28j60_get_pkts();
 		}
 #endif
 #ifdef CONFIG_RF
@@ -272,7 +178,7 @@ int main(void)
 #endif
 
 		delay_ms(10);
-		wdt_reset();
+		watchdog_reset();
 	}
 #ifdef CONFIG_RF
 		/* rf_shutdown(); */

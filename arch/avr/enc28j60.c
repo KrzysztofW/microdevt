@@ -2,7 +2,7 @@
 #include <util/delay.h>
 #include "log.h"
 #include "enc28j60.h"
-#include "config.h"
+#include "spi_config.h"
 
 static uint8_t ENC28J60_Bank;
 static int16_t gNextPacketPtr;
@@ -257,4 +257,84 @@ uint8_t ENC28J60_GetRev(void) {
 
 uint8_t ENC28J60_LinkUp(void) {
     return(ENC28J60_PhyRead(PHSTAT2) && 4);
+}
+
+void enc28j60_iface_reset(iface_t *iface)
+{
+	CLKPR = (1<<CLKPCE);
+	CLKPR = 0;
+	_delay_loop_1(50);
+	ENC28J60_Init(iface->mac_addr);
+	ENC28J60_ClkOut(2);
+	_delay_loop_1(50);
+	ENC28J60_PhyWrite(PHLCON,0x0476);
+	_delay_loop_1(50);
+}
+
+extern uint8_t net_wd;
+
+void enc28j60_get_pkts(iface_t *iface)
+{
+	uint8_t eint = ENC28J60_Read(EIR);
+	uint16_t plen;
+	pkt_t *pkt;
+//	uint16_t freespace, erxwrpt, erxrdpt, erxnd, erxst;
+
+	net_wd = 0;
+	if (eint == 0)
+		return;
+#if 0
+	erxwrpt = ENC28J60_Read(ERXWRPTL);
+	erxwrpt |= ENC28J60_Read(ERXWRPTH) << 8;
+
+	erxrdpt = ENC28J60_Read(ERXRDPTL);
+	erxrdpt |= ENC28J60_Read(ERXRDPTH) << 8;
+
+	erxnd = ENC28J60_Read(ERXNDL);
+	erxnd |= ENC28J60_Read(ERXNDH) << 8;
+
+	erxst = ENC28J60_Read(ERXSTL);
+	erxst |= ENC28J60_Read(ERXSTH) << 8;
+
+	if (erxwrpt > erxrdpt) {
+		freespace = (erxnd - erxst) - (erxwrpt - erxrdpt);
+	} else if (erxwrpt == erxrdpt) {
+		freespace = erxnd - erxst;
+	} else {
+		freespace = erxrdpt - erxwrpt - 1;
+	}
+	LOG("int:0x%X freespace:%u\n", eint, freespace);
+#endif
+	if (eint & TXERIF) {
+		ENC28J60_WriteOp(BFC, EIE, TXERIF);
+	}
+
+	if (eint & RXERIF) {
+		ENC28J60_WriteOp(BFC, EIE, RXERIF);
+	}
+
+	if (!(eint & PKTIF)) {
+		return;
+	}
+
+	if ((pkt = pkt_alloc()) == NULL) {
+#ifdef DEBUG
+		LOG("out of packets\n");
+#endif
+		return;
+	}
+
+	plen = iface->recv(&pkt->buf);
+#ifdef DEBUG
+	LOG("len:%u\n", plen);
+#endif
+	if (plen == 0)
+		goto end;
+
+	if (pkt_put(&iface->rx, pkt) < 0)
+		pkt_free(pkt);
+
+	return;
+ end:
+	pkt_free(pkt);
 }

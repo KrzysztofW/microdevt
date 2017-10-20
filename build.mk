@@ -1,7 +1,9 @@
 ifeq ($(CONFIG_ARCH),AVR)
 CC = avr-gcc
 EXECUTABLE = alarm
-SOURCES += alarm.c enc28j60.c adc.c net_apps.c timer.c arch/avr/timer.c
+SOURCES += alarm.c net_apps.c timer.c arch/avr/timer.c arch/avr/enc28j60.c
+SOURCES += arch/avr/adc.c
+
 ifeq ($(DEBUG), 1)
 	SOURCES += arch/avr/_stdio.c
 	SOURCES += arch/avr/usart0.c
@@ -57,3 +59,4 @@ endif
 
 CFLAGS += -DCONFIG_TIMER_RESOLUTION=$(CONFIG_TIMER_RESOLUTION)
 CFLAGS += -DCONFIG_SERIAL_SPEED=$(CONFIG_SERIAL_SPEED)
+CFLAGS += -Isys -Inet

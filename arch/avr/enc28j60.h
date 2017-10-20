@@ -1,6 +1,7 @@
 #ifndef ENC28J60_H
 #define ENC28J60_H
-#include "sys/buf.h"
+#include <buf.h>
+#include <if.h>
 
 // Register Masks
 #define ADDR_MASK 0x1F
@@ -260,5 +261,8 @@ uint16_t ENC28J60_PacketSend(const buf_t *buf);
 uint8_t ENC28J60_GetRev(void);
 uint8_t ENC28J60_LinkUp(void);
 void ENC28J60_reset(void);
+
+void enc28j60_get_pkts(iface_t *iface);
+void enc28j60_iface_reset(iface_t *iface);
 
 #endif
