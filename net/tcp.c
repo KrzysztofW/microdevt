@@ -10,7 +10,7 @@
 /* htable keys (tcp uids), values are pkt list (struct list_head) */
 hash_table_t *tcp_conns;
 #else
-struct list_head tcp_conns;
+struct list_head tcp_conns = LIST_HEAD_INIT(tcp_conns);
 #endif
 
 uint32_t tcp_initial_seqid = 0x1207e77b;

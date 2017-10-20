@@ -139,7 +139,11 @@ typedef struct sock_info sock_info_t;
 #define SBUF2SOCKINFO(sb) *(sock_info_t **)(sb)->data
 
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt);
+#ifdef CONFIG_HT_STORAGE
 int socket_init(void);
+#else
+#define socket_init()
+#endif
 void socket_shutdown(void);
 sock_info_t *udpport2sockinfo(uint16_t port);
 sock_info_t *tcpport2sockinfo(uint16_t port);
