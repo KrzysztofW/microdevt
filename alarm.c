@@ -18,15 +18,6 @@
 #include "net/socket.h"
 #include "net_apps.h"
 
-#ifdef CONFIG_AVR_SIMU
-/* ../simulavr/src/simulavr  -f alarm -d atmega328 -F 16000000 */
-#include "../simulavr/src/simulavr_info.h"
-SIMINFO_DEVICE("atmega328");
-SIMINFO_CPUFREQUENCY(F_CPU);
-SIMINFO_SERIAL_IN("D0", "-", CONFIG_SERIAL_SPEED);
-SIMINFO_SERIAL_OUT("D1", "-", CONFIG_SERIAL_SPEED);
-#endif
-
 #ifdef NET
 uint8_t net_wd;
 
