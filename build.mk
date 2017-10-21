@@ -1,3 +1,7 @@
+CFLAGS += -DCONFIG_TIMER_RESOLUTION=$(CONFIG_TIMER_RESOLUTION)
+CFLAGS += -DCONFIG_SERIAL_SPEED=$(CONFIG_SERIAL_SPEED)
+CFLAGS += -Isys -Inet
+
 ifeq ($(CONFIG_ARCH),AVR)
 CC = avr-gcc
 EXECUTABLE = alarm
@@ -41,6 +45,7 @@ SOURCES := $(filter-out net/tests.c, $(SOURCES))
 SOURCES += net/tun-driver.c net_apps.c timer.c arch/x86/timer.c
 OBJECTS = $(SOURCES:.c=.o)
 
+CFLAGS := $(filter-out -Isys, $(CFLAGS))
 CFLAGS += -O0 -DX86 -Iarch/x86
 LDFLAGS += -lcap
 else ifeq ($(CONFIG_ARCH),X86_TEST)
@@ -57,7 +62,3 @@ endif
 ifdef NEED_ERRNO
 COMMON += sys/errno.c
 endif
-
-CFLAGS += -DCONFIG_TIMER_RESOLUTION=$(CONFIG_TIMER_RESOLUTION)
-CFLAGS += -DCONFIG_SERIAL_SPEED=$(CONFIG_SERIAL_SPEED)
-CFLAGS += -Isys -Inet
