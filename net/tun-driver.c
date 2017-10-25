@@ -88,9 +88,56 @@ static int tun_alloc(char *dev)
 	return tun_fd;
 }
 
+static void tun_send_pkt(void)
+{
+	pkt_t *pkt;
+
+	while ((pkt = pkt_get(&iface.tx)) != NULL) {
+		send(&pkt->buf);
+		pkt_free(pkt);
+	}
+}
+
+static pkt_t *tun_receive_pkt(void)
+{
+	pkt_t *pkt;
+	uint8_t buf[2048];
+	ssize_t nread = read(tun_fd, buf, sizeof(buf));
+
+	if (nread < 0 && errno == EAGAIN) {
+		sleep(1);
+		return NULL;
+	}
+
+	CHECK(nread >= 0);
+	if (nread == 0)
+		return NULL;
+#if 0
+	printf("read: %ld\n", nread);
+	for (i = 0; i < nread; i++) {
+		printf(" 0x%X", buf[i]);
+	}
+	puts("");
+#endif
+	/* Writes have higher priority.
+	 * Don't allocate new packets if there are queued TX pkts.
+	 */
+	tun_send_pkt();
+
+	if ((pkt = pkt_alloc()) == NULL) {
+		fprintf(stderr, "can't alloc a packet\n");
+		return NULL;
+	}
+
+	if (buf_add(&pkt->buf, buf, nread) < 0) {
+		pkt_free(pkt);
+		return NULL;
+	}
+	return pkt;
+}
+
 int main(int argc, char *argv[])
 {
-	uint8_t buf[2048];
 	char dev[IFNAMSIZ+1];
 
 	memset(dev, 0, sizeof(dev));
@@ -164,38 +211,16 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 	while (1) {
-		pkt_t *pkt;
-		ssize_t nread = read(tun_fd, buf, sizeof(buf));
+		pkt_t *pkt = tun_receive_pkt();
 
-		if (nread < 0 && errno == EAGAIN) {
-			sleep(1);
-			goto send;
-		}
-		CHECK(nread >= 0);
-		if (nread == 0)
-			break;
-		printf("read: %ld\n", nread);
-
-		if ((pkt = pkt_alloc()) == NULL) {
-			fprintf(stderr, "can't alloc a packet\n");
-			goto send;
-		}
-
-		if (buf_add(&pkt->buf, buf, nread) < 0) {
-			pkt_free(pkt);
+		if (pkt == NULL)
 			continue;
-		}
+
 		eth_input(pkt, &iface);
 		udp_app();
 		tcp_app();
 
-	send:
-		/* drv write function */
-		if ((pkt = pkt_get(&iface.tx)) != NULL) {
-			send(&pkt->buf);
-			pkt_free(pkt);
-		}
-
+		tun_send_pkt();
 	}
 	return 0;
 }

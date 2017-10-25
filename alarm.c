@@ -144,7 +144,7 @@ int main(void)
 		if ((pkt = pkt_get(&eth0.rx)) != NULL) {
 			eth_input(pkt, &eth0);
 		}
-		if ((pkt = pkt_get(&eth0.tx)) != NULL) {
+		while ((pkt = pkt_get(&eth0.tx)) != NULL) {
 			eth0.send(&pkt->buf);
 			pkt_free(pkt);
 		}
