@@ -405,8 +405,8 @@ void tcp_input(pkt_t *pkt)
 
 			if (tcp_hdr->seq != tsyn_entry->ack ||
 			    tcp_hdr->ack != local_seqid) {
-				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST,
-					     local_seqid, htonl(remote_seqid));
+				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST|TH_ACK,
+					     tcp_hdr->ack, htonl(remote_seqid));
 				goto end;
 			}
 
