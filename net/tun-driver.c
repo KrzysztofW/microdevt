@@ -196,16 +196,18 @@ int main(int argc, char *argv[])
 
 	socket_init();
 	dft_route.iface = &iface;
+#ifdef CONFIG_UDP
 	if (udp_init() < 0) {
 		fprintf(stderr, "can't init udp server\n");
 		return -1;
 	}
-
+#endif
+#ifdef CONFIG_TCP
 	if (tcp_init() < 0) {
 		fprintf(stderr, "can't init tcp server\n");
 		return -1;
 	}
-
+#endif
 	if (fcntl(tun_fd, F_SETFL, O_NONBLOCK) < 0) {
 		fprintf(stderr, "can't set non blocking tcp socket (%m)\n");
 		return -1;
@@ -215,9 +217,12 @@ int main(int argc, char *argv[])
 
 		if (pkt)
 			eth_input(pkt, &iface);
+#ifdef CONFIG_UDP
 		udp_app();
+#endif
+#ifdef CONFIG_TCP
 		tcp_app();
-
+#endif
 		tun_send_pkt();
 	}
 	return 0;

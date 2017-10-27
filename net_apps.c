@@ -121,7 +121,9 @@ int tcp_init(void)
 		DEBUG_LOG("can't create TCP socket\n");
 		return -1;
 	}
+#ifdef CONFIG_TCP_CLIENT
 	tcp_app_client_init();
+#endif
 	return 0;
 }
 
@@ -297,6 +299,7 @@ static void tcp_client_send_buf_cb(void *arg)
 	if (__socket_get_pkt(&sock_info_client, &pkt, NULL, NULL) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
+		(void)sb;
 		DEBUG_LOG("tcp client got:%.*s\n", sb.len, sb.data);
 		pkt_free(pkt);
 	}
@@ -333,7 +336,9 @@ int tcp_init(void)
 		DEBUG_LOG("can't create TCP socket\n");
 		return -1;
 	}
+#ifdef CONFIG_TCP_CLIENT
 	tcp_app_client_init();
+#endif
 	return 0;
 }
 
