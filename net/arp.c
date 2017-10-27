@@ -215,7 +215,18 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
 		 uint8_t retries)
 {
 	arp_res_t *arp_res;
+#ifdef CONF_TCP_RETRANSMIT
+	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+#endif
 
+	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)&ip_dst);
+
+#ifdef CONF_TCP_RETRANSMIT
+	if (ip_hdr->p == IPPROTO_TCP) {
+		pkt_free(pkt);
+		return;
+	}
+#endif
 	/* get more space in the pkt */
 	pkt_adj(pkt, -(int)sizeof(eth_hdr_t));
 
@@ -228,7 +239,6 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
 #endif
 	arp_res = btod(pkt, arp_res_t *);
 
-	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)&ip_dst);
 	memset(&arp_res->tim, 0, sizeof(tim_t));
 	arp_res->pkt = pkt;
 	arp_res->iface = iface;

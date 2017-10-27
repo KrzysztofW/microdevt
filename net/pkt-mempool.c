@@ -11,6 +11,11 @@ ring_t *pkt_pool;
 
 static uint8_t emergency_pkt_used;
 
+int pkt_is_emergency(pkt_t *pkt)
+{
+	return (pkt > buffer_pool + CONFIG_PKT_NB_MAX || pkt < buffer_pool);
+}
+
 #ifndef RING_POOL
 pkt_t *pkt_get(struct list_head *head)
 {
@@ -61,7 +66,12 @@ pkt_t *__pkt_alloc(const char *func, int line)
 
 int __pkt_free(pkt_t *pkt, const char *func, int line)
 {
-	if (pkt > buffer_pool + CONFIG_PKT_NB_MAX || pkt < buffer_pool) {
+	if (pkt->refcnt) {
+		pkt->refcnt--;
+		return 0;
+	}
+
+	if (pkt_is_emergency(pkt)) {
 		assert(emergency_pkt_used);
 		free(pkt);
 		emergency_pkt_used = 0;
@@ -78,7 +88,12 @@ pkt_t *pkt_alloc(void)
 
 int pkt_free(pkt_t *pkt)
 {
-	if (pkt > buffer_pool + CONFIG_PKT_NB_MAX || pkt < buffer_pool) {
+	if (pkt->refcnt) {
+		pkt->refcnt--;
+		return 0;
+	}
+
+	if (pkt_is_emergency(pkt)) {
 		assert(emergency_pkt_used);
 		free(pkt);
 		emergency_pkt_used = 0;
@@ -102,6 +117,7 @@ pkt_t *pkt_alloc_emergency(void)
 		return NULL;
 	buf_init(&pkt->buf, ((uint8_t *)pkt) + sizeof(pkt_t), CONFIG_PKT_SIZE);
 	pkt->buf.len = 0;
+	pkt->refcnt = 0;
 #ifndef RING_POOL
 	INIT_LIST_HEAD(&pkt->list);
 #ifdef DEBUG
@@ -131,6 +147,7 @@ int pkt_mempool_init(void)
 		buf_init(&pkt->buf, &buffer_data[i * CONFIG_PKT_SIZE],
 			 CONFIG_PKT_SIZE);
 		pkt->buf.len = 0;
+		pkt->refcnt = 0;
 #ifdef DEBUG
 		pkt->pkt_nb = i;
 #endif

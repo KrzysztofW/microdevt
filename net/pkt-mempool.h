@@ -16,6 +16,7 @@ struct pkt {
 #ifdef DEBUG
 	uint8_t pkt_nb;
 #endif
+	uint8_t refcnt;
 } __attribute__((__packed__));
 typedef struct pkt pkt_t;
 
@@ -47,10 +48,16 @@ int pkt_free(pkt_t *pkt);
  * on packet allocation if all packets are used.
  */
 pkt_t *pkt_alloc_emergency(void);
+int pkt_is_emergency(pkt_t *pkt);
 
 static inline int pkt_len(const pkt_t *pkt)
 {
 	return pkt->buf.len;
+}
+
+static inline void pkt_retain(pkt_t *pkt)
+{
+	pkt->refcnt++;
 }
 
 #endif
