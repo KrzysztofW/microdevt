@@ -57,11 +57,6 @@ struct tcp_hdr {
 } __attribute__((__packed__));
 
 typedef struct tcp_hdr tcp_hdr_t;
-void tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
-		uint16_t sport, uint16_t dport,	uint32_t seqid, uint32_t ack);
-void tcp_input(pkt_t *pkt);
-
-/* internal data structures */
 
 struct tcp_uid {
 	uint32_t src_addr;
@@ -71,10 +66,15 @@ struct tcp_uid {
 } __attribute__((__packed__));
 typedef struct tcp_uid tcp_uid_t;
 
+struct tcp_options {
+	uint16_t mss;
+}  __attribute__((__packed__));
+typedef struct tcp_options tcp_options_t;
+
 struct tcp_conn {
 	uint32_t seqid;
 	uint32_t ack;
-	uint16_t mss;
+	tcp_options_t opts;
 	tcp_uid_t uid;
 	void *sock_info;
 	uint8_t status;
@@ -85,5 +85,9 @@ typedef struct tcp_conn tcp_conn_t;
 
 tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid);
 void tcp_conn_delete(tcp_conn_t *tcp_conn);
+int
+tcp_connect(uint32_t dst_addr, uint16_t dst_port, void *sock_info);
+void tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags);
+void tcp_input(pkt_t *pkt);
 
 #endif

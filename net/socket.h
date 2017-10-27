@@ -158,6 +158,7 @@ int close(int fd);
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int listen(int fd, int backlog);
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 	       const struct sockaddr *dest_addr, socklen_t addrlen);
 ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
@@ -172,7 +173,10 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint32_t dst_addr, uint16_t dst_port);
 int sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port);
+
+/* use this function for UDP sockets and TCP server sockets */
 void __sock_info_add(sock_info_t *sock_info);
+
 int sock_info_bind(sock_info_t *sock_info);
 int sock_info_unbind(sock_info_t *sock_info);
 #ifdef CONFIG_TCP
@@ -180,6 +184,8 @@ int sock_info_listen(sock_info_t *sock_info, int backlog);
 int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
 int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 		     uint32_t *src_addr, uint16_t *src_port);
+int sock_info_connect(sock_info_t *sock_info, uint32_t addr, uint16_t port);
+sock_status_t socket_info_state(const sock_info_t *sock_info);
 
 #endif
 #endif

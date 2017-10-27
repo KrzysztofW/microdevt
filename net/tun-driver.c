@@ -213,10 +213,8 @@ int main(int argc, char *argv[])
 	while (1) {
 		pkt_t *pkt = tun_receive_pkt();
 
-		if (pkt == NULL)
-			continue;
-
-		eth_input(pkt, &iface);
+		if (pkt)
+			eth_input(pkt, &iface);
 		udp_app();
 		tcp_app();
 

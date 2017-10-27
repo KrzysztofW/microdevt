@@ -5,6 +5,7 @@
 
 #include "net_apps.h"
 #include <log.h>
+#include "timer.h"
 
 uint16_t port = 777; /* little endian */
 uint32_t client_addr = 0x01020101; /* big endian */
@@ -39,6 +40,79 @@ int tcp_server(void)
 	return fd;
 }
 
+#ifdef CONFIG_TCP_CLIENT
+static int tcp_client_fd = 1;
+static tim_t tcp_client_timer;
+static struct sockaddr_in tcp_client_sockaddr;
+#define TCP_TIMER_RECONNECT 5	/* reconnect every 5 seconds */
+
+static int tcp_app_client_init(void);
+static void tcp_client_send_buf_cb(void *arg);
+
+static void tcp_client_connect_cb(void *arg)
+{
+	(void)arg;
+
+	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
+	if (connect(tcp_client_fd, (struct sockaddr *)&tcp_client_sockaddr,
+		    sizeof(struct sockaddr_in)) >= 0) {
+		timer_add(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000,
+			  tcp_client_send_buf_cb, NULL);
+		return;
+	}
+	DEBUG_LOG("can't connect errno:%d\n", errno);
+	if (errno != EAGAIN) {
+		close(tcp_client_fd);
+		tcp_app_client_init();
+		return;
+	}
+
+	timer_reschedule(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000UL);
+}
+
+static int tcp_app_client_init(void)
+{
+
+	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
+	if ((tcp_client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		DEBUG_LOG("TCP client: can't create socket\n");
+		return -1;
+	}
+	tcp_client_sockaddr.sin_family = AF_INET;
+	tcp_client_sockaddr.sin_addr.s_addr = 0x01020101;
+	tcp_client_sockaddr.sin_port = htons(port + 1);
+
+	timer_add(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000,
+		  tcp_client_connect_cb, NULL);
+
+	return 0;
+}
+
+static void tcp_client_send_buf_cb(void *arg)
+{
+	sbuf_t sb = SBUF_INITS("blabla\n");
+	pkt_t *pkt;
+
+	(void)arg;
+	if (socket_put_sbuf(tcp_client_fd, &sb, &tcp_client_sockaddr) < 0) {
+		if (errno != EAGAIN) {
+			close(tcp_client_fd);
+			tcp_app_client_init();
+			return;
+		}
+		goto reschedule;
+	}
+	if (socket_get_pkt(tcp_client_fd, &pkt, &tcp_client_sockaddr) >= 0) {
+		sbuf_t sb = PKT2SBUF(pkt);
+
+		DEBUG_LOG("tcp client got:%.*s\n", sb.len, sb.data);
+		pkt_free(pkt);
+	}
+ reschedule:
+	timer_reschedule(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000);
+}
+#endif
+
 int tcp_fd;
 int tcp_init(void)
 {
@@ -47,6 +121,7 @@ int tcp_init(void)
 		DEBUG_LOG("can't create TCP socket\n");
 		return -1;
 	}
+	tcp_app_client_init();
 	return 0;
 }
 
@@ -73,7 +148,6 @@ void tcp_app(void)
 		return;
 	}
 	if (errno == EBADF) {
-		DEBUG_LOG("closing fd:%d\n", client_fd);
 		close(client_fd);
 		client_fd = -1;
 	}
@@ -169,6 +243,68 @@ void udp_app(void)
 #else	/* CONFIG_BSD_COMPAT */
 
 #ifdef CONFIG_TCP
+
+#ifdef CONFIG_TCP_CLIENT
+static tim_t tcp_client_timer;
+#define TCP_TIMER_RECONNECT 5	/* reconnect every 5 seconds */
+sock_info_t sock_info_client;
+
+static int tcp_app_client_init(void);
+static void tcp_client_send_buf_cb(void *arg);
+
+static void tcp_client_connect_cb(void *arg)
+{
+	(void)arg;
+
+	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
+	if (sock_info_connect(&sock_info_client, client_addr,
+			      htons(port + 1)) >= 0) {
+		timer_add(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000,
+			  tcp_client_send_buf_cb, NULL);
+		return;
+	}
+	DEBUG_LOG("can't connect\n");
+	timer_reschedule(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000UL);
+}
+
+static int tcp_app_client_init(void)
+{
+	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
+	if (sock_info_init(&sock_info_client, 0, SOCK_STREAM, htons(port)) < 0) {
+		DEBUG_LOG("can't init tcp sock_info\n");
+		return -1;
+	}
+
+	timer_add(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000,
+		  tcp_client_connect_cb, NULL);
+
+	return 0;
+}
+
+static void tcp_client_send_buf_cb(void *arg)
+{
+	sbuf_t sb = SBUF_INITS("blabla\n");
+	pkt_t *pkt;
+
+	(void)arg;
+	if (__socket_put_sbuf(&sock_info_client, &sb, 0, 0) < 0) {
+		if (sock_info_client.trq.tcp_conn == NULL) {
+			tcp_app_client_init();
+			return;
+		}
+		goto reschedule;
+	}
+	if (__socket_get_pkt(&sock_info_client, &pkt, NULL, NULL) >= 0) {
+		sbuf_t sb = PKT2SBUF(pkt);
+
+		DEBUG_LOG("tcp client got:%.*s\n", sb.len, sb.data);
+		pkt_free(pkt);
+	}
+ reschedule:
+	timer_reschedule(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000);
+}
+#endif
+
 sock_info_t sock_info_server;
 
 int tcp_server(void)
@@ -197,6 +333,7 @@ int tcp_init(void)
 		DEBUG_LOG("can't create TCP socket\n");
 		return -1;
 	}
+	tcp_app_client_init();
 	return 0;
 }
 
@@ -224,13 +361,19 @@ void tcp_app(void)
 				     &src_port) >= 0) {
 			sb[i] = PKT2SBUF(pkts[i]);
 			DEBUG_LOG("[conn:%d]: got (len:%d):%.*s (pkt:%p)\n", i,
-			       sb[i].len, sb[i].len, sb[i].data, pkts[i]);
+				  sb[i].len, sb[i].len, sb[i].data, pkts[i]);
 		}
-		if (__socket_put_sbuf(&sock_info_clients[i], &sb[i], src_addr,
-				      src_port) < 0) {
-			DEBUG_LOG("can't put sbuf to socket (%d) (pkt:%p)\n", sb[i].len, pkts[i]);
+		if (__socket_put_sbuf(&sock_info_clients[i], &sb[i], 0,
+				      0) < 0) {
+			DEBUG_LOG("can't put sbuf to socket (len:%d) (from pkt:%p)\n",
+				  sb[i].len, pkts[i]);
+			if (socket_info_state(&sock_info_clients[i]) != SOCK_CONNECTED) {
+				sock_info_unbind(&sock_info_clients[i]);
+				goto reset_sb;
+			}
 			continue;
 		}
+	reset_sb:
 		if (sb[i].len) {
 			sbuf_reset(&sb[i]);
 			pkt_free(pkts[i]);
