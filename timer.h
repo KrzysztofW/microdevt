@@ -18,7 +18,7 @@ struct timer {
 } __attribute__((__packed__));
 typedef struct timer tim_t;
 
-int timer_subsystem_init(unsigned long resolution_us);
+int timer_subsystem_init(void);
 void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
 	       void *arg);
 void timer_del(tim_t *timer);

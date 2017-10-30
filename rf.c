@@ -9,6 +9,11 @@
 #include "adc.h"
 
 static tim_t timer_rf;
+#define RF_SAMPLING_US 150
+
+#if RF_SAMPLING_US < CONFIG_TIMER_RESOLUTION_US
+#error "RF sampling will not work with current timer resolution"
+#endif
 
 ring_t *rf_ring;
 #define RF_RING_SIZE 32
@@ -68,7 +73,7 @@ static void tim_cb_led(void *arg)
 	tim_t *timer = arg;
 
 	PORTD ^= (1 << LED);
-	timer_reschedule(timer, TIMER_RESOLUTION_US);
+	timer_reschedule(timer, RF_SAMPLING_US);
 }
 #endif
 
@@ -156,7 +161,7 @@ static void tim_cb_rf(void *arg)
 	tim_t *timer = arg;
 
 	rf_sample();
-	timer_reschedule(timer, TIMER_RESOLUTION_US);
+	timer_reschedule(timer, RF_SAMPLING_US);
 }
 
 int rf_init(void)
@@ -170,7 +175,7 @@ int rf_init(void)
 	}
 
 	memset(&timer_rf, 0, sizeof(tim_t));
-	timer_add(&timer_rf, TIMER_RESOLUTION_US, tim_cb_rf, &timer_rf);
+	timer_add(&timer_rf, RF_SAMPLING_US, tim_cb_rf, &timer_rf);
 	return 0;
 }
 

@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	timer_subsystem_init(1000000);
+	timer_subsystem_init();
 
 	socket_init();
 	dft_route.iface = &iface;

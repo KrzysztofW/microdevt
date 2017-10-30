@@ -14,8 +14,6 @@
 #define TIMER_PRINTF(args...)
 #endif
 
-static unsigned long timer_resolution_us = CONFIG_TIMER_RESOLUTION;
-
 struct timer_state {
 	int current_idx;
 	struct list_head timer_list[TIMER_TABLE_SIZE];
@@ -47,7 +45,7 @@ void timer_process(void)
 	}
 }
 
-int timer_subsystem_init(unsigned long resolution_us)
+int timer_subsystem_init(void)
 {
 	int i;
 
@@ -55,14 +53,6 @@ int timer_subsystem_init(unsigned long resolution_us)
 
 	for (i = 0; i < TIMER_TABLE_SIZE; i++)
 		INIT_LIST_HEAD(&timer_state.timer_list[i]);
-
-	if (resolution_us < CONFIG_TIMER_RESOLUTION) {
-		TIMER_PRINTF("timer resolution cannot be smaller than %lu",
-			     CONFIG_TIMER_RESOLUTION);
-		return -1;
-	}
-
-	timer_resolution_us = resolution_us;
 
 	__timer_subsystem_init();
 
@@ -73,7 +63,7 @@ void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
 	       void *arg)
 {
 	int idx;
-	unsigned long ticks = expiry_us / timer_resolution_us;
+	unsigned long ticks = expiry_us / CONFIG_TIMER_RESOLUTION_US;
 
 	assert(timer->status == TIMER_STOPPED);
 	assert(timer->cb || cb);

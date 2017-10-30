@@ -88,7 +88,7 @@ int main(void)
 	init_streams();
 	DEBUG_LOG("KW alarm v0.2\n");
 #endif
-	timer_subsystem_init(TIMER_RESOLUTION_US);
+	timer_subsystem_init();
 
 #ifdef CONFIG_TIMER_CHECKS
 	watchdog_shutdown();
