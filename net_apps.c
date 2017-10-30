@@ -272,7 +272,7 @@ static void tcp_client_connect_cb(void *arg)
 static int tcp_app_client_init(void)
 {
 	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
-	if (sock_info_init(&sock_info_client, 0, SOCK_STREAM, 0) < 0) {
+	if (sock_info_init(&sock_info_client, SOCK_STREAM, 0) < 0) {
 		DEBUG_LOG("can't init tcp sock_info\n");
 		return -1;
 	}
@@ -312,7 +312,7 @@ sock_info_t sock_info_server;
 
 int tcp_server(void)
 {
-	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
+	if (sock_info_init(&sock_info_server, SOCK_STREAM, htons(port)) < 0) {
 		DEBUG_LOG("can't init tcp sock_info\n");
 		return -1;
 	}
@@ -391,7 +391,7 @@ void tcp_app(void)
 sock_info_t sock_info_udp_server, sock_info_udp_client;
 int udp_server(void)
 {
-	if (sock_info_init(&sock_info_udp_server, 0, SOCK_DGRAM, htons(port)) < 0) {
+	if (sock_info_init(&sock_info_udp_server, SOCK_DGRAM, htons(port)) < 0) {
 		DEBUG_LOG("can't init udp sock_info\n");
 		return -1;
 	}
@@ -409,7 +409,7 @@ uint16_t src_port_c;
 
 int udp_client(void)
 {
-	if (sock_info_init(&sock_info_udp_client, 0, SOCK_DGRAM, 0) < 0) {
+	if (sock_info_init(&sock_info_udp_client, SOCK_DGRAM, 0) < 0) {
 		DEBUG_LOG("can't init udp sock_info\n");
 		return -1;
 	}

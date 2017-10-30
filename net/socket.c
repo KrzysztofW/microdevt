@@ -277,9 +277,9 @@ sock_info_t *udpport2sockinfo(uint16_t port)
 #endif
 
 int
-sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port)
+sock_info_init(sock_info_t *sock_info, int sock_type, uint16_t port)
 {
-	switch (type) {
+	switch (sock_type) {
 #ifdef CONFIG_UDP
 	case SOCK_DGRAM:
 		INIT_LIST_HEAD(&sock_info->trq.pkt_list);
@@ -288,20 +288,14 @@ sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port)
 #ifdef CONFIG_TCP
 	case SOCK_STREAM:
 		sock_info->trq.tcp_conn = NULL;
+		sock_info->listen = NULL;
 		break;
 #endif
 	default:
 		return -1;
 	}
-	sock_info->type = type;
-	(void)family;
-#ifdef CONFIG_BSD_COMPAT
-	sock_info->family = family;
-#endif
+	sock_info->type = sock_type;
 	sock_info->port = port;
-#ifdef CONFIG_TCP
-	sock_info->listen = NULL;
-#endif
 	INIT_LIST_HEAD(&sock_info->list);
 	return 0;
 }
@@ -354,7 +348,7 @@ int socket(int family, int type, int protocol)
 	if ((sock_info = malloc(sizeof(sock_info_t))) == NULL)
 		return -1;
 
-	if (sock_info_init(sock_info, family, type, 0) < 0) {
+	if (sock_info_init(sock_info, type, 0) < 0) {
 		free(sock_info);
 		return -1;
 	}
@@ -574,7 +568,7 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 	list_del(&tcp_conn->list);
 	sock_info_server->listen->backlog--;
 
-	if (sock_info_init(sock_info_client, 0, SOCK_STREAM,
+	if (sock_info_init(sock_info_client, SOCK_STREAM,
 			   sock_info_server->port) < 0)
 		return -1;
 

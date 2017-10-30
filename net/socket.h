@@ -172,7 +172,7 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,
 		     uint32_t *src_addr, uint16_t *src_port);
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint32_t dst_addr, uint16_t dst_port);
-int sock_info_init(sock_info_t *sock_info, int family, int type, uint16_t port);
+int sock_info_init(sock_info_t *sock_info, int sock_type, uint16_t port);
 
 /* use this function for UDP sockets and TCP server sockets */
 void __sock_info_add(sock_info_t *sock_info);
