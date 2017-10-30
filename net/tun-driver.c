@@ -14,6 +14,11 @@
 #include <sys/ioctl.h>
 #include <poll.h>
 
+#ifdef CONFIG_USE_CAPABILITIES
+#include <sys/capability.h>
+#define STRING(e) #e
+#endif
+
 #include "../timer.h"
 #include "config.h"
 #include "tests.h"
@@ -30,18 +35,6 @@
 #include <linux/if.h>
 #include <linux/if_tun.h>
 
-#define CHECKAUX(e,s)						\
-	((e)?							\
-	 (void)0:						\
-	 (fprintf(stderr, "'%s' failed at %s:%d - %s\n",	\
-		  s, __FILE__, __LINE__,strerror(errno)),	\
-	  exit(0)))
-#define CHECK(e) (CHECKAUX(e,#e))
-#define CHECKSYS(e) (CHECKAUX((e)==0,#e))
-#define CHECKFD(e) (CHECKAUX((e)>=0,#e))
-
-#define STRING(e) #e
-
 struct pollfd tun_fds[1];
 
 uint16_t recv(buf_t *in)
@@ -57,7 +50,13 @@ uint16_t send(const buf_t *out)
 	if (out->len == 0)
 		return 0;
 	nwrite = write(tun_fds[0].fd, out->data, out->len);
-	CHECK(nwrite == out->len);
+	if (nwrite < 0) {
+		if (errno != EAGAIN) {
+			fprintf(stderr, "tun device is not up (%m)\n");
+			exit(EXIT_FAILURE);
+		}
+		return 0;
+	}
 	return nwrite;
 }
 
@@ -67,11 +66,6 @@ iface_t iface = {
 	.ip4_addr = { 1,1,2,2 },
 	.send = &send,
 };
-
-#define USE_CAPABILITIES
-#if defined USE_CAPABILITIES
-#include <sys/capability.h>
-#endif
 
 static void tun_alloc(char *dev)
 {
@@ -86,7 +80,10 @@ static void tun_alloc(char *dev)
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
 	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
-	CHECKSYS(ioctl(tun_fd, TUNSETIFF, (void *) &ifr));
+	if (ioctl(tun_fds[0].fd, TUNSETIFF, (void *) &ifr) < 0) {
+		fprintf(stderr , "%s: can't ioctl tun device (%m)\n", __func__);
+		exit(EXIT_FAILURE);
+	}
 	strncpy(dev, ifr.ifr_name, IFNAMSIZ);
 	tun_fds[0].events = POLLIN;
 }
@@ -113,7 +110,13 @@ static pkt_t *tun_receive_pkt(void)
 		return NULL;
 	}
 
-	CHECK(nread >= 0);
+	if (nread < 0) {
+		if (errno == EAGAIN)
+			return NULL;
+		fprintf(stderr , "%s: reading tun device failed (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
 	if (nread == 0)
 		return NULL;
 #if 0
@@ -142,50 +145,85 @@ static pkt_t *tun_receive_pkt(void)
 int main(int argc, char *argv[])
 {
 	char dev[IFNAMSIZ+1];
+#ifdef CONFIG_USE_CAPABILITIES
+	cap_t caps;
+	cap_value_t cap = CAP_NET_ADMIN;
+	const char *capname = STRING(CAP_NET_ADMIN);
+	cap_flag_value_t cap_effective;
+	cap_flag_value_t cap_inheritable;
+	cap_flag_value_t cap_permitted;
+#endif
 
 	memset(dev, 0, sizeof(dev));
 	if (argc > 1)
 		strncpy(dev, argv[1], sizeof(dev) - 1);
 
-#if defined USE_CAPABILITIES
-	cap_t caps = cap_get_proc();
-	CHECK(caps != NULL);
-
-	cap_value_t cap = CAP_NET_ADMIN;
-	const char *capname = STRING(CAP_NET_ADMIN);
-	cap_flag_value_t cap_effective;
-	cap_flag_value_t cap_inheritable;
+#ifdef CONFIG_USE_CAPABILITIES
+	if ((caps = cap_get_proc()) == NULL) {
+		fprintf(stderr , "%s: can't get capabilities (%m)\n", __func__);
+		exit(EXIT_FAILURE);
+	}
 
 	/* Check that we have the required capabilities */
 	/* At this point we only require CAP_NET_ADMIN to be permitted, */
 	/* not effective as we will be enabling it later. */
-	cap_flag_value_t cap_permitted;
-	CHECKSYS(cap_get_flag(caps, cap, CAP_PERMITTED, &cap_permitted));
+	if (cap_get_flag(caps, cap, CAP_PERMITTED, &cap_permitted) < 0) {
+		fprintf(stderr , "%s: can't get capabilities PERMITTED flag (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
 
-	CHECKSYS(cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_effective));
-	CHECKSYS(cap_get_flag(caps, cap, CAP_INHERITABLE, &cap_inheritable));
+	if (cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_effective) < 0) {
+		fprintf(stderr , "%s: can't get capabilities EFFECTIVE flag (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
+	if (cap_get_flag(caps, cap, CAP_INHERITABLE, &cap_inheritable) < 0) {
+		fprintf(stderr , "%s: can't get capabilities INHERITABLE flag (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
 	if (!cap_permitted) {
 		fprintf(stderr, "%s not permitted, exiting\n", capname);
 		exit(0);
 	}
 
 	/* And retain only what we require */
-	CHECKSYS(cap_clear(caps));
+	if (cap_clear(caps) < 0) {
+		fprintf(stderr , "%s: can't clear capabilities (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
 	/* We must leave it permitted */
-	CHECKSYS(cap_set_flag(caps, CAP_PERMITTED, 1, &cap, CAP_SET));
+	if (cap_set_flag(caps, CAP_PERMITTED, 1, &cap, CAP_SET) < 0) {
+		fprintf(stderr , "%s: can't set capabilities PERMITTED flag (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
 	/* but also make it effective */
-	CHECKSYS(cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, CAP_SET));
-	CHECKSYS(cap_set_proc(caps));
+	if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, CAP_SET) < 0) {
+		fprintf(stderr , "%s: can't set capabilities EFFECTIVE flag (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
+	if (cap_set_proc(caps) < 0) {
+		fprintf(stderr , "%s: can't set capabilities (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
+
 #endif
 	tun_alloc(dev);
 	if (tun_fds[0].fd < 0)
 		exit(0);
 
-#if defined USE_CAPABILITIES
+#ifdef CONFIG_USE_CAPABILITIES
 	/* And before anything else, clear all our capabilities */
-	CHECKSYS(cap_clear(caps));
-	CHECKSYS(cap_set_proc(caps));
-	CHECKSYS(cap_free(caps));
+	if (cap_clear(caps) < 0 || cap_set_proc(caps) < 0 || cap_free(caps) < 0) {
+		fprintf(stderr , "%s: can't free capabilities (%m)\n",
+			__func__);
+		exit(EXIT_FAILURE);
+	}
 #endif
 	if (if_init(&iface, &send, &recv) < 0) {
 		fprintf(stderr, "can't init interface\n");
