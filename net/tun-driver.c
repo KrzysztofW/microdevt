@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <poll.h>
 
 #include "../timer.h"
 #include "config.h"
@@ -41,7 +42,7 @@
 
 #define STRING(e) #e
 
-int tun_fd;
+struct pollfd tun_fds[1];
 
 uint16_t recv(buf_t *in)
 {
@@ -55,9 +56,8 @@ uint16_t send(const buf_t *out)
 
 	if (out->len == 0)
 		return 0;
-	nwrite = write(tun_fd, out->data, out->len);
+	nwrite = write(tun_fds[0].fd, out->data, out->len);
 	CHECK(nwrite == out->len);
-
 	return nwrite;
 }
 
@@ -73,37 +73,41 @@ iface_t iface = {
 #include <sys/capability.h>
 #endif
 
-static int tun_alloc(char *dev)
+static void tun_alloc(char *dev)
 {
-	assert(dev != NULL);
-	int tun_fd = open("/dev/net/tun", O_RDWR);
-	CHECKFD(tun_fd);
-
 	struct ifreq ifr;
+
+	assert(dev != NULL);
+	if ((tun_fds[0].fd = open("/dev/net/tun", O_RDWR)) < 0) {
+		fprintf(stderr , "%s: can't open tun device (%m)\n", __func__);
+		exit(EXIT_FAILURE);
+	}
+
 	memset(&ifr, 0, sizeof(ifr));
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
 	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
 	CHECKSYS(ioctl(tun_fd, TUNSETIFF, (void *) &ifr));
 	strncpy(dev, ifr.ifr_name, IFNAMSIZ);
-	return tun_fd;
-}
-
-static void tun_send_pkt(void)
-{
-	pkt_t *pkt;
-
-	while ((pkt = pkt_get(&iface.tx)) != NULL) {
-		send(&pkt->buf);
-		pkt_free(pkt);
-	}
+	tun_fds[0].events = POLLIN;
 }
 
 static pkt_t *tun_receive_pkt(void)
 {
 	pkt_t *pkt;
 	uint8_t buf[2048];
-	ssize_t nread = read(tun_fd, buf, sizeof(buf));
+	ssize_t nread;
 
+
+	if (poll(tun_fds, 1, -1) < 0) {
+		if (errno == EINTR)
+			return NULL;
+		fprintf(stderr, "can't poll on tun fd (%m (%d))\n", errno);
+		return NULL;
+	}
+	if ((tun_fds[0].revents & POLLIN) == 0)
+		return NULL;
+
+	nread = read(tun_fds[0].fd, buf, sizeof(buf));
 	if (nread < 0 && errno == EAGAIN) {
 		sleep(1);
 		return NULL;
@@ -122,7 +126,6 @@ static pkt_t *tun_receive_pkt(void)
 	/* Writes have higher priority.
 	 * Don't allocate new packets if there are queued TX pkts.
 	 */
-	tun_send_pkt();
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "can't alloc a packet\n");
@@ -174,8 +177,9 @@ int main(int argc, char *argv[])
 	CHECKSYS(cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, CAP_SET));
 	CHECKSYS(cap_set_proc(caps));
 #endif
-	tun_fd = tun_alloc(dev);
-	if (tun_fd < 0) exit(0);
+	tun_alloc(dev);
+	if (tun_fds[0].fd < 0)
+		exit(0);
 
 #if defined USE_CAPABILITIES
 	/* And before anything else, clear all our capabilities */
@@ -208,7 +212,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 #endif
-	if (fcntl(tun_fd, F_SETFL, O_NONBLOCK) < 0) {
+	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
 		fprintf(stderr, "can't set non blocking tcp socket (%m)\n");
 		return -1;
 	}
@@ -223,7 +227,6 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_TCP
 		tcp_app();
 #endif
-		tun_send_pkt();
 	}
 	return 0;
 }
