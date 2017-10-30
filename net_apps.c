@@ -272,7 +272,7 @@ static void tcp_client_connect_cb(void *arg)
 static int tcp_app_client_init(void)
 {
 	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
-	if (sock_info_init(&sock_info_client, 0, SOCK_STREAM, htons(port)) < 0) {
+	if (sock_info_init(&sock_info_client, 0, SOCK_STREAM, 0) < 0) {
 		DEBUG_LOG("can't init tcp sock_info\n");
 		return -1;
 	}
