@@ -215,13 +215,13 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
 		 uint8_t retries)
 {
 	arp_res_t *arp_res;
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
 #endif
 
 	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)&ip_dst);
 
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 	if (ip_hdr->p == IPPROTO_TCP) {
 		pkt_free(pkt);
 		return;

@@ -37,7 +37,7 @@ syn_entries_t syn_entries;
 struct list_head tcp_client_conns = LIST_HEAD_INIT(tcp_client_conns);
 #endif
 
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 #define TCP_IN_PROGRESS_RETRIES 3
 #endif
 
@@ -52,7 +52,7 @@ static tcp_syn_t *syn_find_entry(const tcp_uid_t *uid)
 	return NULL;
 }
 
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 static inline void tcp_retransmit_init(tcp_retrn_t *retrn)
 {
 	memset(&retrn->timer, 0, sizeof(tim_t));
@@ -87,7 +87,7 @@ static inline void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 		pkt_free(pkt);
 	}
 
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 	tcp_retrn_wipe(tcp_conn);
 #endif
 	tcp_conn_cnt--;
@@ -114,7 +114,7 @@ tcp_conn_t *tcp_conn_create(const tcp_uid_t *tuid, uint8_t status)
 	conn->status = status;
 	conn->uid = *tuid;
 	conn->sock_info = NULL;
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 	tcp_retransmit_init(&conn->retrn);
 #endif
 
@@ -213,7 +213,7 @@ static void __tcp_adj_out_pkt(pkt_t *out)
 	pkt_adj(out, -(int)sizeof(tcp_hdr_t));
 }
 
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 static void __tcp_pkt_adj_reset(pkt_t *pkt, int len)
 {
 	pkt_adj(pkt, -(pkt->buf.skip));
@@ -237,12 +237,13 @@ static inline void tcp_arm_retrn_timer(tcp_conn_t *tcp_conn, pkt_t *pkt)
 		retrn_pkt->pkt = pkt;
 		pkt_retain(pkt);
 		list_add_tail(&retrn_pkt->list, &tcp_conn->retrn.retrn_pkt_list);
+		printf("%s: pkt:%p\n", __func__, pkt);
 	}
 
 	if (timer_is_pending(&tcp_conn->retrn.timer))
 		return;
 	timer_add(&tcp_conn->retrn.timer,
-		  CONF_TCP_RETRANSMIT_TIMEOUT * 1000UL * tcp_conn->retrn.cnt,
+		  CONFIG_TCP_RETRANSMIT_TIMEOUT * 1000UL * tcp_conn->retrn.cnt,
 		  tcp_retransmit, tcp_conn);
 }
 
@@ -306,7 +307,7 @@ __tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl,
 
 void tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags)
 {
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 	tcp_arm_retrn_timer(tcp_conn, pkt);
 #endif
 	__tcp_output(pkt, tcp_conn->uid.src_addr, flags,
@@ -330,7 +331,7 @@ tcp_send_pkt(const ip_hdr_t *ip_hdr, const tcp_hdr_t *tcp_hdr, uint8_t flags,
 		     tcp_hdr->src_port, seqid, ack);
 }
 
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 static void tcp_retrn_ack_pkts(tcp_conn_t *tcp_conn, uint32_t remote_ack)
 {
 	tcp_retrn_pkt_t *retrn_pkt, *retrn_pkt_tmp;
@@ -505,7 +506,7 @@ void tcp_input(pkt_t *pkt)
 				/* drop the packet */
 				goto end;
 			}
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 			tcp_retrn_ack_pkts(tcp_conn, remote_ack);
 #endif
 		}
@@ -579,7 +580,7 @@ void tcp_input(pkt_t *pkt)
 		tcp_send_pkt(ip_hdr, tcp_hdr, TH_ACK, tcp_conn->seqid,
 			     tcp_conn->ack);
 		list_del(&tcp_conn->list);
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 		tcp_retrn_ack_pkts(tcp_conn, remote_ack);
 #endif
 		if (tcp_conn_add(tcp_conn) < 0)

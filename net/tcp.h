@@ -2,7 +2,7 @@
 #define _TCP_H_
 
 #include "config.h"
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 #include "../timer.h"
 #endif
 
@@ -69,7 +69,7 @@ struct tcp_uid {
 } __attribute__((__packed__));
 typedef struct tcp_uid tcp_uid_t;
 
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 struct tcp_retrn_pkt {
 	pkt_t *pkt;
 	struct list_head list;
@@ -98,7 +98,7 @@ struct tcp_conn {
 	uint8_t status;
 	struct list_head list;
 	struct list_head pkt_list_head;
-#ifdef CONF_TCP_RETRANSMIT
+#ifdef CONFIG_TCP_RETRANSMIT
 	tcp_retrn_t retrn;
 #endif
 } __attribute__((__packed__));
