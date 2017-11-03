@@ -236,6 +236,11 @@ int main(int argc, char *argv[])
 
 	timer_subsystem_init();
 
+#ifdef CONFIG_TIMER_CHECKS
+	sleep(1000); /* wait for system to be initialized */
+	timer_checks();
+#endif
+
 	socket_init();
 	dft_route.iface = &iface;
 #ifdef CONFIG_UDP
