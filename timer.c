@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include <log.h>
 #include "timer.h"
@@ -24,15 +25,27 @@ void timer_process(void)
 {
 	int idx;
 	struct list_head *pos, *n;
+	uint8_t process_again = 0;
 
 	timer_state.current_idx = idx = (timer_state.current_idx + 1)
 		& TIMER_TABLE_MASK;
+
+ again:
 	list_for_each_safe(pos, n, &timer_state.timer_list[idx]) {
 		tim_t *timer = list_entry(pos, tim_t, list);
 
+		/* If the next entry is removed by the callback here,
+		 * the list has to be processed again from the begining as
+		 * 'n' will point to the deleted entry's next value.
+		 */
+		if (n == LIST_POISON1) {
+			process_again = 1;
+			goto again;
+		}
+
 		assert(timer->status == TIMER_SCHEDULED);
 
-		if (timer->remaining_loops > 0) {
+		if (timer->remaining_loops > 0 && process_again == 0) {
 			timer->remaining_loops--;
 			continue;
 		}
@@ -172,11 +185,41 @@ static void timer_delete_timers(void)
 		timer_del(&timers[i]);
 }
 
+int timer_check_subsequent_deletion_failed;
+
+static void timer_check_subsequent_deletion_cb2(void *arg)
+{
+	LOG("%s: this function should never be called\n", __func__);
+	timer_check_subsequent_deletion_failed = 1;
+}
+
+static void timer_check_subsequent_deletion_cb1(void *arg)
+{
+	timer_del(&timers[1]);
+}
+
+static void timer_check_subsequent_deletion(void)
+{
+
+	timer_add(&timers[0], 100, timer_check_subsequent_deletion_cb1,
+		  &timers[0]);
+	timer_add(&timers[1], 100, timer_check_subsequent_deletion_cb2,
+		  &timers[1]);
+}
+
 void timer_checks(void)
 {
 	int i;
 
 	LOG("\n=== starting timer tests ===\n\n");
+
+	timer_check_subsequent_deletion();
+	timer_wait_to_finish();
+	if (timer_check_stopped() < 0 || timer_check_subsequent_deletion_failed) {
+		LOG("timer subsequent deletion test failed\n");
+		return;
+	}
+	LOG("timer subsequent deletion test succeeded\n");
 
 	for (i = 0; i < 300; i++) {
 		timer_arm();
