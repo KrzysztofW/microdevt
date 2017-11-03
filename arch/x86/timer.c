@@ -6,10 +6,13 @@
 
 #include "timer.h"
 
+atomic_t timer_disabled;
+
 static inline void process_timers(int signo)
 {
 	(void)signo;
-	timer_process();
+	if (atomic_load(&timer_disabled) == 0)
+		timer_process();
 }
 
 void __timer_subsystem_init(void)
