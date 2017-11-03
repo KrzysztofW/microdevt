@@ -121,7 +121,7 @@ uint8_t is_random;
 static void timer_cb(void *arg)
 {
 	tim_t *tim = arg;
-	unsigned long expiry = is_random ? rand() : 0;
+	uint16_t expiry = is_random ? rand() : 0;
 
 	if (timer_iters < 1000*TIM_CNT)
 		timer_reschedule(tim, expiry);
@@ -131,13 +131,11 @@ static void timer_cb(void *arg)
 static void timer_arm(void)
 {
 	int i;
+	uint16_t expiry = is_random ? rand() : 0;
 
 	timer_iters = 0;
-	for (i = 0; i < TIM_CNT; i++) {
-		unsigned long expiry = is_random ? rand() : 0;
-
+	for (i = 0; i < TIM_CNT; i++)
 		timer_add(&timers[i], expiry, timer_cb, &timers[i]);
-	}
 }
 
 static void timer_wait_to_finish(void)
