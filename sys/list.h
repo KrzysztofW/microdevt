@@ -67,13 +67,16 @@ static inline void __list_del_entry(struct list_head *entry)
 	__list_del(entry->prev, entry->next);
 }
 
+#ifdef LIST_DEBUG
+#define list_del(e) printf("%s:%d del:%p\n", __func__, __LINE__, e); __list_del_entry(e); (e)->next = LIST_POISON1; (e)->prev = LIST_POISON2
+#else
 static inline void list_del(struct list_head *entry)
 {
 	__list_del_entry(entry);
 	entry->next = LIST_POISON1;
 	entry->prev = LIST_POISON2;
 }
-
+#endif
 /**
  * list_replace - replace old entry by new one
  * @old : the element to be replaced
@@ -101,12 +104,15 @@ static inline void list_replace_init(struct list_head *old,
  * list_del_init - deletes entry from list and reinitialize it.
  * @entry: the element to delete from the list.
  */
+#ifdef LIST_DEBUG
+#define list_del_init(e) printf("%s:%d del:%p\n", __func__, __LINE__, e); __list_del_entry(e);INIT_LIST_HEAD(e)
+#else
 static inline void list_del_init(struct list_head *entry)
 {
 	__list_del_entry(entry);
 	INIT_LIST_HEAD(entry);
 }
-
+#endif
 /**
  * list_move - delete from one list and add as another's head
  * @list: the entry to move
