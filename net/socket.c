@@ -612,6 +612,7 @@ static pkt_t *socket_alloc_pkt(int hdrlen, const sbuf_t *sbuf)
 	return NULL;
 }
 
+#ifdef CONFIG_TCP
 static tcp_conn_t *socket_get_tcp_conn(const sock_info_t *sock_info)
 {
 	tcp_conn_t *tcp_conn = sock_info->trq.tcp_conn;
@@ -632,6 +633,7 @@ static tcp_conn_t *socket_get_tcp_conn(const sock_info_t *sock_info)
 	}
 	return tcp_conn;
 }
+#endif
 
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint32_t dst_addr, uint16_t dst_port)
