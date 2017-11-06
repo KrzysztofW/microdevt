@@ -178,7 +178,7 @@ int sock_info_init(sock_info_t *sock_info, int sock_type, uint16_t port);
 void __sock_info_add(sock_info_t *sock_info);
 
 int sock_info_bind(sock_info_t *sock_info);
-int sock_info_unbind(sock_info_t *sock_info);
+int sock_info_close(sock_info_t *sock_info);
 #ifdef CONFIG_TCP
 int sock_info_listen(sock_info_t *sock_info, int backlog);
 int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);

@@ -89,13 +89,18 @@ struct tcp_options {
 }  __attribute__((__packed__));
 typedef struct tcp_options tcp_options_t;
 
-struct tcp_conn {
+struct tcp_syn {
 	uint32_t seqid;
 	uint32_t ack;
 	tcp_options_t opts;
-	tcp_uid_t uid;
-	void *sock_info;
+	tcp_uid_t tuid;
 	uint8_t status;
+} __attribute__((__packed__));
+typedef struct tcp_syn tcp_syn_t;
+
+struct tcp_conn {
+	tcp_syn_t syn;
+	void *sock_info;
 	struct list_head list;
 	struct list_head pkt_list_head;
 #ifdef CONFIG_TCP_RETRANSMIT

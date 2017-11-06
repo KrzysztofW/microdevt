@@ -226,7 +226,7 @@ static int unbind_port(sock_info_t *sock_info)
 		sock_info->trq.tcp_conn = NULL;
 	}
 #endif
-	list_del(&sock_info->list);
+	list_del_init(&sock_info->list);
 	return 0;
 }
 
@@ -243,7 +243,7 @@ tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
 			continue;
 		list_for_each_entry(tcp_conn, &listen->tcp_conn_list_head,
 				    list) {
-			if (memcmp(uid, &tcp_conn->uid, sizeof(tcp_uid_t)) == 0)
+			if (memcmp(uid, &tcp_conn->syn.tuid, sizeof(tcp_uid_t)) == 0)
 				return tcp_conn;
 		}
 	}
@@ -260,7 +260,7 @@ sock_status_t socket_info_state(const sock_info_t *sock_info)
 
 	if (sock_info->trq.tcp_conn == NULL)
 		return SOCK_CLOSED;
-	return sock_info->trq.tcp_conn->status;
+	return sock_info->trq.tcp_conn->syn.status;
 }
 
 sock_info_t *tcpport2sockinfo(uint16_t port)
@@ -313,8 +313,7 @@ static void socket_listen_free(listen_t *listen)
 	}
 	list_for_each_entry_safe(tcp_conn, tcp_conn_tmp,
 				 &listen->tcp_conn_list_head, list) {
-		list_del(&tcp_conn->list);
-		free(tcp_conn);
+		tcp_conn_delete(tcp_conn);
 	}
 	free(listen);
 }
@@ -419,7 +418,7 @@ int sock_info_bind(sock_info_t *sock_info)
 	return bind_on_port(sock_info->port, sock_info);
 }
 
-int sock_info_unbind(sock_info_t *sock_info)
+int sock_info_close(sock_info_t *sock_info)
 {
 #ifdef CONFIG_TCP
 	socket_listen_free(sock_info->listen);
@@ -538,8 +537,8 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	list_add_tail(&tcp_conn->list, &tcp_conns);
 #endif
 	sockaddr->sin_family = AF_INET;
-	sockaddr->sin_addr.s_addr = tcp_conn->uid.src_addr;
-	sockaddr->sin_port = tcp_conn->uid.src_port;
+	sockaddr->sin_addr.s_addr = tcp_conn->syn.tuid.src_addr;
+	sockaddr->sin_port = tcp_conn->syn.tuid.src_port;
 	*addrlen = sizeof(struct sockaddr_in);
 	sock_info_child = fd2sockinfo(fd);
 	sock_info_child->trq.tcp_conn = tcp_conn;
@@ -575,8 +574,8 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 #ifndef CONFIG_HT_STORAGE
 	list_add_tail(&tcp_conn->list, &tcp_conns);
 #endif
-	*src_addr = tcp_conn->uid.src_addr;
-	*src_port = tcp_conn->uid.src_port;
+	*src_addr = tcp_conn->syn.tuid.src_addr;
+	*src_port = tcp_conn->syn.tuid.src_port;
 	sock_info_client->trq.tcp_conn = tcp_conn;
 	tcp_conn->sock_info = sock_info_client;
 	return 0;
@@ -624,7 +623,7 @@ static tcp_conn_t *socket_get_tcp_conn(const sock_info_t *sock_info)
 		return NULL;
 	}
 	if (list_empty(&tcp_conn->pkt_list_head)
-	    && tcp_conn->status == SOCK_CLOSED) {
+	    && tcp_conn->syn.status == SOCK_CLOSED) {
 		tcp_conn_delete(tcp_conn);
 #ifdef CONFIG_BSD_COMPAT
 		errno = EBADF;
@@ -662,7 +661,7 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		if ((tcp_conn = socket_get_tcp_conn(sock_info)) == NULL)
 			return -1;
 
-		if (tcp_conn->status != SOCK_CONNECTED) {
+		if (tcp_conn->syn.status != SOCK_CONNECTED) {
 #ifdef CONFIG_BSD_COMPAT
 			errno = EBADF;
 #endif
@@ -673,7 +672,7 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 			return -1;
 
 		tcp_output(pkt, tcp_conn, TH_PUSH | TH_ACK);
-		tcp_conn->seqid = htonl(ntohl(tcp_conn->seqid) + sbuf->len);
+		tcp_conn->syn.seqid = htonl(ntohl(tcp_conn->syn.seqid) + sbuf->len);
 		return 0;
 #endif
 	default:
@@ -826,7 +825,7 @@ int socket_close(int fd)
 	if ((sock_info = fd2sockinfo(fd)) == NULL)
 		return -1;
 
-	if (sock_info_unbind(sock_info) >= 0 && fd == cur_fd - 1)
+	if (sock_info_close(sock_info) >= 0 && fd == cur_fd - 1)
 		cur_fd--;
 	free(sock_info);
 	return 0;

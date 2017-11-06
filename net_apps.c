@@ -72,7 +72,6 @@ static void tcp_client_connect_cb(void *arg)
 
 static int tcp_app_client_init(void)
 {
-
 	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
 	if ((tcp_client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		DEBUG_LOG("TCP client: can't create socket\n");
@@ -277,7 +276,7 @@ static int tcp_app_client_init(void)
 		return -1;
 	}
 
-	timer_add(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000,
+	timer_add(&tcp_client_timer, 1000000,
 		  tcp_client_connect_cb, NULL);
 
 	return 0;
@@ -302,6 +301,7 @@ static void tcp_client_send_buf_cb(void *arg)
 		(void)sb;
 		DEBUG_LOG("tcp client got:%.*s\n", sb.len, sb.data);
 		pkt_free(pkt);
+		sock_info_close(&sock_info_client);
 	}
  reschedule:
 	timer_reschedule(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000);
@@ -373,7 +373,7 @@ void tcp_app(void)
 			DEBUG_LOG("can't put sbuf to socket (len:%d) (from pkt:%p)\n",
 				  sb[i].len, pkts[i]);
 			if (socket_info_state(&sock_info_clients[i]) != SOCK_CONNECTED) {
-				sock_info_unbind(&sock_info_clients[i]);
+				sock_info_close(&sock_info_clients[i]);
 				goto reset_sb;
 			}
 			continue;
