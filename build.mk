@@ -49,9 +49,6 @@ else ifeq ($(CONFIG_ARCH),X86_TUN_TAP)
 ifdef CONFIG_USE_CAPABILITIES
 CFLAGS += -DCONFIG_USE_CAPABILITIES
 endif
-ifndef CONFIG_TCP
-$(error need CONFIG_TCP to compile the tun-driver)
-endif
 CC = gcc
 EXECUTABLE = tun-driver
 SOURCES := $(filter-out tests.c, $(SOURCES))
