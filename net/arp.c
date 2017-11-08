@@ -19,8 +19,9 @@ uint8_t broadcast_mac[] = { 0xFF };
 #define ARP_RETRIES 2
 
 struct arp_res {
+	struct list_head list;
+	struct list_head pkt_list;
 	tim_t tim;
-	pkt_t *pkt;
 	iface_t *iface;
 	uint8_t retries;
 	uint32_t ip;
@@ -32,6 +33,7 @@ struct list_head arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 {
 	int i;
+
 	/* linear search ... that's bad but it saves space */
 	for (i = 0; i < CONFIG_ARP_TABLE_SIZE; i++) {
 		if (arp_entries.entries[i].ip == ip) {
@@ -128,7 +130,41 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	eth_output(out, iface, tha, ETHERTYPE_ARP);
 }
 
-static void arp_process_wait_list(uint32_t ip);
+static arp_res_t *arp_res_lookup(uint32_t ip)
+{
+	arp_res_t *arp_res;
+
+	list_for_each_entry(arp_res, &arp_wait_list, list) {
+		if (arp_res->ip == ip)
+			return arp_res;
+	}
+	return NULL;
+}
+
+static void __arp_process_wait_list(arp_res_t *arp_res, uint8_t delete)
+{
+	pkt_t *pkt, *pkt_tmp;
+
+	list_for_each_entry_safe(pkt, pkt_tmp, &arp_res->pkt_list, list) {
+		list_del(&pkt->list);
+		if (delete)
+			pkt_free(pkt);
+		else
+			ip_output(pkt, arp_res->iface, 0);
+	}
+	timer_del(&arp_res->tim);
+	list_del(&arp_res->list);
+	free(arp_res);
+}
+
+static void arp_process_wait_list(uint32_t ip, uint8_t delete)
+{
+	arp_res_t *arp_res;
+
+	if ((arp_res = arp_res_lookup(ip)) == NULL)
+		return;
+	__arp_process_wait_list(arp_res, delete);
+}
 
 void arp_input(pkt_t *pkt, iface_t *iface)
 {
@@ -185,7 +221,7 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 		}
 #endif
 		arp_add_entry(sha, spa, iface);
-		arp_process_wait_list(*(uint32_t *)spa);
+		arp_process_wait_list(*(uint32_t *)spa, 0);
 		break;
 
 	default:
@@ -201,18 +237,17 @@ void arp_retry_cb(void *arg)
 {
 	arp_res_t *arp_res = arg;
 
-	timer_del(&arp_res->tim);
-	list_del(&arp_res->pkt->list);
+	arp_res->retries++;
 	if (arp_res->retries >= ARP_RETRIES) {
-		pkt_free(arp_res->pkt);
+		__arp_process_wait_list(arp_res, 1);
 		return;
 	}
-	pkt_adj(arp_res->pkt, (int)sizeof(eth_hdr_t));
-	ip_output(arp_res->pkt, arp_res->iface, arp_res->retries + 1, 0);
+	timer_reschedule(&arp_res->tim, ARP_RETRY_TIMEOUT * 1000000);
+	arp_output(arp_res->iface, ARPOP_REQUEST, broadcast_mac,
+		   (uint8_t *)&(arp_res->ip));
 }
 
-void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
-		 uint8_t retries)
+void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface)
 {
 	arp_res_t *arp_res;
 #ifdef CONFIG_TCP_RETRANSMIT
@@ -227,44 +262,26 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface,
 		return;
 	}
 #endif
-	/* get more space in the pkt */
-	pkt_adj(pkt, -(int)sizeof(eth_hdr_t));
+	if ((arp_res = arp_res_lookup(ip_dst))) {
+		list_add_tail(&pkt->list, &arp_res->pkt_list);
+		return;
+	}
 
-	/* The following assert is false on x86-64 arch.
-	 * The arp resolution cannot be tested.
-	 */
-#ifndef X86
-	STATIC_ASSERT(sizeof(arp_res_t) <
-		      sizeof(eth_hdr_t) + sizeof(ip_hdr_t) - sizeof(uint32_t) * 2);
-#endif
-	arp_res = btod(pkt, arp_res_t *);
-
+	if ((arp_res = malloc(sizeof(arp_res_t))) == NULL) {
+		pkt_free(pkt);
+		return;
+	}
 	memset(&arp_res->tim, 0, sizeof(tim_t));
-	arp_res->pkt = pkt;
-	arp_res->iface = iface;
-	arp_res->retries = retries;
+	INIT_LIST_HEAD(&arp_res->list);
+	INIT_LIST_HEAD(&arp_res->pkt_list);
+	list_add_tail(&pkt->list, &arp_res->pkt_list);
+	arp_res->retries = 0;
 	arp_res->ip = ip_dst;
+	arp_res->iface = iface;
 	timer_add(&arp_res->tim, ARP_RETRY_TIMEOUT * 1000000, arp_retry_cb,
 		  arp_res);
 	/* add a hash table on ip_dst if we have more RAM */
-	list_add_tail(&pkt->list, &arp_wait_list);
-}
-
-static void arp_process_wait_list(uint32_t ip)
-{
-	struct list_head *node, *tmp;
-
-	list_for_each_safe(node, tmp, &arp_wait_list) {
-		pkt_t *pkt = list_entry(node, pkt_t, list);
-		arp_res_t *arp_res = (arp_res_t *)pkt->buf.data;
-
-		if (arp_res->ip == ip) {
-			timer_del(&arp_res->tim);
-			list_del(node);
-			pkt_adj(pkt, (int)sizeof(eth_hdr_t));
-			ip_output(pkt, arp_res->iface, arp_res->retries + 1, 0);
-		}
-	}
+	list_add_tail(&arp_res->list, &arp_wait_list);
 }
 
 #ifdef CONFIG_ARP_EXPIRY

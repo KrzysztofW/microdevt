@@ -20,7 +20,7 @@ void udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
 	udp_hdr->src_port = sport;
 	udp_hdr->dst_port = dport;
 
-	ip_output(pkt, NULL, 0, 0);
+	ip_output(pkt, NULL, 0);
 }
 
 void udp_input(pkt_t *pkt, iface_t *iface)

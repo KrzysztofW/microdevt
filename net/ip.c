@@ -12,7 +12,7 @@
 #error "mandatory CONFIG_IP_TTL option not set"
 #endif
 
-void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
+void ip_output(pkt_t *out, iface_t *iface, uint16_t flags)
 {
 	ip_hdr_t *ip = btod(out, ip_hdr_t *);
 	uint8_t *mac_addr;
@@ -57,7 +57,7 @@ void ip_output(pkt_t *out, iface_t *iface, uint8_t retries, uint16_t flags)
 		ip_dst = ip->dst;
 
 	if (arp_find_entry(ip_dst, &mac_addr, &iface) < 0) {
-		arp_resolve(out, ip_dst, iface, retries);
+		arp_resolve(out, ip_dst, iface);
 		return;
 	}
 

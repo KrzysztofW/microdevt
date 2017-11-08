@@ -272,7 +272,7 @@ static void tcp_retransmit(void *arg)
 		/* adjust the pkt to ip header */
 		__tcp_pkt_adj_reset(pkt, (int)sizeof(eth_hdr_t));
 
-		ip_output(pkt, NULL, 0, IP_DF);
+		ip_output(pkt, NULL, IP_DF);
 	}
 
 	tcp_conn->retrn.cnt++;
@@ -309,7 +309,7 @@ __tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl, uint16_t sport,
 	}
 	tcp_hdr->hdr_len = tcp_hdr_len / 4;
 
-	ip_output(pkt, NULL, 0, IP_DF);
+	ip_output(pkt, NULL, IP_DF);
 }
 
 void tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags)
