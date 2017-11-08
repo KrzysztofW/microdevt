@@ -5,10 +5,16 @@
 
 #include "net_apps.h"
 #include <log.h>
+#include <dns.h>
 #include "timer.h"
 
-uint16_t port = 777; /* little endian */
-uint32_t client_addr = 0x01020101; /* big endian */
+uint16_t port = 777; /* host endian */
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+uint32_t client_addr = 0x01020101;
+#endif
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+uint32_t client_addr = 0x01010201;
+#endif
 
 #ifdef CONFIG_BSD_COMPAT
 #include "sys/errno.h"
@@ -177,6 +183,30 @@ int udp_server(void)
 	return fd;
 }
 
+#ifdef UDP_CLIENT
+int udp_fd_client;
+tim_t udp_client_timer;
+#define UDP_CLIENT_SEND_DELAY 5000000
+
+void udp_client_cb(void *arg)
+{
+	sbuf_t sb = SBUF_INITS("blabla\n");
+	pkt_t *pkt;
+	struct sockaddr_in addr;
+
+	if (socket_put_sbuf(udp_fd_client, &sb, &addr_c) < 0)
+		DEBUG_LOG("can't put sbuf to socket\n");
+	if (socket_get_pkt(udp_fd_client, &pkt, &addr) >= 0) {
+		sbuf_t sb = PKT2SBUF(pkt);
+		char *s = (char *)sb.data;
+
+		s[sb.len] = 0;
+		DEBUG_LOG("%s\n", s);
+		pkt_free(pkt);
+	}
+	timer_reschedule(&udp_client_timer, UDP_CLIENT_SEND_DELAY);
+}
+
 int udp_client(struct sockaddr_in *sockaddr)
 {
 	int fd;
@@ -188,19 +218,25 @@ int udp_client(struct sockaddr_in *sockaddr)
 	sockaddr->sin_family = AF_INET;
 	sockaddr->sin_addr.s_addr = client_addr;
 	sockaddr->sin_port = htons(port + 1);
+	timer_add(&udp_client_timer, UDP_CLIENT_SEND_DELAY, udp_client_cb, NULL);
 
 	return fd;
 }
+#endif
 
 int udp_fd;
-int udp_fd_client;
 int udp_init(void)
 {
 	udp_fd = udp_server();
+#ifdef UDP_CLIENT
 	udp_fd_client = udp_client(&addr_c);
-
-	if (udp_fd < 0 || udp_fd_client < 0) {
-		DEBUG_LOG("can't create UDP sockets\n");
+	if (udp_fd_client < 0) {
+		DEBUG_LOG("can't create UDP client socket\n");
+		return -1;
+	}
+#endif
+	if (udp_fd < 0) {
+		DEBUG_LOG("can't create UDP server socket\n");
 		return -1;
 	}
 	return 0;
@@ -210,7 +246,6 @@ void udp_app(void)
 {
 	pkt_t *pkt;
 	struct sockaddr_in addr;
-	static int a;
 
 	if (socket_get_pkt(udp_fd, &pkt, &addr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
@@ -219,25 +254,6 @@ void udp_app(void)
 			DEBUG_LOG("can't put sbuf to socket\n");
 		pkt_free(pkt);
 	}
-
-	(void)a;
-#if 0
-	if (a == 100) {
-		sbuf_t sb = SBUF_INITS("blabla\n");
-
-		if (socket_put_sbuf(udp_fd_client, &sb, &addr_c) < 0)
-			DEBUG_LOG("can't put sbuf to socket\n");
-		a = 0;
-		if (socket_get_pkt(udp_fd_client, &pkt, &addr) >= 0) {
-			sbuf_t sb = PKT2SBUF(pkt);
-			char *s = (char *)sb.data;
-			s[sb.len] = 0;
-			DEBUG_LOG("%s\n", s);
-			pkt_free(pkt);
-		}
-	}
-	a++;
-#endif
 }
 #endif	/* CONFIG_UDP */
 
@@ -388,7 +404,8 @@ void tcp_app(void)
 #endif	/* CONFIG_TCP */
 
 #ifdef CONFIG_UDP
-sock_info_t sock_info_udp_server, sock_info_udp_client;
+sock_info_t sock_info_udp_server;
+
 int udp_server(void)
 {
 	if (sock_info_init(&sock_info_udp_server, SOCK_DGRAM, htons(port)) < 0) {
@@ -407,7 +424,7 @@ int udp_server(void)
 #ifdef UDP_CLIENT
 uint32_t src_addr_c;
 uint16_t src_port_c;
-#endif
+sock_info_t sock_info_udp_client;
 
 int udp_client(void)
 {
@@ -416,17 +433,24 @@ int udp_client(void)
 		return -1;
 	}
 	__sock_info_add(&sock_info_udp_client);
-#ifdef UDP_CLIENT
 	src_addr_c = client_addr;
 	src_port_c = htons(port);
-#endif
 	return 0;
 }
+#endif
 
 int udp_init(void)
 {
-	if (udp_server() < 0 || udp_client() < 0)
+	if (udp_server() < 0) {
+		DEBUG_LOG("can't create UDP server socket\n");
 		return -1;
+	}
+#ifdef UDP_CLIENT
+	if (udp_client() < 0) {
+		DEBUG_LOG("can't create UDP client socket\n");
+		return -1;
+	}
+#endif
 	return 0;
 }
 
