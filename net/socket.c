@@ -111,7 +111,7 @@ static int bind_on_port(uint16_t port, sock_info_t *sock_info)
 
 	if (ht == NULL) {
 #ifdef CONFIG_BSD_COMPAT
-		errno = EINTVAL;
+		errno = EINVAL;
 #endif
 		return -1;
 	}
@@ -296,7 +296,9 @@ sock_info_init(sock_info_t *sock_info, int sock_type, uint16_t port)
 	}
 	sock_info->type = sock_type;
 	sock_info->port = port;
+#ifndef CONFIG_HT_STORAGE
 	INIT_LIST_HEAD(&sock_info->list);
+#endif
 	return 0;
 }
 

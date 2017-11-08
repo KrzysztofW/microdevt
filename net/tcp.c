@@ -137,8 +137,8 @@ static int tcp_conn_add(tcp_conn_t *tcp_conn)
 {
 	sbuf_t key, val;
 
-	sbuf_init(&key, &conn->uid, sizeof(tcp_uid_t));
-	sbuf_init(&val, &conn, sizeof(tcp_conn_t *));
+	sbuf_init(&key, &tcp_conn->syn.tuid, sizeof(tcp_uid_t));
+	sbuf_init(&val, &tcp_conn, sizeof(tcp_conn_t *));
 	if (htable_add(tcp_conns, &key, &val) < 0)
 		return -1;
 	return 0;
@@ -148,7 +148,7 @@ void tcp_conn_delete(tcp_conn_t *tcp_conn)
 {
 	sbuf_t key;
 
-	sbuf_init(&key, &tcp_conn->uid, sizeof(tcp_uid_t));
+	sbuf_init(&key, &tcp_conn->syn.tuid, sizeof(tcp_uid_t));
 	htable_del(tcp_conns, &key);
 	__tcp_conn_delete(tcp_conn);
 }
