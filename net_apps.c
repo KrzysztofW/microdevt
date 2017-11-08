@@ -404,8 +404,10 @@ int udp_server(void)
 	return 0;
 }
 
+#ifdef UDP_CLIENT
 uint32_t src_addr_c;
 uint16_t src_port_c;
+#endif
 
 int udp_client(void)
 {
@@ -414,8 +416,10 @@ int udp_client(void)
 		return -1;
 	}
 	__sock_info_add(&sock_info_udp_client);
+#ifdef UDP_CLIENT
 	src_addr_c = client_addr;
 	src_port_c = htons(port);
+#endif
 	return 0;
 }
 
@@ -431,7 +435,9 @@ void udp_app(void)
 	uint32_t src_addr;
 	uint16_t src_port;
 	pkt_t *pkt;
+#ifdef UDP_CLIENT
 	static int a;
+#endif
 
 	if (__socket_get_pkt(&sock_info_udp_server, &pkt, &src_addr,
 			     &src_port) >= 0) {
@@ -442,8 +448,7 @@ void udp_app(void)
 			DEBUG_LOG("can't put sbuf to udp socket\n");
 		pkt_free(pkt);
 	}
-	(void)a;
-#if 0
+#ifdef UDP_CLIENT
 	if (a == 100) {
 		sbuf_t sb = SBUF_INITS("blabla\n");
 
