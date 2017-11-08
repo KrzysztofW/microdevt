@@ -64,6 +64,7 @@ iface_t iface = {
 	.flags = IF_UP|IF_RUNNING,
 	.mac_addr = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x41 },
 	.ip4_addr = { 1,1,2,2 },
+	.ip4_mask = { 255, 255, 255, 0 },
 	.send = &send,
 };
 
