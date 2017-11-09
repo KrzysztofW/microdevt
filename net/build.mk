@@ -18,6 +18,11 @@ SOURCES += net/udp.c
 CFLAGS += -DCONFIG_UDP
 endif
 
+ifdef CONFIG_DNS
+SOURCES += net/dns.c
+CFLAGS += -DCONFIG_DNS
+endif
+
 ifdef CONFIG_TCP
 SOURCES += net/tcp.c
 CFLAGS += -DCONFIG_TCP

@@ -235,15 +235,29 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
+		fprintf(stderr, "can't set non blocking tcp socket (%m)\n");
+		return -1;
+	}
+
 	timer_subsystem_init();
 
+	/* wait for system to be initialized */
+	sleep(3000);
+
 #ifdef CONFIG_TIMER_CHECKS
-	sleep(1000); /* wait for system to be initialized */
 	timer_checks();
 #endif
 
 	socket_init();
 	dft_route.iface = &iface;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	dft_route.ip = 0x01020101;
+#endif
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	dft_route.ip = 0x01010201;
+#endif
+
 #ifdef CONFIG_UDP
 	if (udp_init() < 0) {
 		fprintf(stderr, "can't init udp server\n");
@@ -256,10 +270,13 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 #endif
-	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
-		fprintf(stderr, "can't set non blocking tcp socket (%m)\n");
+#ifdef CONFIG_DNS
+	if (dns_resolver_init() < 0) {
+		fprintf(stderr, "can't init dns resolver\n");
 		return -1;
 	}
+#endif
+
 	while (1) {
 		pkt_t *pkt = tun_receive_pkt();
 

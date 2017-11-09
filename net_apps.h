@@ -11,4 +11,7 @@ int udp_client(struct sockaddr_in *sockaddr);
 #endif
 int udp_init(void);
 void udp_app(void);
+
+int dns_resolver_init(void);
+
 #endif

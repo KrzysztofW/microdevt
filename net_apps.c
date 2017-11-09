@@ -495,3 +495,22 @@ void udp_app(void)
 
 #endif	/* CONFIG_UDP */
 #endif  /* CONFIG_BSD_COMPAT */
+
+#ifdef CONFIG_DNS
+
+static void dns_cb(uint32_t ip)
+{
+	DEBUG_LOG("%s: ip=0x%X\n", __func__, ip);
+
+}
+
+int dns_resolver_init(void)
+{
+	sbuf_t sb = SBUF_INITS("free.fr");
+
+	/* set google dns nameserver */
+	dns_init(0x08080808);
+
+	return dns_resolve(&sb, dns_cb);
+}
+#endif
