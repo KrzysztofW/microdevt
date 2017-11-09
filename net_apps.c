@@ -110,6 +110,7 @@ static void tcp_client_send_buf_cb(void *arg)
 	if (socket_get_pkt(tcp_client_fd, &pkt, &tcp_client_sockaddr) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
+		(void)sb;
 		DEBUG_LOG("tcp client got:%.*s\n", sb.len, sb.data);
 		pkt_free(pkt);
 	}
