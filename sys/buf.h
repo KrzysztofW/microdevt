@@ -100,7 +100,7 @@ static inline void sbuf_reset(sbuf_t *sbuf)
 
 static inline int buf_has_room(buf_t *buf, int len)
 {
-	if (buf->len + buf->skip + len >= buf->size)
+	if (buf->len + buf->skip + len > buf->size)
 		return -1;
 	return 0;
 }
