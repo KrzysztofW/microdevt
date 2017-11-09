@@ -3,7 +3,9 @@
 #define LIST_POISON1 (void *)0xDEADBEEF
 #define LIST_POISON2 (void *)0xBEEFDEAD
 
+#ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#endif
 
 #define container_of(ptr, type, member) ({                      \
 	const typeof(((type *)0)->member) *__mptr = (ptr);    \

@@ -26,6 +26,11 @@ typedef struct buf buf_t;
 	{								\
 		.data = (unsigned char *)str, .len = strlen(str)	\
 	}
+#define BUF(sz)						\
+	{						\
+		.data = alloca(sz),			\
+		.size = sz				\
+	}
 
 static inline void sbuf_init(sbuf_t *sbuf, const void *data,
 			     unsigned len)
