@@ -104,30 +104,6 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 }
 #endif
 
-static int bind_on_port(uint16_t port, sock_info_t *sock_info)
-{
-	hash_table_t *ht = get_hash_table(sock_info->type);
-	sbuf_t key, val;
-
-	if (ht == NULL) {
-#ifdef CONFIG_BSD_COMPAT
-		errno = EINVAL;
-#endif
-		return -1;
-	}
-	sbuf_init(&key, &port, sizeof(port));
-	val = SOCKINFO2SBUF(sock_info);
-
-	if (htable_add(ht, &key, &val) < 0) {
-#ifdef CONFIG_BSD_COMPAT
-		errno = EINVAL;
-#endif
-		return -1;
-	}
-	sock_info->port = port;
-	return 0;
-}
-
 static int unbind_port(sock_info_t *sock_info)
 {
 	sbuf_t key;
@@ -150,6 +126,31 @@ static int unbind_port(sock_info_t *sock_info)
 	if (htable_del(fd_to_sock, &key) < 0)
 		return -1;
 #endif
+	return 0;
+}
+
+static int bind_on_port(uint16_t port, sock_info_t *sock_info)
+{
+	hash_table_t *ht = get_hash_table(sock_info->type);
+	sbuf_t key, val;
+
+	if (ht == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EINVAL;
+#endif
+		return -1;
+	}
+	sbuf_init(&key, &port, sizeof(port));
+	val = SOCKINFO2SBUF(sock_info);
+
+	if (htable_add(ht, &key, &val) < 0) {
+		unbind_port(sock_info);
+#ifdef CONFIG_BSD_COMPAT
+		errno = EINVAL;
+#endif
+		return -1;
+	}
+	sock_info->port = port;
 	return 0;
 }
 
@@ -199,21 +200,9 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 }
 #endif
 
-static int bind_on_port(uint16_t port, sock_info_t *sock_info)
-{
-	if (port2sockinfo(port, sock_info->type)) {
-#ifdef CONFIG_BSD_COMPAT
-		errno = EINVAL;
-#endif
-		return -1;
-	}
-	sock_info->port = port;
-	return 0;
-}
-
 static int unbind_port(sock_info_t *sock_info)
 {
-	if (port2sockinfo(sock_info->port, sock_info->type) == NULL) {
+	if (port2sockinfo(sock_info->type, sock_info->port) == NULL) {
 #ifdef CONFIG_BSD_COMPAT
 		if (fd2sockinfo(sock_info->fd) == NULL)
 			return -1;
@@ -227,6 +216,19 @@ static int unbind_port(sock_info_t *sock_info)
 	}
 #endif
 	list_del_init(&sock_info->list);
+	return 0;
+}
+
+static int bind_on_port(uint16_t port, sock_info_t *sock_info)
+{
+	if (port2sockinfo(sock_info->type, port)) {
+#ifdef CONFIG_BSD_COMPAT
+		errno = EINVAL;
+#endif
+		unbind_port(sock_info);
+		return -1;
+	}
+	sock_info->port = port;
 	return 0;
 }
 
@@ -407,17 +409,17 @@ static uint16_t socket_get_ephemeral_port(uint8_t type)
 
 int sock_info_bind(sock_info_t *sock_info)
 {
+	uint16_t port;
 	if (sock_info->port == 0) { /* client */
-		sock_info->port = socket_get_ephemeral_port(sock_info->type);
-		if (sock_info->port == 0) {
+		port = socket_get_ephemeral_port(sock_info->type);
+		if (port == 0) {
 #ifdef CONFIG_BSD_COMPAT
 			errno = EADDRINUSE;
 #endif
 			return -1; /* no more available ports */
 		}
 	}
-	assert(sock_info->port != 0);
-	return bind_on_port(sock_info->port, sock_info);
+	return bind_on_port(port, sock_info);
 }
 
 int sock_info_close(sock_info_t *sock_info)
