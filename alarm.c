@@ -16,7 +16,7 @@
 #include "net/route.h"
 #include "net/udp.h"
 #include "net/socket.h"
-#include "net_apps.h"
+#include "net_apps/net_apps.h"
 
 #ifdef NET
 uint8_t net_wd;

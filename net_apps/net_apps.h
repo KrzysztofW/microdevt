@@ -1,6 +1,11 @@
 #ifndef _NET_APPS_H_
 #define _NET_APPS_H_
-#include "net/socket.h"
+#include "../net/socket.h"
+
+#ifdef CONFIG_AVR_MCU
+#include <avr/io.h>
+#include <avr/pgmspace.h>
+#endif
 
 int tcp_init(void);
 int tcp_server(void);

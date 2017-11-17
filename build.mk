@@ -20,7 +20,8 @@ CFLAGS += -Isys -Inet
 ifeq ($(CONFIG_ARCH),AVR)
 CC = avr-gcc
 EXECUTABLE = alarm
-SOURCES += alarm.c net_apps.c timer.c arch/avr/timer.c arch/avr/enc28j60.c
+SOURCES += alarm.c timer.c arch/avr/timer.c arch/avr/enc28j60.c
+include net_apps/build.mk
 SOURCES += arch/avr/adc.c
 
 ifeq ($(DEBUG), 1)
@@ -53,7 +54,8 @@ CC = gcc
 EXECUTABLE = tun-driver
 SOURCES := $(filter-out tests.c, $(SOURCES))
 SOURCES := $(filter-out net/tests.c, $(SOURCES))
-SOURCES += net/tun-driver.c net_apps.c timer.c arch/x86/timer.c
+SOURCES += net/tun-driver.c timer.c arch/x86/timer.c
+include net_apps/build.mk
 OBJECTS = $(SOURCES:.c=.o)
 
 CFLAGS := $(filter-out -Isys, $(CFLAGS))

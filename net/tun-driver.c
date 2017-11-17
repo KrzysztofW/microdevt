@@ -29,7 +29,7 @@
 #define SOCKLEN_DEFINED
 #include "socket.h"
 #undef SOCKLEN_DEFINED
-#include "../net_apps.h"
+#include "../net_apps/net_apps.h"
 #include "pkt-mempool.h"
 
 #include <linux/if.h>
@@ -107,7 +107,6 @@ static pkt_t *tun_receive_pkt(void)
 
 	nread = read(tun_fds[0].fd, buf, sizeof(buf));
 	if (nread < 0 && errno == EAGAIN) {
-		sleep(1);
 		return NULL;
 	}
 
@@ -218,6 +217,9 @@ int main(int argc, char *argv[])
 	if (tun_fds[0].fd < 0)
 		exit(0);
 
+	/* wait for system to be initialized */
+	sleep(3);
+
 #ifdef CONFIG_USE_CAPABILITIES
 	/* And before anything else, clear all our capabilities */
 	if (cap_clear(caps) < 0 || cap_set_proc(caps) < 0 || cap_free(caps) < 0) {
@@ -242,9 +244,6 @@ int main(int argc, char *argv[])
 
 	timer_subsystem_init();
 
-	/* wait for system to be initialized */
-	sleep(3000);
-
 #ifdef CONFIG_TIMER_CHECKS
 	timer_checks();
 #endif
@@ -260,13 +259,13 @@ int main(int argc, char *argv[])
 
 #ifdef CONFIG_UDP
 	if (udp_init() < 0) {
-		fprintf(stderr, "can't init udp server\n");
+		fprintf(stderr, "can't init udp sockets\n");
 		return -1;
 	}
 #endif
 #ifdef CONFIG_TCP
 	if (tcp_init() < 0) {
-		fprintf(stderr, "can't init tcp server\n");
+		fprintf(stderr, "can't init tcp sockets\n");
 		return -1;
 	}
 #endif

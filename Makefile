@@ -39,6 +39,7 @@ size: all
 clean:
 	@rm -f *.o net/*.o sys/*.o *.pdf *.hex *.srec *.elf *~ tests alarm tun-driver
 	@rm -f arch/*/*.o arch/*/*~
+	@rm -f net_apps/*.o net_apps/*~
 
 #pdf: README.rst
 #	rst2pdf $< > $(<:.rst=.pdf)
