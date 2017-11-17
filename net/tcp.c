@@ -471,7 +471,9 @@ void tcp_input(pkt_t *pkt)
 	tcp_uid_t tuid;
 	tcp_syn_t *tsyn_entry;
 	uint32_t remote_seqid, remote_ack;
+#ifdef CONFIG_TCP_CLIENT
 	uint32_t dst_addr;
+#endif
 	tcp_conn_t *tcp_conn;
 	tcp_syn_t ts;
 
@@ -651,18 +653,18 @@ void tcp_input(pkt_t *pkt)
 			    (tcp_conn = tcp_conn_create(&tuid,
 							SOCK_CONNECTED)) == NULL) {
 				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, &ts);
-			} else {
-				if (socket_add_backlog(l, tcp_conn) < 0) {
-					tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST,
-						     &ts);
-					tcp_conn_delete(tcp_conn);
-					goto end;
-				}
-				tcp_conn->syn.seqid = tsyn_entry->seqid;
-				tcp_conn->syn.ack = tcp_hdr->seq;
-				tcp_conn->syn.opts = tsyn_entry->opts;
 				goto end;
 			}
+			if (socket_add_backlog(l, tcp_conn) < 0) {
+				tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, &ts);
+				tcp_conn_delete(tcp_conn);
+				goto end;
+			}
+			tcp_conn->syn.seqid = tsyn_entry->seqid;
+			tcp_conn->syn.ack = tcp_hdr->seq;
+			tcp_conn->syn.opts = tsyn_entry->opts;
+			goto end;
+
 		}
 		tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, &ts);
 	}

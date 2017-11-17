@@ -28,7 +28,6 @@ int udp_server(void)
 		DEBUG_LOG("can't init udp sock_info\n");
 		return -1;
 	}
-	//__sock_info_add(&sock_info_udp_server);
 
 	if (sock_info_bind(&sock_info_udp_server, htons(port)) < 0) {
 		DEBUG_LOG("can't start udp server\n");

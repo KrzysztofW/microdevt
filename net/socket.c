@@ -82,12 +82,6 @@ static sock_info_t *port2sockinfo(int type, uint16_t port)
 	return *(sock_info_t **)val->data;
 }
 
-/* use this function for UDP sockets and TCP server sockets */
-void __sock_info_add(sock_info_t *sock_info)
-{
-	(void)sock_info;
-}
-
 #ifdef CONFIG_BSD_COMPAT
 static int sock_info_add(int fd, sock_info_t *sock_info)
 {
@@ -180,11 +174,6 @@ static sock_info_t *port2sockinfo(int type, uint16_t port)
 	return NULL;
 }
 
-void __sock_info_add(sock_info_t *sock_info)
-{
-	list_add_tail(&sock_info->list, &sock_list);
-}
-
 #ifdef CONFIG_BSD_COMPAT
 static int sock_info_add(int fd, sock_info_t *sock_info)
 {
@@ -195,7 +184,7 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 #ifdef CONFIG_TCP
 	sock_info->listen = NULL;
 #endif
-	__sock_info_add(sock_info);
+	list_add_tail(&sock_info->list, &sock_list);
 	return 0;
 }
 #endif
@@ -278,9 +267,12 @@ sock_info_t *udpport2sockinfo(uint16_t port)
 }
 #endif
 
-int
-sock_info_init(sock_info_t *sock_info, int sock_type, uint16_t port)
+int sock_info_init(sock_info_t *sock_info, int sock_type)
 {
+#ifdef CONFIG_BSD_COMPAT
+	int fd;
+	int retries = 0;
+#endif
 	switch (sock_type) {
 #ifdef CONFIG_UDP
 	case SOCK_DGRAM:
@@ -297,11 +289,33 @@ sock_info_init(sock_info_t *sock_info, int sock_type, uint16_t port)
 		return -1;
 	}
 	sock_info->type = sock_type;
-	sock_info->port = port;
+	sock_info->port = 0;
 #ifndef CONFIG_HT_STORAGE
 	INIT_LIST_HEAD(&sock_info->list);
 #endif
+#ifdef CONFIG_BSD_COMPAT
+ again:
+	fd = cur_fd;
+	if (sock_info_add(fd, sock_info) < 0) {
+		if (retries > max_fds) {
+			free(sock_info);
+			return -1;
+		}
+		retries++;
+		cur_fd++;
+		if (cur_fd > max_fds)
+			cur_fd = 3;
+		goto again;
+	}
+
+	cur_fd++;
+	return fd;
+#else
+#ifndef CONFIG_HT_STORAGE
+	list_add_tail(&sock_info->list, &sock_list);
+#endif
 	return 0;
+#endif
 }
 
 #ifdef CONFIG_TCP
@@ -342,7 +356,6 @@ int socket(int family, int type, int protocol)
 {
 	sock_info_t *sock_info;
 	uint8_t fd;
-	int retries = 0;
 
 	(void)protocol;
 	if (family != AF_INET || family >= SOCK_LAST)
@@ -351,25 +364,10 @@ int socket(int family, int type, int protocol)
 	if ((sock_info = malloc(sizeof(sock_info_t))) == NULL)
 		return -1;
 
-	if (sock_info_init(sock_info, type, 0) < 0) {
+	if ((fd = sock_info_init(sock_info, type)) < 0) {
 		free(sock_info);
 		return -1;
 	}
- again:
-	fd = cur_fd;
-	if (sock_info_add(fd, sock_info) < 0) {
-		if (retries > max_fds) {
-			free(sock_info);
-			return -1;
-		}
-		retries++;
-		cur_fd++;
-		if (cur_fd > max_fds)
-			cur_fd = 3;
-		goto again;
-	}
-
-	cur_fd++;
 	return fd;
 }
 
@@ -407,10 +405,9 @@ static uint16_t socket_get_ephemeral_port(uint8_t type)
 	return 0;
 }
 
-int sock_info_bind(sock_info_t *sock_info)
+int sock_info_bind(sock_info_t *sock_info, uint16_t port)
 {
-	uint16_t port;
-	if (sock_info->port == 0) { /* client */
+	if (port == 0) { /* client */
 		port = socket_get_ephemeral_port(sock_info->type);
 		if (port == 0) {
 #ifdef CONFIG_BSD_COMPAT
@@ -419,6 +416,7 @@ int sock_info_bind(sock_info_t *sock_info)
 			return -1; /* no more available ports */
 		}
 	}
+
 	return bind_on_port(port, sock_info);
 }
 
@@ -443,7 +441,7 @@ int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn)
 #ifdef CONFIG_TCP_CLIENT
 int sock_info_connect(sock_info_t *sock_info, uint32_t addr, uint16_t port)
 {
-	if (sock_info_bind(sock_info) < 0)
+	if (sock_info_bind(sock_info, 0) < 0)
 		return -1;
 
 	if (tcp_connect(addr, port, sock_info) < 0) {
@@ -571,8 +569,7 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 	list_del(&tcp_conn->list);
 	sock_info_server->listen->backlog--;
 
-	if (sock_info_init(sock_info_client, SOCK_STREAM,
-			   sock_info_server->port) < 0)
+	if (sock_info_init(sock_info_client, SOCK_STREAM) < 0)
 		return -1;
 
 #ifndef CONFIG_HT_STORAGE
@@ -651,7 +648,7 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 	switch (sock_info->type) {
 #ifdef CONFIG_UDP
 	case SOCK_TYPE_UDP:
-		if (sock_info->port == 0 && sock_info_bind(sock_info) < 0)
+		if (sock_info->port == 0 && sock_info_bind(sock_info, 0) < 0)
 			return -1;
 
 		if ((pkt = socket_alloc_pkt((int)sizeof(udp_hdr_t), sbuf)) == NULL)
@@ -822,7 +819,7 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 	return __len;
 }
 
-int socket_close(int fd)
+int close(int fd)
 {
 	sock_info_t *sock_info;
 
@@ -835,10 +832,6 @@ int socket_close(int fd)
 	return 0;
 }
 
-int close(int fd)
-{
-	return socket_close(fd);
-}
 #endif	/* CONFIG_BSD_COMPAT */
 
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt)

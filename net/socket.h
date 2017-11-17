@@ -103,6 +103,9 @@ typedef struct listen listen_t;
 #endif
 
 struct sock_info {
+#ifndef CONFIG_HT_STORAGE
+	struct list_head list;
+#endif
 #if 0 /* only one ip address is allowed on an interface */
 	uaddr_t  addr;
 #endif
@@ -112,9 +115,6 @@ struct sock_info {
 #ifdef CONFIG_BSD_COMPAT
 	uint8_t family : 4; /* upto 15 families */
 	uint8_t fd;
-#endif
-#ifndef CONFIG_HT_STORAGE
-	struct list_head list;
 #endif
 #ifdef CONFIG_TCP
 	listen_t *listen;
@@ -166,18 +166,14 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr_in *addr);
 int
 socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr_in *addr);
-int socket_close(int fd);
 #endif
 int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,
 		     uint32_t *src_addr, uint16_t *src_port);
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint32_t dst_addr, uint16_t dst_port);
-int sock_info_init(sock_info_t *sock_info, int sock_type, uint16_t port);
+int sock_info_init(sock_info_t *sock_info, int sock_type);
 
-/* use this function for UDP sockets and TCP server sockets */
-void __sock_info_add(sock_info_t *sock_info);
-
-int sock_info_bind(sock_info_t *sock_info);
+int sock_info_bind(sock_info_t *sock_info, uint16_t port);
 int sock_info_close(sock_info_t *sock_info);
 #ifdef CONFIG_TCP
 int sock_info_listen(sock_info_t *sock_info, int backlog);
