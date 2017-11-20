@@ -24,13 +24,12 @@ static void tcp_client_send_buf_cb(void *arg);
 
 static void tcp_client_connect_cb(void *arg)
 {
-	(void)arg;
+	sock_info_t *sock_info = arg;
 
 	DEBUG_LOG("%s:%d\n", __func__, __LINE__);
-	if (sock_info_connect(&sock_info_client, client_addr,
-			      htons(port + 1)) >= 0) {
+	if (sock_info_connect(sock_info, client_addr, htons(port + 1)) >= 0) {
 		timer_add(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000,
-			  tcp_client_send_buf_cb, NULL);
+			  tcp_client_send_buf_cb, sock_info);
 		return;
 	}
 	DEBUG_LOG("can't connect\n");
@@ -46,7 +45,7 @@ static int tcp_app_client_init(void)
 	}
 
 	timer_add(&tcp_client_timer, 1000000,
-		  tcp_client_connect_cb, NULL);
+		  tcp_client_connect_cb, &sock_info_client);
 
 	return 0;
 }
@@ -55,25 +54,24 @@ static void tcp_client_send_buf_cb(void *arg)
 {
 	sbuf_t sb = SBUF_INITS("blabla\n");
 	pkt_t *pkt;
+	sock_info_t *sock_info = arg;
 
-	(void)arg;
 	printf("%s\n", __func__);
-	if (__socket_put_sbuf(&sock_info_client, &sb, 0, 0) < 0) {
-		if (sock_info_client.trq.tcp_conn == NULL) {
+	if (__socket_put_sbuf(sock_info, &sb, 0, 0) < 0) {
+		if (socket_info_state(sock_info) != SOCK_CONNECTED) {
+			sock_info_close(sock_info);
 			tcp_app_client_init();
 			return;
 		}
-		goto reschedule;
 	}
-	if (__socket_get_pkt(&sock_info_client, &pkt, NULL, NULL) >= 0) {
+	if (__socket_get_pkt(sock_info, &pkt, NULL, NULL) >= 0) {
 		sbuf_t sb = PKT2SBUF(pkt);
 
 		(void)sb;
 		DEBUG_LOG("tcp client got:%.*s\n", sb.len, sb.data);
 		pkt_free(pkt);
-		sock_info_close(&sock_info_client);
+		sock_info_close(sock_info);
 	}
- reschedule:
 	timer_reschedule(&tcp_client_timer, TCP_TIMER_RECONNECT * 1000000);
 }
 #endif
