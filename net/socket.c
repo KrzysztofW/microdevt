@@ -191,12 +191,14 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 
 static int unbind_port(sock_info_t *sock_info)
 {
-	if (port2sockinfo(sock_info->type, sock_info->port) == NULL) {
-#ifdef CONFIG_BSD_COMPAT
-		if (fd2sockinfo(sock_info->fd) == NULL)
-			return -1;
+#ifndef CONFIG_BSD_COMPAT
+	if (port2sockinfo(sock_info->type, sock_info->port) == NULL)
+		return -1;
+#else
+	if (fd2sockinfo(sock_info->fd) == NULL)
+		return -1;
 #endif
-	}
+
 	sock_info->port = 0;
 #ifdef CONFIG_TCP
 	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn) {
