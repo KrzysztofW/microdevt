@@ -71,7 +71,9 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 	pkt->buf.len = length - sizeof(udp_hdr_t);
 
 	socket_append_pkt(&sock_info->trq.pkt_list, pkt);
-
+#ifdef CONFIG_EVENT
+	ev_cb(sock_info, EV_READ);
+#endif
 	return;
 
  error:

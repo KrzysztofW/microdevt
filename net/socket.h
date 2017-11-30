@@ -102,6 +102,14 @@ struct listen {
 typedef struct listen listen_t;
 #endif
 
+#ifdef CONFIG_EVENT
+typedef enum event_flags{
+	EV_NONE  = 0,
+	EV_READ  = 1,
+	EV_WRITE = 2,
+} event_flags_t;
+#endif
+
 struct sock_info {
 #ifndef CONFIG_HT_STORAGE
 	struct list_head list;
@@ -121,6 +129,10 @@ struct sock_info {
 #endif
 	transport_queue_t trq;
 	/* TODO tx_pkt_list */
+#ifdef CONFIG_EVENT
+	void (*ev_cb)(struct sock_info *sock_info, uint8_t events);
+	uint8_t events;
+#endif
 } __attribute__((__packed__));
 typedef struct sock_info sock_info_t;
 
@@ -137,6 +149,17 @@ typedef struct sock_info sock_info_t;
 	}
 
 #define SBUF2SOCKINFO(sb) *(sock_info_t **)(sb)->data
+
+#ifdef CONFIG_EVENT
+void ev_cb(sock_info_t *sock_info, uint8_t event);
+static inline void
+ev_set(sock_info_t *sock_info, uint8_t events,
+       void (*ev_cb)(struct sock_info *sock_info, uint8_t events))
+{
+	sock_info->events = events;
+	sock_info->ev_cb = ev_cb;
+}
+#endif
 
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt);
 #ifdef CONFIG_HT_STORAGE
@@ -181,7 +204,6 @@ int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
 int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 		     uint32_t *src_addr, uint16_t *src_port);
 int sock_info_connect(sock_info_t *sock_info, uint32_t addr, uint16_t port);
-sock_status_t socket_info_state(const sock_info_t *sock_info);
-
+sock_status_t sock_info_state(const sock_info_t *sock_info);
 #endif
 #endif

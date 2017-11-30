@@ -67,15 +67,17 @@ int apps_init(void)
 	return 0;
 }
 
+#ifndef CONFIG_EVENT
 void apps(void)
 {
-#ifdef CONFIG_UDP
+#if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 	udp_app();
 #endif
-#ifdef CONFIG_TCP
+#if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 	tcp_app();
 #endif
 }
+#endif
 
 int main(void)
 {
@@ -154,7 +156,7 @@ int main(void)
 #endif
 		sei();
 
-#ifdef NET
+#if defined(NET) && !defined(CONFIG_EVENT)
 		apps();
 #endif
 

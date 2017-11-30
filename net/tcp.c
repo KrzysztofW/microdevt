@@ -106,6 +106,10 @@ static inline void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 	list_del(&tcp_conn->list);
 	free(tcp_conn);
 	tcp_conn_cnt--;
+
+#ifdef CONFIG_EVENT
+	ev_cb(sock_info, EV_READ);
+#endif
 }
 
 tcp_conn_t *tcp_conn_create(const tcp_uid_t *tuid, uint8_t status)
@@ -253,15 +257,23 @@ static inline void tcp_arm_retrn_timer(tcp_conn_t *tcp_conn, pkt_t *pkt)
 		  * (tcp_conn->retrn.cnt + 1), tcp_retransmit, tcp_conn);
 }
 
+static void tcp_conn_mark_closed(tcp_conn_t *tcp_conn)
+{
+	tcp_conn->syn.status = SOCK_CLOSED;
+#ifdef CONFIG_EVENT
+	ev_cb(tcp_conn->sock_info, EV_READ);
+#endif
+}
+
 static void tcp_retransmit(void *arg)
 {
 	tcp_retrn_pkt_t *retrn_pkt;
 	tcp_conn_t *tcp_conn = arg;
 
-	if (tcp_conn->retrn.cnt >= TCP_IN_PROGRESS_RETRIES ||
-	    tcp_conn->syn.status == SOCK_CLOSED) {
+	if (tcp_conn->retrn.cnt >= TCP_IN_PROGRESS_RETRIES) {
+		if (tcp_conn->syn.status != SOCK_CLOSED)
+			tcp_conn_mark_closed(tcp_conn);
 		tcp_retrn_wipe(tcp_conn);
-		tcp_conn->syn.status = SOCK_CLOSED;
 		return;
 	}
 
@@ -501,9 +513,9 @@ void tcp_input(pkt_t *pkt)
 		int flags = 0, plen;
 		uint32_t ack, seqid;
 
-		if (tcp_hdr->ctrl & TH_RST ||
-		    tcp_conn->syn.status == SOCK_CLOSED) {
-			tcp_conn->syn.status = SOCK_CLOSED;
+		if (tcp_hdr->ctrl & TH_RST) {
+			if (tcp_conn->syn.status != SOCK_CLOSED)
+				tcp_conn_mark_closed(tcp_conn);
 			goto end;
 		}
 
@@ -534,7 +546,7 @@ void tcp_input(pkt_t *pkt)
 		} else if (tcp_hdr->ctrl == TH_ACK
 			   && tcp_conn->syn.status == SOCK_TCP_FIN_SENT
 			   && tcp_hdr->ack == tcp_conn->syn.seqid) {
-			tcp_conn->syn.status = SOCK_CLOSED;
+			tcp_conn_mark_closed(tcp_conn);
 			goto end;
 		}
 
@@ -559,6 +571,9 @@ void tcp_input(pkt_t *pkt)
 			goto end;
 
 		socket_append_pkt(&tcp_conn->pkt_list_head, pkt);
+#ifdef CONFIG_EVENT
+		ev_cb(tcp_conn->sock_info, EV_READ);
+#endif
 		return;
 	}
 
@@ -568,7 +583,7 @@ void tcp_input(pkt_t *pkt)
 	tcp_conn = tcp_client_conn_lookup(&tuid);
 	if (tcp_hdr->ctrl & TH_RST) {
 		if (tcp_conn != NULL)
-			tcp_conn->syn.status = SOCK_CLOSED;
+			tcp_conn_mark_closed(tcp_conn);
 		goto end;
 	}
 	tuid.dst_addr = dst_addr;
@@ -581,7 +596,7 @@ void tcp_input(pkt_t *pkt)
 
 		if (tcp_conn->syn.status != SOCK_TCP_SYN_SENT
 		    || htonl(remote_ack - 1) != tcp_conn->syn.seqid) {
-			tcp_conn->syn.status = SOCK_CLOSED;
+			tcp_conn_mark_closed(tcp_conn);
 			goto end;
 		}
 
@@ -597,8 +612,13 @@ void tcp_input(pkt_t *pkt)
 #ifdef CONFIG_TCP_RETRANSMIT
 		tcp_retrn_ack_pkts(tcp_conn, remote_ack);
 #endif
-		if (tcp_conn_add(tcp_conn) < 0)
+		if (tcp_conn_add(tcp_conn) < 0) {
 			__tcp_conn_delete(tcp_conn);
+			goto end;
+		}
+#ifdef CONFIG_EVENT
+		ev_cb(tcp_conn->sock_info, EV_READ|EV_WRITE);
+#endif
 		goto end;
 	}
 #endif
@@ -663,6 +683,9 @@ void tcp_input(pkt_t *pkt)
 			tcp_conn->syn.seqid = tsyn_entry->seqid;
 			tcp_conn->syn.ack = tcp_hdr->seq;
 			tcp_conn->syn.opts = tsyn_entry->opts;
+#ifdef CONFIG_EVENT
+			ev_cb(sock_info, EV_READ);
+#endif
 			goto end;
 
 		}

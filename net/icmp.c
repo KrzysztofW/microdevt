@@ -1,6 +1,10 @@
 #include "icmp.h"
 #include "eth.h"
 #include "ip.h"
+#if defined(CONFIG_UDP) && defined(CONFIG_EVENT)
+#include "udp.h"
+#include "socket.h"
+#endif
 #include "chksum.h"
 
 void icmp_output(pkt_t *out, iface_t *iface, int type, int code, uint16_t id,
@@ -28,7 +32,7 @@ void icmp_input(pkt_t *pkt, iface_t *iface)
 {
 	icmp_hdr_t *icmp_hdr;
 	ip_hdr_t *ip = btod(pkt, ip_hdr_t *);
-	ip_hdr_t *ip_out;
+	ip_hdr_t *ip2;
 	buf_t id_data;
 	pkt_t *out;
 
@@ -47,18 +51,32 @@ void icmp_input(pkt_t *pkt, iface_t *iface)
 			return;
 		}
 		pkt_adj(out, (int)sizeof(eth_hdr_t));
-		ip_out = btod(out, ip_hdr_t *);
-		ip_out->dst = ip->src;
-		ip_out->src = ip->dst;
-		ip_out->p = IPPROTO_ICMP;
+		ip2 = btod(out, ip_hdr_t *);
+		ip2->dst = ip->src;
+		ip2->src = ip->dst;
+		ip2->p = IPPROTO_ICMP;
 		/* XXX adj */
 		pkt_adj(out, (int)sizeof(ip_hdr_t));
 		icmp_output(out, iface, ICMP_ECHOREPLY, 0, icmp_hdr->id,
 			    icmp_hdr->seq, &id_data, 0);
 		break;
 	case ICMP_ECHOREPLY:
-		//icmp_();
 		break;
+
+#if defined(CONFIG_UDP) && defined(CONFIG_EVENT)
+	case ICMP_UNREACH_PORT:
+		ip2 = (ip_hdr_t *)&icmp_hdr->id;
+		if (ip2->p == IPPROTO_UDP) {
+			udp_hdr_t *udp_hdr;
+			sock_info_t *sock_info;
+
+			udp_hdr =  (udp_hdr_t *)((uint8_t *)ip2 + sizeof(ip_hdr_t));
+			sock_info = udpport2sockinfo(udp_hdr->dst_port);
+			if (sock_info)
+				sock_info->events &= ~EV_WRITE;
+		}
+		break;
+#endif
 	default:
 		/* unsupported type */
 		/* inc stats */

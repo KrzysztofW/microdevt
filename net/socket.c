@@ -37,6 +37,26 @@ extern struct list_head tcp_conns;
 #endif
 #endif
 
+#ifdef CONFIG_EVENT
+
+void ev_cb(sock_info_t *sock_info, uint8_t event)
+{
+	uint8_t events = EV_NONE;
+
+	if ((sock_info->events & EV_READ) && (event & EV_READ))
+		events = EV_READ;
+	if ((sock_info->events & EV_WRITE) && (event & EV_WRITE))
+		events |= EV_WRITE;
+	if (events != EV_NONE) {
+		events = sock_info->events;
+		sock_info->events = EV_NONE;
+		sock_info->ev_cb(sock_info, events);
+		sock_info->events = events;
+	}
+}
+
+#endif
+
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_BSD_COMPAT
 static sock_info_t *fd2sockinfo(int fd)
@@ -246,7 +266,7 @@ tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
 #endif	/* CONFIG_HT_STORAGE not set */
 
 #ifdef CONFIG_TCP
-sock_status_t socket_info_state(const sock_info_t *sock_info)
+sock_status_t sock_info_state(const sock_info_t *sock_info)
 {
 	if (sock_info->type != SOCK_STREAM)
 		return SOCK_CLOSED;
@@ -418,8 +438,18 @@ int sock_info_bind(sock_info_t *sock_info, uint16_t port)
 			return -1; /* no more available ports */
 		}
 	}
-
+#ifdef CONFIG_EVENT
+	if (sock_info->type == SOCK_DGRAM) {
+		if (bind_on_port(port, sock_info) >= 0) {
+			ev_cb(sock_info, EV_WRITE);
+			return 0;
+		} else
+			return -1;
+	} else
+		return bind_on_port(port, sock_info);
+#else
 	return bind_on_port(port, sock_info);
+#endif
 }
 
 int sock_info_close(sock_info_t *sock_info)

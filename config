@@ -42,6 +42,7 @@ CONFIG_EPHEMERAL_PORT_END=65535
 
 # socket options
 CONFIG_BSD_COMPAT=y
+CONFIG_EVENT=y
 
 # use hash tables instead of lists
 # CONFIG_HT_STORAGE=y

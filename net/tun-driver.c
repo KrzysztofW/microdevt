@@ -281,10 +281,10 @@ int main(int argc, char *argv[])
 
 		if (pkt)
 			eth_input(pkt, &iface);
-#ifdef CONFIG_UDP
+#if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 		udp_app();
 #endif
-#ifdef CONFIG_TCP
+#if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 		tcp_app();
 #endif
 	}
