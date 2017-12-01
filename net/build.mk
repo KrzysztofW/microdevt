@@ -19,6 +19,12 @@ CFLAGS += -DCONFIG_UDP
 endif
 
 ifdef CONFIG_DNS
+ifeq ($(CONFIG_UDP),)
+$(error CONFIG_UDP is required for DNS)
+endif
+ifeq ($(CONFIG_EVENT),)
+$(error CONFIG_EVENT is required for DNS)
+endif
 SOURCES += net/dns.c
 CFLAGS += -DCONFIG_DNS
 endif

@@ -774,7 +774,8 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 		list_del(&pkt->list);
 		pkt_adj(pkt, -(int)sizeof(udp_hdr_t));
 		udp_hdr = btod(pkt, udp_hdr_t *);
-		*src_port = udp_hdr->src_port;
+		if (src_port)
+			*src_port = udp_hdr->src_port;
 		transport_hdr_len = (int)sizeof(udp_hdr_t);
 		break;
 #endif

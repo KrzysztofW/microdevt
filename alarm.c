@@ -64,6 +64,10 @@ int apps_init(void)
 	if (tcp_init() < 0)
 		return -1;
 #endif
+#ifdef CONFIG_DNS
+	if (dns_resolver_init() < 0)
+		return -1;
+#endif
 	return 0;
 }
 
