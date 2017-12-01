@@ -77,6 +77,24 @@ static void dns_query_timeout_cb(void *arg)
 	dns_query_ctx_free(ctx);
 }
 
+static int dns_skip_name(buf_t *buf)
+{
+	while (buf_len(buf) > 0) {
+		uint8_t len = *(buf_data(buf));
+
+		if (len == 0) {
+			/* skip len */
+			buf_adj(buf, 1);
+			return 0;
+		}
+		if (len > buf_len(buf))
+			return -1;
+		/* skip label + len */
+		buf_adj(buf, len + 1);
+	}
+	return -1;
+}
+
 static int
 dns_parse_answer(const dns_query_t *dns_answer, int data_len, uint32_t *ip)
 {
@@ -85,24 +103,31 @@ dns_parse_answer(const dns_query_t *dns_answer, int data_len, uint32_t *ip)
 	uint8_t len;
 
 	buf_init(&buf, (void *)dns_answer->queries, data_len);
-	while (nb && buf_len(&buf) > 0) {
-		len = *(buf_data(&buf));
 
-		if (len == 0) {
-			buf_adj(&buf, 5); /* skip len, type, class */
-			nb--;
-			continue;
-		}
-		if (len > buf_len(&buf))
+	/* skip queries */
+	while (nb) {
+		if (buf_len(&buf) <= 0)
 			return -1;
-		buf_adj(&buf, len + 1);
+		if (dns_skip_name(&buf) < 0)
+			return -1;
+		/* skip type + class */
+		buf_adj(&buf, 4);
+		nb--;
 	}
+
 	nb = ntohs(dns_answer->answer_rrs);
-	while (nb && buf_len(&buf)) {
+	while (nb) {
 		uint16_t type;
 
+		if (buf_len(&buf) <= 0)
+			return -1;
 		/* skip name */
-		buf_adj(&buf, 2);
+		if (*buf_data(&buf) != 0xC0) {
+			if (dns_skip_name(&buf) < 0)
+				return -1;
+		} else
+			buf_adj(&buf, 2);
+
 		type = *(uint16_t *)buf_data(&buf);
 		/* skip type, class, ttl, first byte of len */
 		buf_adj(&buf, 9);
