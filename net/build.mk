@@ -1,5 +1,11 @@
-SOURCES += net/eth.c net/if.c net/arp.c net/ip.c
-SOURCES += net/chksum.c net/pkt-mempool.c net/route.c
+ifdef CONFIG_TIMER_CHECKS
+CFLAGS += -DCONFIG_TIMER_CHECKS
+endif
+
+SOURCES = ../timer.c ../arch/$(ARCH)/timer.c
+
+SOURCES += eth.c if.c arp.c ip.c
+SOURCES += chksum.c pkt-mempool.c route.c
 
 CFLAGS += -DCONFIG_PKT_NB_MAX=$(CONFIG_PKT_NB_MAX)
 CFLAGS += -DCONFIG_PKT_SIZE=$(CONFIG_PKT_SIZE)
@@ -9,12 +15,12 @@ CFLAGS += -DCONFIG_IP_TTL=$(CONFIG_IP_TTL)
 endif
 
 ifdef CONFIG_ICMP
-SOURCES += net/icmp.c
+SOURCES += icmp.c
 CFLAGS += -DCONFIG_ICMP
 endif
 
 ifdef CONFIG_UDP
-SOURCES += net/udp.c
+SOURCES += udp.c
 CFLAGS += -DCONFIG_UDP
 endif
 
@@ -25,12 +31,12 @@ endif
 ifeq ($(CONFIG_EVENT),)
 $(error CONFIG_EVENT is required for DNS)
 endif
-SOURCES += net/dns.c
+SOURCES += dns.c
 CFLAGS += -DCONFIG_DNS
 endif
 
 ifdef CONFIG_TCP
-SOURCES += net/tcp.c
+SOURCES += tcp.c
 CFLAGS += -DCONFIG_TCP
 ifdef CONFIG_TCP_CLIENT
 CFLAGS += -DCONFIG_TCP_CLIENT
@@ -55,7 +61,7 @@ CFLAGS += -DCONFIG_ARP_EXPIRY
 endif
 
 ifeq "$(or $(CONFIG_UDP), $(CONFIG_TCP))" "y"
-SOURCES += net/socket.c
+SOURCES += socket.c
 CFLAGS += -DCONFIG_TRANSPORT_MAX_HT=$(CONFIG_TRANSPORT_MAX_HT)
 CFLAGS += -DCONFIG_TCP_SYN_TABLE_SIZE=$(CONFIG_TCP_SYN_TABLE_SIZE)
 CFLAGS += -DCONFIG_EPHEMERAL_PORT_START=$(CONFIG_EPHEMERAL_PORT_START)
@@ -68,14 +74,19 @@ ifeq ($(CONFIG_MAX_SOCK_HT_SIZE),)
 $(error CONFIG_MAX_SOCK_HT_SIZE not set)
 endif
 CFLAGS += -DCONFIG_MAX_SOCK_HT_SIZE=$(CONFIG_MAX_SOCK_HT_SIZE)
-SOURCES += sys/hash-tables.c
+SOURCES += ../sys/hash-tables.c
 endif
 
 ifdef CONFIG_BSD_COMPAT
 CFLAGS += -DCONFIG_BSD_COMPAT
-NEED_ERRNO = yes
+SOURCES += ../sys/errno.c
 endif
 
 ifdef CONFIG_EVENT
 CFLAGS += -DCONFIG_EVENT
+endif
+
+ifdef TEST
+CFLAGS += -DTEST
+SOURCES += tests.c
 endif

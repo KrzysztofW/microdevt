@@ -1,7 +1,7 @@
 #ifndef ENC28J60_H
 #define ENC28J60_H
-#include <buf.h>
-#include <if.h>
+#include <sys/buf.h>
+#include <net/if.h>
 
 // Register Masks
 #define ADDR_MASK 0x1F

@@ -6,17 +6,16 @@
 #include <watchdog.h>
 #include <adc.h>
 #include <enc28j60.h>
+#include <rf.h>
 
-#include "sys/ring.h"
-#include "timer.h"
-#include "rf.h"
-#include "net/config.h"
-#include "net/eth.h"
-#include "net/arp.h"
-#include "net/route.h"
-#include "net/udp.h"
-#include "net/socket.h"
-#include "net_apps/net_apps.h"
+#include <sys/ring.h>
+#include <timer.h>
+#include <net/config.h>
+#include <net/eth.h>
+#include <net/route.h>
+#include <net/udp.h>
+#include <net/socket.h>
+#include <net_apps/net_apps.h>
 
 #ifdef NET
 uint8_t net_wd;

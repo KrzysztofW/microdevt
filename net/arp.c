@@ -1,7 +1,7 @@
 #include "arp.h"
 #include "eth.h"
 #include "ip.h"
-#include "../timer.h"
+#include <timer.h>
 
 arp_entries_t arp_entries;
 #ifdef CONFIG_IPV6

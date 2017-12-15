@@ -5,11 +5,12 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "sys/ring.h"
-#include "sys/list.h"
-#include "sys/hash-tables.h"
-#include "timer.h"
-#include "net/tests.h"
+#include <sys/ring.h>
+#include <sys/list.h>
+#include <sys/hash-tables.h>
+#include <timer.h>
+#include <net/tests.h>
+#include <net/arp.h>
 
 static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 {
@@ -384,7 +385,7 @@ static int timer_check(void)
 	int i;
 
 	memset(timer_els, 0, sizeof(timer_el_t) * TIM_CNT);
-	if (timer_subsystem_init(1000000) < 0) {
+	if (timer_subsystem_init() < 0) {
 		fprintf(stderr, "can't initialize timer subsystem\n");
 		return -1;
 	}

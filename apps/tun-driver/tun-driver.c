@@ -19,18 +19,14 @@
 #define STRING(e) #e
 #endif
 
-#include "../timer.h"
-#include "config.h"
-#include "tests.h"
-#include "arp.h"
-#include "eth.h"
-#include "udp.h"
-#include "route.h"
+#include <timer.h>
+#include <net/eth.h>
+#include <net/route.h>
 #define SOCKLEN_DEFINED
-#include "socket.h"
+#include <net/socket.h>
 #undef SOCKLEN_DEFINED
-#include "../net_apps/net_apps.h"
-#include "pkt-mempool.h"
+#include <net_apps/net_apps.h>
+#include <net/pkt-mempool.h>
 
 #include <linux/if.h>
 #include <linux/if_tun.h>
@@ -94,7 +90,6 @@ static pkt_t *tun_receive_pkt(void)
 	pkt_t *pkt;
 	uint8_t buf[2048];
 	ssize_t nread;
-
 
 	if (poll(tun_fds, 1, -1) < 0) {
 		if (errno == EINTR)
