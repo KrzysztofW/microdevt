@@ -163,16 +163,15 @@ static void ev_dns_cb(sock_info_t *sock_info, uint8_t events)
 	if (__socket_get_pkt(&ctx->sock_info, &pkt, NULL, NULL) < 0)
 		return;
 
-	if (pkt_len(pkt) < sizeof(dns_query_t))
+	data_len = pkt_len(pkt) - (sizeof(dns_query_t) - 1);
+	if (data_len <= 0)
 		goto error;
 
 	dns_answer = btod(pkt, dns_query_t *);
 	if (ctx->tr_id != dns_answer->tr_id)
 		goto error;
 
-	if ((data_len = pkt_len(pkt) - (sizeof(dns_query_t) - 1)) < 0)
-		goto error;
-
+	/* XXX check for error flag */
 	if (dns_parse_answer(dns_answer, data_len, &ip) < 0) {
 		DEBUG_LOG("failed parsing DNS answer\n");
 		goto end;
