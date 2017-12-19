@@ -19,8 +19,8 @@ uint8_t broadcast_mac[] = { 0xFF };
 #define ARP_RETRIES 2
 
 struct arp_res {
-	struct list_head list;
-	struct list_head pkt_list;
+	list_t list;
+	list_t pkt_list;
 	tim_t tim;
 	iface_t *iface;
 	uint8_t retries;
@@ -28,7 +28,7 @@ struct arp_res {
 } __attribute__((__packed__));
 typedef struct arp_res arp_res_t;
 
-struct list_head arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
+list_t arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
 
 int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 {

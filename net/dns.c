@@ -46,7 +46,7 @@ typedef struct dns_query dns_query_t;
 
 struct dns_query_ctx {
 	sock_info_t sock_info;
-	struct list_head list;
+	list_t list;
 	tim_t timer;
 	uint16_t tr_id;
 	void (*cb)(uint32_t ip);

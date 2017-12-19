@@ -9,7 +9,7 @@
 struct pkt {
 	buf_t buf;
 #ifndef RING_POOL
-	struct list_head list;
+	list_t list;
 #else
 	uint8_t offset;
 #endif
@@ -31,8 +31,8 @@ typedef struct pkt pkt_t;
 
 void pkt_mempool_shutdown(void);
 int pkt_mempool_init(void);
-pkt_t *pkt_get(struct list_head *head);
-int pkt_put(struct list_head *head, pkt_t *pkt);
+pkt_t *pkt_get(list_t *head);
+int pkt_put(list_t *head, pkt_t *pkt);
 
 #ifdef PKT_DEBUG
 pkt_t *__pkt_alloc(const char *func, int line);

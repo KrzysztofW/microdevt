@@ -7,10 +7,10 @@
 #include "../sys/hash-tables.h"
 
 #ifdef CONFIG_HT_STORAGE
-/* htable keys (tcp uids), values are pkt list (struct list_head) */
+/* htable keys (tcp uids), values are pkt list (list_t) */
 hash_table_t *tcp_conns;
 #else
-struct list_head tcp_conns = LIST_HEAD_INIT(tcp_conns);
+list_t tcp_conns = LIST_HEAD_INIT(tcp_conns);
 #endif
 uint8_t tcp_conn_cnt;
 
@@ -23,7 +23,7 @@ typedef struct syn_entries syn_entries_t;
 syn_entries_t syn_entries;
 
 #ifdef CONFIG_TCP_CLIENT
-struct list_head tcp_client_conns = LIST_HEAD_INIT(tcp_client_conns);
+list_t tcp_client_conns = LIST_HEAD_INIT(tcp_client_conns);
 #endif
 
 #ifdef CONFIG_TCP_RETRANSMIT

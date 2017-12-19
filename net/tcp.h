@@ -72,14 +72,14 @@ typedef struct tcp_uid tcp_uid_t;
 #ifdef CONFIG_TCP_RETRANSMIT
 struct tcp_retrn_pkt {
 	pkt_t *pkt;
-	struct list_head list;
+	list_t list;
 } __attribute__((__packed__));
 typedef struct tcp_retrn_pkt tcp_retrn_pkt_t;
 
 struct tcp_retrn {
 	tim_t timer;
 	uint8_t cnt;
-	struct list_head retrn_pkt_list;
+	list_t retrn_pkt_list;
 } __attribute__((__packed__));
 typedef struct tcp_retrn tcp_retrn_t;
 #endif
@@ -101,8 +101,8 @@ typedef struct tcp_syn tcp_syn_t;
 struct tcp_conn {
 	tcp_syn_t syn;
 	void *sock_info;
-	struct list_head list;
-	struct list_head pkt_list_head;
+	list_t list;
+	list_t pkt_list_head;
 #ifdef CONFIG_TCP_RETRANSMIT
 	tcp_retrn_t retrn;
 #endif

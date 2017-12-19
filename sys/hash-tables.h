@@ -8,13 +8,13 @@
 typedef struct node {
 	sbuf_t key;
 	sbuf_t val;
-	struct list_head list;
+	list_t list;
 } node_t;
 
 typedef struct hash_table {
 	int size;
 	int len;
-	struct list_head *list_head; /* TODO use hlist_head */
+	list_t *list_head; /* TODO use hlist_head */
 } hash_table_t;
 
 /* htable size must by power of 2 */

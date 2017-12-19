@@ -15,7 +15,7 @@
 #if defined(CONFIG_HT_STORAGE) && defined(CONFIG_BSD_COMPAT)
 hash_table_t *fd_to_sock;
 #else
-struct list_head sock_list = LIST_HEAD_INIT(sock_list);
+list_t sock_list = LIST_HEAD_INIT(sock_list);
 #endif
 
 #ifdef CONFIG_BSD_COMPAT
@@ -33,7 +33,7 @@ extern hash_table_t *tcp_conns;
 #endif
 #else  /* CONFIG_HT_STORAGE */
 #ifdef CONFIG_TCP
-extern struct list_head tcp_conns;
+extern list_t tcp_conns;
 #endif
 #endif
 
@@ -867,7 +867,7 @@ int close(int fd)
 
 #endif	/* CONFIG_BSD_COMPAT */
 
-void socket_append_pkt(struct list_head *list_head, pkt_t *pkt)
+void socket_append_pkt(list_t *list_head, pkt_t *pkt)
 {
 	list_add_tail(&pkt->list, list_head);
 }

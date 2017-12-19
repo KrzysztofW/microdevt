@@ -15,7 +15,7 @@ hash_table_t *htable_create(int size)
 		return NULL;
 	}
 
-	htable->list_head = malloc(sizeof(struct list_head) * size);
+	htable->list_head = malloc(sizeof(list_t) * size);
 	if (htable->list_head == NULL)
 		return NULL;
 
@@ -137,7 +137,7 @@ int htable_del(hash_table_t *htable, const sbuf_t *key)
 {
 	uint32_t hashval = hash_function(htable, *key);
 	node_t *e;
-	struct list_head *list, *tmp;
+	list_t *list, *tmp;
 
 	list_for_each_safe(list, tmp, &htable->list_head[hashval]) {
 		e = list_entry(list, node_t, list);
@@ -160,7 +160,7 @@ htable_for_each(hash_table_t *htable, void (*cb)(sbuf_t *key, sbuf_t *val))
 
 	for (i = 0; i < htable->size; i++) {
 		node_t *e;
-		struct list_head *list, *tmp;
+		list_t *list, *tmp;
 
 		list_for_each_safe(list, tmp, &htable->list_head[i]) {
 			e = list_entry(list, node_t, list);

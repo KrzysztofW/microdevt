@@ -17,14 +17,14 @@
 
 struct timer_state {
 	int current_idx;
-	struct list_head timer_list[TIMER_TABLE_SIZE];
+	list_t timer_list[TIMER_TABLE_SIZE];
 } __attribute__((__packed__));
 struct timer_state timer_state;
 
 void timer_process(void)
 {
 	int idx;
-	struct list_head *pos, *n;
+	list_t *pos, *n;
 	uint8_t process_again = 0;
 
 	timer_state.current_idx = idx = (timer_state.current_idx + 1)

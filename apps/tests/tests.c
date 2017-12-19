@@ -155,7 +155,7 @@ static int ring_check(void)
 }
 
 typedef struct list_el {
-	struct list_head list;
+	list_t list;
 	int a;
 	int b;
 } list_el_t;
@@ -166,8 +166,8 @@ static int list_check(void)
 {
 	int i;
 	list_el_t *e;
-	struct list_head list_head;
-	struct list_head *node, *tmp;
+	list_t list_head;
+	list_t *node, *tmp;
 
 	INIT_LIST_HEAD(&list_head);
 	for (i = 0; i < LIST_ELEMS; i++) {

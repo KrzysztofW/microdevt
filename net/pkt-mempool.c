@@ -3,8 +3,8 @@
 unsigned char buffer_data[CONFIG_PKT_SIZE * CONFIG_PKT_NB_MAX];
 pkt_t buffer_pool[CONFIG_PKT_NB_MAX];
 #ifndef RING_POOL
-struct list_head __pkt_pool;
-struct list_head *pkt_pool = &__pkt_pool;
+list_t __pkt_pool;
+list_t *pkt_pool = &__pkt_pool;
 #else
 ring_t *pkt_pool;
 #endif
@@ -17,7 +17,7 @@ int pkt_is_emergency(pkt_t *pkt)
 }
 
 #ifndef RING_POOL
-pkt_t *pkt_get(struct list_head *head)
+pkt_t *pkt_get(list_t *head)
 {
 	pkt_t *pkt;
 
@@ -29,7 +29,7 @@ pkt_t *pkt_get(struct list_head *head)
 	return pkt;
 }
 
-int pkt_put(struct list_head *head, pkt_t *pkt)
+int pkt_put(list_t *head, pkt_t *pkt)
 {
 	assert(pkt->list.next == LIST_POISON1 && pkt->list.prev == LIST_POISON2);
 	list_add_tail(&pkt->list, head);

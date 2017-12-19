@@ -32,8 +32,8 @@ struct iface {
 	uint16_t rx_errors;
 	uint16_t rx_dropped;
 #endif
-	struct list_head rx;
-	struct list_head tx;
+	list_t rx;
+	list_t tx;
 } __attribute__((__packed__));
 typedef struct iface iface_t;
 

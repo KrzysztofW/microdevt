@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "timer.h"
 
 /* 8-bit timer 300us resolution
