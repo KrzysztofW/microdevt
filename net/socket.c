@@ -89,7 +89,7 @@ static hash_table_t *get_hash_table(int type)
 	}
 }
 
-static sock_info_t *port2sockinfo(int type, uint16_t port)
+static sock_info_t *port2sockinfo(uint8_t type, uint16_t port)
 {
 	sbuf_t key, *val;
 	hash_table_t *ht = get_hash_table(type);
@@ -183,7 +183,7 @@ static sock_info_t *fd2sockinfo(int fd)
 }
 #endif
 
-static sock_info_t *port2sockinfo(int type, uint16_t port)
+static sock_info_t *port2sockinfo(uint8_t type, uint16_t port)
 {
 	sock_info_t *sock_info;
 
@@ -411,7 +411,7 @@ int max_retries = CONFIG_EPHEMERAL_PORT_END - CONFIG_EPHEMERAL_PORT_START;
 /* return val of 0 => no ports available  */
 static uint16_t socket_get_ephemeral_port(uint8_t type)
 {
-	static unsigned ephemeral_port = CONFIG_EPHEMERAL_PORT_START;
+	static uint16_t ephemeral_port = CONFIG_EPHEMERAL_PORT_START;
 	uint16_t port;
 	int retries = 0;
 
@@ -419,11 +419,11 @@ static uint16_t socket_get_ephemeral_port(uint8_t type)
 	do {
 		port = htons(ephemeral_port);
 		ephemeral_port++;
-		if (ephemeral_port >= EPHEMERAL_PORT_END)
-			ephemeral_port = EPHEMERAL_PORT_START;
+		if (ephemeral_port >= CONFIG_EPHEMERAL_PORT_END)
+			ephemeral_port = CONFIG_EPHEMERAL_PORT_START;
 		if (port2sockinfo(type, port) == NULL)
 			return port;
-	} while (retries < max_retries);
+	} while (++retries < max_retries);
 	return 0;
 }
 
@@ -443,13 +443,11 @@ int sock_info_bind(sock_info_t *sock_info, uint16_t port)
 		if (bind_on_port(port, sock_info) >= 0) {
 			ev_cb(sock_info, EV_WRITE);
 			return 0;
-		} else
-			return -1;
-	} else
-		return bind_on_port(port, sock_info);
-#else
-	return bind_on_port(port, sock_info);
+		}
+		return -1;
+	}
 #endif
+	return bind_on_port(port, sock_info);
 }
 
 int sock_info_close(sock_info_t *sock_info)

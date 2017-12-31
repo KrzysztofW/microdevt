@@ -6,9 +6,6 @@
 #include "tcp.h"
 #endif
 
-#define EPHEMERAL_PORT_START 49152
-#define EPHEMERAL_PORT_END   65535
-
 /*
  * Socket types
  */
