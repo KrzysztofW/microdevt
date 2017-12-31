@@ -55,7 +55,7 @@ struct dns_query_ctx {
 } __attribute__((__packed__));
 typedef struct dns_query_ctx dns_query_ctx_t;
 
-#define DNS_QUERY_TIMEOUT 10000U /* millisecs */
+#define DNS_QUERY_TIMEOUT 10000UL /* millisecs */
 #define DNS_TYPE_LEN 2
 #define DNS_CLASS_LEN 2
 
