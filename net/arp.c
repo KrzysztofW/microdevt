@@ -12,8 +12,7 @@ arp6_entries_t arp6_entries;
 tim_t arp_timer;
 #endif
 
-/* only the first byte is actually checked */
-uint8_t broadcast_mac[] = { 0xFF };
+uint8_t broadcast_mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
 #define ARP_RETRY_TIMEOUT 3 /* seconds */
 #define ARP_RETRIES 2
