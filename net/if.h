@@ -23,7 +23,7 @@ struct iface {
 	uint8_t ip6_addr[IP6_ADDR_LEN];
 #endif
 	uint16_t (*send)(const buf_t *out);
-	uint16_t (*recv)(buf_t *in);
+	pkt_t *(*recv)(void);
 #ifdef CONFIG_STATS
 	uint16_t rx_packets;
 	uint16_t rx_errors;
@@ -38,7 +38,7 @@ struct iface {
 typedef struct iface iface_t;
 
 int if_init(iface_t *ifce, uint16_t (*send)(const buf_t *out),
-	    uint16_t (*recv)(buf_t *in));
+	    pkt_t *(*recv)(void));
 void if_shutdown(iface_t *ifce);
 
 #endif

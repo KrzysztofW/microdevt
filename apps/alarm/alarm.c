@@ -26,14 +26,13 @@ iface_t eth0 = {
 	.ip4_addr = { 192, 168, 0, 99 },
 	.ip4_mask = { 255, 255, 255, 0 },
 };
-#endif
 
-#ifdef NET
-
+#ifdef NET_INT
 ISR(PCINT0_vect)
 {
 	enc28j60_get_pkts(&eth0);
 }
+#endif
 
 void tim_cb_wd(void *arg)
 {
@@ -44,8 +43,7 @@ void tim_cb_wd(void *arg)
 	if (net_wd > 0) {
 		DEBUG_LOG("resetting net device\n");
 #ifndef CONFIG_AVR_SIMU
-		ENC28J60_reset();
-		enc28j60_iface_reset(&eth0);
+		enc28j60_init(eth0.mac_addr);
 #endif
 	}
 	net_wd++;
@@ -82,6 +80,24 @@ void apps(void)
 }
 #endif
 
+static void bh(void)
+{
+	pkt_t *pkt;
+
+	if ((pkt = eth0.recv()) == NULL)
+		goto send;
+
+	eth_input(pkt, &eth0);
+	net_wd = 0;
+ send:
+	while ((pkt = pkt_get(&eth0.tx)) != NULL) {
+		cli();
+		eth0.send(&pkt->buf);
+		sei();
+		pkt_free(pkt);
+	}
+}
+
 int main(void)
 {
 #ifdef NET
@@ -105,7 +121,7 @@ int main(void)
 	memset(&timer_wd, 0, sizeof(tim_t));
 	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
 
-	if (if_init(&eth0, &ENC28J60_PacketSend, &ENC28J60_PacketReceive) < 0) {
+	if (if_init(&eth0, &enc28j60_pkt_send, &enc28j60_pkt_recv) < 0) {
 		DEBUG_LOG("can't initialize interface\n");
 		return -1;
 	}
@@ -115,20 +131,19 @@ int main(void)
 	}
 
 	dft_route.iface = &eth0;
-	dft_route.ip = 0x0100a8c0;
+	dft_route.ip = 0x0b00a8c0;
 #if defined(CONFIG_UDP) || defined(CONFIG_TCP)
 	socket_init(); /* check return val in case of hash-table storage */
 #endif
 #ifdef NET
-	enc28j60_iface_reset(&eth0);
+	enc28j60_init(eth0.mac_addr);
 #endif
 
+#ifdef NET_INT
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
 #endif
-	if (apps_init() < 0)
-		return -1;
-
+#endif
 	watchdog_enable();
 
 #ifdef CONFIG_RF
@@ -138,36 +153,30 @@ int main(void)
 	}
 #endif
 
+	delay_ms(3000);
+	if (apps_init() < 0)
+		return -1;
+
 	while (1) {
 		/* slow functions */
-#ifdef NET
-		pkt_t *pkt;
-#endif
 
-		cli();
-#ifdef NET
-		if ((pkt = pkt_get(&eth0.rx)) != NULL) {
-			eth_input(pkt, &eth0);
-		}
-		while ((pkt = pkt_get(&eth0.tx)) != NULL) {
-			eth0.send(&pkt->buf);
-			pkt_free(pkt);
-		}
-#endif
+		bh(); /* bottom halves */
 #ifdef CONFIG_RF
 		rf_decode_cmds();
 #endif
-		sei();
 
 #if defined(NET) && !defined(CONFIG_EVENT)
 		apps();
 #endif
 
-		delay_ms(10);
+#ifdef NET_INT
+		/* strangly this is necessary if using SPI interrupts */
+		delay_us(10);
+#endif
 		watchdog_reset();
 	}
 #ifdef CONFIG_RF
-		/* rf_shutdown(); */
+	/* rf_shutdown(); */
 #endif
 	return 0;
 }

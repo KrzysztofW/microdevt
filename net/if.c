@@ -2,7 +2,7 @@
 #include "pkt-mempool.h"
 
 int if_init(iface_t *ifce, uint16_t (*send)(const buf_t *),
-	    uint16_t (*recv)(buf_t *))
+	    pkt_t *(*recv)(void))
 {
 	INIT_LIST_HEAD(&ifce->rx);
 	INIT_LIST_HEAD(&ifce->tx);

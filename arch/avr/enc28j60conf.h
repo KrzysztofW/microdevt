@@ -1,0 +1,34 @@
+#ifndef _ENC28J60CONF_H_
+#define _ENC28J60CONF_H_
+
+/* ENC28J60 SPI port */
+#define ENC28J60_SPI_PORT	PORTB
+#define ENC28J60_SPI_DDR	DDRB
+#define ENC28J60_SPI_SCK	5
+#define ENC28J60_SPI_MOSI	3
+#define ENC28J60_SPI_MISO	4
+#define ENC28J60_SPI_SS		2
+
+/* ENC28J60 control port */
+#define ENC28J60_CONTROL_PORT	PORTB
+#define ENC28J60_CONTROL_DDR	DDRB
+#define ENC28J60_CONTROL_CS	2
+
+/* MAC address for this interface */
+#ifdef ETHADDR0
+#define ENC28J60_MAC0 ETHADDR0
+#define ENC28J60_MAC1 ETHADDR1
+#define ENC28J60_MAC2 ETHADDR2
+#define ENC28J60_MAC3 ETHADDR3
+#define ENC28J60_MAC4 ETHADDR4
+#define ENC28J60_MAC5 ETHADDR5
+#else
+#define ENC28J60_MAC0 'A'
+#define ENC28J60_MAC1 'B'
+#define ENC28J60_MAC2 'C'
+#define ENC28J60_MAC3 'D'
+#define ENC28J60_MAC4 'E'
+#define ENC28J60_MAC5 'F'
+#endif
+
+#endif

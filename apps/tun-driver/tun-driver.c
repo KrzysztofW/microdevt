@@ -33,9 +33,8 @@
 
 struct pollfd tun_fds[1];
 
-uint16_t recv(buf_t *in)
+pkt_t *recv(void)
 {
-	(void)in;
 	return 0;
 }
 
