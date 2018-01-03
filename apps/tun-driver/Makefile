@@ -38,7 +38,7 @@ $(EXE): $(OBJ)
 	@if [ -f tun-driver ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
 
 run: all
-	LD_LIBRARY_PATH=../../net ./tests
+	LD_LIBRARY_PATH=../../net sudo ./tun-driver
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
