@@ -12,7 +12,7 @@ static inline void disable_timer_int(void)
 
 static inline void enable_timer_int(void)
 {
-	TCCR1B = (1<<CS11);
+	TCCR1B = 1 << CS11;
 }
 
 void __timer_subsystem_init(void);

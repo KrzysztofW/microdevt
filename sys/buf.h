@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log.h"
 #include "utils.h"
 
 struct static_buf {
@@ -188,9 +189,9 @@ static inline void sbuf_print(const sbuf_t *buf)
 	int i;
 
 	for (i = 0; i < buf->len; i++) {
-		printf(" 0x%02X", buf->data[i]);
+		DEBUG_LOG(" 0x%02X", buf->data[i]);
 	}
-	puts("");
+	DEBUG_LOG("\n");
 }
 #else
 #define sbuf_print(x)

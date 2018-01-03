@@ -8,7 +8,6 @@
 #include <enc28j60.h>
 #include <rf.h>
 
-#include <sys/ring.h>
 #include <timer.h>
 #include <net/config.h>
 #include <net/eth.h>
@@ -71,7 +70,7 @@ int apps_init(void)
 #ifndef CONFIG_EVENT
 void apps(void)
 {
-#if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
+#if defined(CONFIG_UDP) && !defined(CONFIG_EVENT)
 	udp_app();
 #endif
 #if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)

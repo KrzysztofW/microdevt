@@ -40,7 +40,7 @@ int pkt_put(list_t *head, pkt_t *pkt)
 pkt_t *pkt_get(ring_t *ring)
 {
 	uint8_t offset;
-	int ret = ring_getc_finish(ring, &offset);
+	int ret = ring_getc(ring, &offset);
 
 	if (ret < 0)
 		return NULL;
