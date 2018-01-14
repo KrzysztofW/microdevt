@@ -34,10 +34,14 @@ libnet-$(ARCH).a:
 libnet-$(ARCH).so:
 	$(CC) $(LDFLAGS) $(LIBS) -o $(LIBNAME).so $(OBJ)
 
+CHKSUM_TEST_OBJ = chksum_test.o chksum.o
+chksum_test: $(CHKSUM_TEST_OBJ)
+	$(CC) $(CHKSUM_TEST_OBJ) -o $@
+
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
 clean:
-	@rm -f $(LIBNAME).so $(LIBNAME).a *~ "#*#" $(OBJ)
+	@rm -f $(LIBNAME).so $(LIBNAME).a *~ "#*#" $(OBJ) $(CHKSUM_TEST_OBJ) chksum_test
 
 .PHONY: all
