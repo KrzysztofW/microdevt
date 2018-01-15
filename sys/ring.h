@@ -2,20 +2,15 @@
 #define _RING_H_
 
 #include <stdlib.h>
+#include <sys/chksum.h>
+#include "buf.h"
 #include "utils.h"
-
-struct byte {
-	unsigned char c;
-	int pos;
-} __attribute__((__packed__));
-typedef struct byte byte_t;
 
 struct ring {
 	int head;
 	int tail;
-	byte_t byte;
 	int mask;
-	unsigned char data[];
+	uint8_t data[];
 } __attribute__((__packed__));
 typedef struct ring ring_t;
 
@@ -27,19 +22,8 @@ size = 3
 
 */
 
-static inline void reset_byte(byte_t *byte)
-{
-	byte->pos = 0;
-}
-
-static inline void ring_reset_byte(ring_t *ring)
-{
-	reset_byte(&ring->byte);
-}
-
 static inline void ring_reset(ring_t *ring)
 {
-	reset_byte(&ring->byte);
 	ring->tail = ring->head;
 }
 
@@ -80,11 +64,6 @@ static inline int ring_is_empty(const ring_t *ring)
 	return ring->tail == ring->head;
 }
 
-static inline int ring_is_empty2(const ring_t *ring)
-{
-	return ring->tail == ring->head && ring->byte.pos == 0;
-}
-
 static inline int ring_len(const ring_t *ring)
 {
 	return ring->mask - ((ring->mask + ring->tail
@@ -96,13 +75,13 @@ static inline int ring_free_entries(const ring_t *ring)
 	return ring->mask - ring_len(ring);
 }
 
-static inline void __ring_addc(ring_t *ring, unsigned char c)
+static inline void __ring_addc(ring_t *ring, uint8_t c)
 {
 	ring->data[ring->head] = c;
 	ring->head = (ring->head + 1) & ring->mask;
 }
 
-static inline int ring_addc(ring_t *ring, unsigned char c)
+static inline int ring_addc(ring_t *ring, uint8_t c)
 {
 	if (ring_is_full(ring))
 		return -1;
@@ -110,27 +89,47 @@ static inline int ring_addc(ring_t *ring, unsigned char c)
 	return 0;
 }
 
-static inline int ring_add(ring_t *ring, void *data, int len)
+static inline void __ring_addbuf(ring_t *ring, const buf_t *buf)
 {
 	int i;
-	unsigned char *d = data;
+	uint8_t *d = buf->data;
 
-	if (ring->mask - ring_len(ring) <= 0)
-		return -1;
-	for (i = 0; i < len; i++) {
+	for (i = 0; i < buf->len; i++) {
 		__ring_addc(ring, d[0]);
 		d++;
 	}
+}
+
+static inline int ring_addbuf(ring_t *ring, const buf_t *buf)
+{
+	if (ring->mask - ring_len(ring) <= 0)
+		return -1;
+	__ring_addbuf(ring, buf);
 	return 0;
 }
 
-static inline void __ring_getc(ring_t *ring, unsigned char *c)
+static inline void __ring_getc(ring_t *ring, uint8_t *c)
 {
-	*c = (unsigned char)ring->data[ring->tail];
+	*c = (uint8_t)ring->data[ring->tail];
 	ring->tail = (ring->tail + 1) & ring->mask;
 }
 
-static inline int ring_getc(ring_t *ring, unsigned char *c)
+static inline int
+__ring_get_dont_skip(const ring_t *ring, buf_t *buf, int len)
+{
+	int i;
+
+	len = MIN(len, ring_len(ring));
+	for (i = 0; i < len; i++) {
+		int pos = (ring->tail + i) & ring->mask;
+
+		if (buf_addc(buf, ring->data[pos]) < 0)
+			break;
+	}
+	return i;
+}
+
+static inline int ring_getc(ring_t *ring, uint8_t *c)
 {
 	if (ring_is_empty(ring)) {
 		return -1;
@@ -139,15 +138,27 @@ static inline int ring_getc(ring_t *ring, unsigned char *c)
 	return 0;
 }
 
-static inline int ring_get(ring_t *ring, void *data, int len)
+static inline void __ring_get(ring_t *ring, void *data, int len)
 {
-	unsigned char *c = data;
+	uint8_t *c = data;
 
-	if (ring_len(ring) < len)
-		return -1;
 	while (len--)
 		__ring_getc(ring, c++);
-	return 0;
+}
+
+static inline int ring_get(ring_t *ring, buf_t *buf)
+{
+	int rlen = ring_len(ring);
+	int len = buf->size - (buf->len + buf->skip);
+
+	if (rlen == 0)
+		return -1;
+	return __ring_get_dont_skip(ring, buf, len);
+}
+
+static inline void __ring_skip(ring_t *ring, int len)
+{
+	ring->tail = (ring->tail + len) & ring->mask;
 }
 
 static inline void ring_skip(ring_t *ring, int len)
@@ -159,19 +170,10 @@ static inline void ring_skip(ring_t *ring, int len)
 
 	if (rlen < len)
 		len = rlen;
-	ring->tail = (ring->tail + len) & ring->mask;
+	__ring_skip(ring, len);
 }
 
 #ifdef DEBUG
-static inline void print_byte(const byte_t *byte)
-{
-	int j;
-
-	for (j = 0; j < byte->pos; j++) {
-		printf("%s", ((byte->c  >> (7 - j)) & 1) ? "X" : " ");
-	}
-}
-
 static inline void ring_print_limit(const ring_t *ring, int limit)
 {
 	int i;
@@ -192,6 +194,7 @@ static inline void ring_print_limit(const ring_t *ring, int limit)
 	}
 	puts("");
 }
+
 static inline void ring_print(const ring_t *ring)
 {
 	ring_print_limit(ring, 0);
@@ -206,51 +209,22 @@ static inline void ring_print_bits(const ring_t *ring)
 
 	for (i = 0; i < ring_len(ring); i++) {
 		int pos = (ring->tail + i) & ring->mask;
-		unsigned char byte = ring->data[pos];
+		uint8_t byte = ring->data[pos];
 		int j;
 
 		for (j = 0; j < 8; j++) {
 			printf("%s", ((byte >> (7 - j)) & 1) ? "X" : " ");
 		}
 	}
-	if (ring->byte.pos)
-		printf("byte:");
-	print_byte(&ring->byte);
-	puts("");
+	puts("\n");
 }
 #else
-static inline void print_byte(const byte_t *byte)
-{
-	(void)byte;
-}
-static inline void ring_print(const ring_t *ring)
-{
-	(void)ring;
-}
-static inline void ring_print_bits(const ring_t *ring)
-{
-	(void)ring;
-}
+#define ring_print(x)
+#define ring_print_bits(x)
 #endif
 
-static inline int ring_add_bit(ring_t *ring, int bit)
-{
-	ring->byte.c = (ring->byte.c << 1) | bit;
-	ring->byte.pos++;
-
-	if (ring->byte.pos >= 8) {
-		ring->byte.pos = 0;
-		if (ring_is_full(ring))
-			return -1;
-
-		ring_addc(ring, ring->byte.c);
-		ring->byte.c = 0;
-	}
-	return 0;
-}
-
 static inline int
-ring_cmp(const ring_t *ring, const unsigned char *str, int len)
+ring_cmp(const ring_t *ring, const uint8_t *data, int len)
 {
 	int i;
 
@@ -260,9 +234,29 @@ ring_cmp(const ring_t *ring, const unsigned char *str, int len)
 	for (i = 0; i < len; i++) {
 		int pos = (ring->tail + i) & ring->mask;
 
-		if (ring->data[pos] != str[i])
+		if (ring->data[pos] != data[i])
 			return -1;
 	}
 	return 0;
+}
+
+static inline int
+__ring_cksum(const ring_t *ring, int len)
+{
+	int i;
+	uint32_t csum = 0;
+
+	for (i = 0; i < len; i++) {
+		int pos = (ring->tail + i) & ring->mask;
+		uint16_t w = ring->data[pos];
+
+		if (i + 1 < len) {
+			pos = (ring->tail + i + 1) & ring->mask;
+			w |= (ring->data[pos] << 8);
+			i++;
+		}
+		csum += w;
+	}
+	return cksum_finish(csum);
 }
 #endif

@@ -5,7 +5,7 @@ endif
 SOURCES = ../timer.c ../arch/$(ARCH)/timer.c
 
 SOURCES += eth.c if.c arp.c ip.c
-SOURCES += chksum.c pkt-mempool.c route.c
+SOURCES += tr_chksum.c ../sys/chksum.c pkt-mempool.c route.c
 
 CFLAGS += -DCONFIG_PKT_NB_MAX=$(CONFIG_PKT_NB_MAX)
 CFLAGS += -DCONFIG_PKT_SIZE=$(CONFIG_PKT_SIZE)

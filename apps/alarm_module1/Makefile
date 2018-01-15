@@ -1,9 +1,9 @@
-# ../simulavr/src/simulavr  -f alarm -d atmega328 -F 16000000
+# ../simulavr/src/simulavr  -f alarm_module1 -d atmega328 -F 16000000
 
-EXE = alarm
+EXE = alarm_module1
 CFLAGS = -Wall -Werror -Os -g -c
 
-SOURCES = alarm.c $(ARCH_DIR)/$(ARCH)/enc28j60.c $(ARCH_DIR)/$(ARCH)/adc.c
+SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../timer.c $(ARCH_DIR)/$(ARCH)/timer.c
 
 include config
 include build.mk
@@ -21,28 +21,19 @@ else
 	CFLAGS += -DNDEBUG
 endif
 
-NET_APPS_DIR=../../net_apps
-
-include $(NET_APPS_DIR)/build.mk
-
 CFLAGS += -I../.. -I.
 
-STATIC_LIBS = ../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
-all: libnet $(SOURCES) $(EXE)
-
-libnet:
-	make -C ../../net
+all: $(SOURCES) $(EXE)
 
 $(EXE): $(OBJ)
-	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
+	$(CC) $(OBJ) $(LDFLAGS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
 clean:
-	make -C ../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec $(ARCH_DIR)/$(ARCH)/*.o
 
 run_simu: all
@@ -56,7 +47,7 @@ upload: all
 
 size: all
 	#avr-nm -S --size-sort -t d <obj-file>
-	avr-size -C --mcu=${CONFIG_AVR_MCU} alarm
+	avr-size -C --mcu=${CONFIG_AVR_MCU} alarm_module1
 
 read_fuses:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h

@@ -1,12 +1,13 @@
+#include <assert.h>
+#include <sys/chksum.h>
+#include "tr_chksum.h"
 #include "ip.h"
 #include "icmp.h"
 #include "arp.h"
 #include "eth.h"
-#include "chksum.h"
 #include "route.h"
 #include "udp.h"
 #include "tcp.h"
-#include <assert.h>
 
 #ifndef CONFIG_IP_TTL
 #error "mandatory CONFIG_IP_TTL option not set"

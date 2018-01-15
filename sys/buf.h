@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <alloca.h>
 #include "log.h"
 #include "utils.h"
 
@@ -125,19 +126,28 @@ static inline unsigned char *buf_data(const buf_t *buf)
 	return buf->data + buf->skip;
 }
 
+static inline void __buf_add(buf_t *buf, const uint8_t *data, int len)
+{
+	memcpy(buf->data + buf->len + buf->skip, data, len);
+	buf->len += len;
+}
+
 static inline int buf_add(buf_t *buf, const uint8_t *data, int len)
 {
 	if (buf_has_room(buf, len) < 0)
 		return -1;
-
-	memcpy(buf->data + buf->len + buf->skip, data, len);
-	buf->len += len;
+	__buf_add(buf, data, len);
 	return 0;
 }
 
 static inline int buf_addc(buf_t *buf, uint8_t c)
 {
 	return buf_add(buf, &c, 1);
+}
+
+static inline void __buf_addc(buf_t *buf, uint8_t c)
+{
+	__buf_add(buf, &c, 1);
 }
 
 static inline int buf_get_lastc(buf_t *buf, uint8_t *c)

@@ -1,3 +1,4 @@
+#include <sys/chksum.h>
 #include "icmp.h"
 #include "eth.h"
 #include "ip.h"
@@ -5,7 +6,6 @@
 #include "udp.h"
 #include "socket.h"
 #endif
-#include "chksum.h"
 
 void icmp_output(pkt_t *out, iface_t *iface, int type, int code, uint16_t id,
 		 uint16_t seq, const buf_t *id_data, uint16_t ip_flags)

@@ -2,7 +2,7 @@
 #include "ip.h"
 #include "icmp.h"
 #include "eth.h"
-#include "chksum.h"
+#include "tr_chksum.h"
 #include "socket.h"
 #include "../sys/hash-tables.h"
 

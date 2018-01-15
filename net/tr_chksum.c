@@ -1,34 +1,5 @@
 #include <stdint.h>
-#include "ip.h"
-#include "udp.h"
-#include "tcp.h"
-#include "chksum.h"
-
-static uint32_t cksum_partial(const void *data, uint16_t len)
-{
-	const uint16_t *w = data;
-	uint32_t sum = 0;
-
-	while (len > 1)  {
-		sum += *w++;
-		len -= 2;
-	}
-
-	if (len == 1)
-		sum += *(uint8_t *)w;
-
-	return sum;
-}
-
-uint16_t cksum(const void *data, uint16_t len)
-{
-	uint32_t sum = cksum_partial(data, len);
-
-	sum = (sum >> 16) + (sum & 0xffff);
-	sum += sum >> 16;
-
-	return ~sum;
-}
+#include "tr_chksum.h"
 
 /* len is in network byte order */
 uint16_t

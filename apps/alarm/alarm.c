@@ -81,6 +81,7 @@ void apps(void)
 
 static void bh(void)
 {
+#ifdef NET
 	pkt_t *pkt;
 
 	if ((pkt = eth0.recv()) == NULL)
@@ -95,12 +96,26 @@ static void bh(void)
 		sei();
 		pkt_free(pkt);
 	}
+#endif
 }
+
+#ifdef CONFIG_RF_KERUI_CMDS
+static void rf_kerui_cb(int nb)
+{
+	DEBUG_LOG("received kerui cmd %d\n", nb);
+}
+#endif
+#define RF_BUF_SIZE 64
+uint8_t rf_buf_data[RF_BUF_SIZE];
 
 int main(void)
 {
 #ifdef NET
 	tim_t timer_wd;
+#endif
+#ifdef CONFIG_RF_RECEIVER
+	buf_t rf_buf;
+	uint8_t rf_from;
 #endif
 
 	init_adc();
@@ -109,16 +124,15 @@ int main(void)
 	DEBUG_LOG("KW alarm v0.2\n");
 #endif
 	timer_subsystem_init();
-
-#ifdef CONFIG_TIMER_CHECKS
 	watchdog_shutdown();
+#ifdef CONFIG_TIMER_CHECKS
 	delay_ms(1000); /* wait for system to be initialized */
 	timer_checks();
 #endif
 
 #ifdef NET
 	memset(&timer_wd, 0, sizeof(tim_t));
-	timer_add(&timer_wd, 1000000UL, tim_cb_wd, &timer_wd);
+	timer_add(&timer_wd, 500000UL, tim_cb_wd, &timer_wd);
 
 	if (if_init(&eth0, &enc28j60_pkt_send, &enc28j60_pkt_recv) < 0) {
 		DEBUG_LOG("can't initialize interface\n");
@@ -145,23 +159,31 @@ int main(void)
 #endif
 	watchdog_enable();
 
-#ifdef CONFIG_RF
+#ifdef CONFIG_RF_RECEIVER
 	if (rf_init() < 0) {
 		DEBUG_LOG("can't initialize RF\n");
 		return -1;
 	}
+	buf_init(&rf_buf, rf_buf_data, RF_BUF_SIZE);
+	rf_buf.len = 0;
+#endif
+#ifdef CONFIG_RF_KERUI_CMDS
+	rf_set_kerui_cb(rf_kerui_cb);
 #endif
 
 	delay_ms(3000);
 	if (apps_init() < 0)
 		return -1;
 
+	/* slow functions */
 	while (1) {
-		/* slow functions */
-
 		bh(); /* bottom halves */
-#ifdef CONFIG_RF
-		rf_decode_cmds();
+#ifdef CONFIG_RF_RECEIVER
+		/* TODO: this block should be put in a timer cb */
+		if (rf_recvfrom(&rf_from, &rf_buf) >= 0 && buf_len(&rf_buf)) {
+			DEBUG_LOG("got: %s\n", rf_buf.data);
+			buf_reset(&rf_buf);
+		}
 #endif
 
 #if defined(NET) && !defined(CONFIG_EVENT)
@@ -174,7 +196,7 @@ int main(void)
 #endif
 		watchdog_reset();
 	}
-#ifdef CONFIG_RF
+#ifdef CONFIG_RF_RECEIVER
 	/* rf_shutdown(); */
 #endif
 	return 0;

@@ -25,6 +25,8 @@ else
 	CFLAGS += -DNDEBUG
 endif
 
+CFLAGS += -I../
+
 all: $(OBJ) $(SO) libnet-$(ARCH).a
 
 libnet-$(ARCH).a:
