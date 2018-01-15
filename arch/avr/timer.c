@@ -23,17 +23,17 @@
 #if 0
 ISR(TIMER0_OVF_vect)
 {
-	timer_process();
 	TCNT0 = TIM_COUNTER;
+	timer_process();
 }
 #endif
 
 /* 16-bit timer */
 ISR(TIMER1_OVF_vect)
 {
-	timer_process();
 	TCNT1H = (TIM_COUNTER >> 8) & 0xFF;
 	TCNT1L = TIM_COUNTER & 0xFF;
+	timer_process();
 }
 
 void __timer_subsystem_init(void)
