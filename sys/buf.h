@@ -22,7 +22,9 @@ struct buf {
 } __attribute__((__packed__));
 typedef struct buf buf_t;
 
-#define buf2staticbuf(buf) (sbuf_t) { .len = buf->len, .data = buf->data }
+#define buf2sbuf(buf) (sbuf_t) { .len = buf->len, .data = buf->data }
+#define sbuf2buf(sbuf) (buf_t) { .len = sbuf->len, .data = (void *)sbuf->data, \
+			.size = sbuf->len }
 
 #define SBUF_INITS(str) (sbuf_t)					\
 	{								\
@@ -68,8 +70,8 @@ static inline int sbuf_cmp(const sbuf_t *buf1, const sbuf_t *buf2)
 
 static inline int buf_cmp(const buf_t *buf1, const buf_t *buf2)
 {
-	sbuf_t sbuf1 = buf2staticbuf(buf1);
-	sbuf_t sbuf2 = buf2staticbuf(buf2);
+	sbuf_t sbuf1 = buf2sbuf(buf1);
+	sbuf_t sbuf2 = buf2sbuf(buf2);
 
 	return sbuf_cmp(&sbuf1, &sbuf2);
 }
