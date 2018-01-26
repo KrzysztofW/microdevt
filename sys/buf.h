@@ -55,6 +55,11 @@ static inline int buf_len(const buf_t *buf)
 	return buf->len;
 }
 
+static inline int buf_free_space(const buf_t *buf)
+{
+	return buf->size - buf->skip - buf->len;
+}
+
 static inline int sbuf_cmp(const sbuf_t *buf1, const sbuf_t *buf2)
 {
 	int i;

@@ -118,15 +118,15 @@ static inline int
 __ring_get_dont_skip(const ring_t *ring, buf_t *buf, int len)
 {
 	int i;
+	int blen = buf_free_space(buf);
+	int l = MIN(blen, len);
 
-	len = MIN(len, ring_len(ring));
-	for (i = 0; i < len; i++) {
+	for (i = 0; i < l; i++) {
 		int pos = (ring->tail + i) & ring->mask;
 
-		if (buf_addc(buf, ring->data[pos]) < 0)
-			break;
+		__buf_addc(buf, ring->data[pos]);
 	}
-	return i;
+	return l;
 }
 
 static inline int ring_getc(ring_t *ring, uint8_t *c)
@@ -138,27 +138,24 @@ static inline int ring_getc(ring_t *ring, uint8_t *c)
 	return 0;
 }
 
-static inline void __ring_get(ring_t *ring, void *data, int len)
+static inline void __ring_skip(ring_t *ring, int len)
 {
-	uint8_t *c = data;
+	ring->tail = (ring->tail + len) & ring->mask;
+}
 
-	while (len--)
-		__ring_getc(ring, c++);
+static inline int __ring_get(ring_t *ring, buf_t *buf, int len)
+{
+	int l = __ring_get_dont_skip(ring, buf, len);
+
+	__ring_skip(ring, l);
+	return l;
 }
 
 static inline int ring_get(ring_t *ring, buf_t *buf)
 {
 	int rlen = ring_len(ring);
-	int len = buf->size - (buf->len + buf->skip);
 
-	if (rlen == 0)
-		return -1;
-	return __ring_get_dont_skip(ring, buf, len);
-}
-
-static inline void __ring_skip(ring_t *ring, int len)
-{
-	ring->tail = (ring->tail + len) & ring->mask;
+	return __ring_get(ring, buf, rlen);
 }
 
 static inline void ring_skip(ring_t *ring, int len)
