@@ -31,7 +31,7 @@ typedef struct buf buf_t;
 		.data = (unsigned char *)str, .len = strlen(str)	\
 	}
 #define BUF(sz)						\
-	{						\
+	(buf_t){					\
 		.data = alloca(sz),			\
 		.size = sz				\
 	}
@@ -139,6 +139,11 @@ static inline void __buf_add(buf_t *buf, const uint8_t *data, int len)
 	buf->len += len;
 }
 
+static inline void __buf_adds(buf_t *buf, const char *data)
+{
+	__buf_add(buf, (uint8_t *)data, strlen(data));
+}
+
 static inline int buf_add(buf_t *buf, const uint8_t *data, int len)
 {
 	if (buf_has_room(buf, len) < 0)
@@ -176,6 +181,18 @@ static inline int buf_addsbuf(buf_t *dst, const sbuf_t *src)
 	return buf_add(dst, src->data, src->len);
 }
 
+static inline int buf_pad(buf_t *buf, uint8_t order)
+{
+	uint8_t pad = 1 << order;
+	uint8_t mask = pad - 1;
+
+	while (buf_len(buf) & mask) {
+		if (buf_addc(buf, 0) < 0)
+			return -1;
+	}
+	return 0;
+}
+
 #ifdef TEST
 static inline int buf_read_file(buf_t *buf, const char *filename)
 {
@@ -210,9 +227,6 @@ static inline void sbuf_print(const sbuf_t *buf)
 	}
 	DEBUG_LOG("\n");
 }
-#else
-#define sbuf_print(x)
-#endif
 
 static inline void buf_print(const buf_t *buf)
 {
@@ -220,5 +234,10 @@ static inline void buf_print(const buf_t *buf)
 	sbuf_init(&sb, buf->data + buf->skip, buf->len);
 	sbuf_print(&sb);
 }
+
+#else
+#define sbuf_print(x)
+#define buf_print(x)
+#endif
 
 #endif
