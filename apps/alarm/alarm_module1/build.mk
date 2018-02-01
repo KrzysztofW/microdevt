@@ -3,7 +3,7 @@ CFLAGS += -DCONFIG_SERIAL_SPEED=$(CONFIG_SERIAL_SPEED)
 endif
 
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
-SOURCES += ../../rf.c ../../sys/chksum.c
+SOURCES += ../../../rf.c ../../../sys/chksum.c
 endif
 ifdef CONFIG_RF_RECEIVER
 CFLAGS += -DCONFIG_RF_RECEIVER

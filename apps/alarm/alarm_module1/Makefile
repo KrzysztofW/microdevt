@@ -1,15 +1,15 @@
-# ../simulavr/src/simulavr  -f alarm_module1 -d atmega328 -F 16000000
+# ../../simulavr/src/simulavr  -f alarm_module1 -d atmega328 -F 16000000
 
 EXE = alarm_module1
 CFLAGS = -Wall -Werror -Os -g -c
 
-SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../timer.c $(ARCH_DIR)/$(ARCH)/timer.c
+SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../../timer.c $(ARCH_DIR)/$(ARCH)/timer.c
 
 include config
 include build.mk
 
-ARCH_DIR=../../arch
-include ../../arch/build.mk
+ARCH_DIR=../../../arch
+include ../../../arch/build.mk
 
 export CFG_FILE = $(PWD)/config
 export DEBUG
@@ -21,7 +21,7 @@ else
 	CFLAGS += -DNDEBUG
 endif
 
-CFLAGS += -I../.. -I.
+CFLAGS += -I../../.. -I.
 
 OBJ = $(SOURCES:.c=.o)
 
