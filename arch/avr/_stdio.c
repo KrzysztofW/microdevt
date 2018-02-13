@@ -14,7 +14,7 @@ static int my_putchar(char c, FILE *stream)
 	return 0;
 }
 
-static int my_getchar(FILE * stream)
+static int my_getchar(FILE *stream)
 {
 	(void)stream;
 	return usart0_get();
@@ -25,7 +25,7 @@ static int my_getchar(FILE * stream)
  * The stream implemenation uses pointers to functions.
  */
 static FILE my_stream =
-	FDEV_SETUP_STREAM (my_putchar, my_getchar, _FDEV_SETUP_RW);
+	FDEV_SETUP_STREAM(my_putchar, my_getchar, _FDEV_SETUP_RW);
 
 void init_streams(void)
 {

@@ -44,7 +44,7 @@ typedef int ssize_t;
 struct sockaddr {
 	sa_family_t sa_family;  /* address family, AF_xxx       */
 	char sa_data[14];       /* 14 bytes of protocol address */
-}  __attribute__((__packed__));
+} __attribute__((__packed__));
 
 /* Socket address, internet style. */
 struct sockaddr_in {
