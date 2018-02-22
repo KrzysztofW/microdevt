@@ -60,13 +60,10 @@ int main(void)
 	timer_subsystem_init();
 
 #ifdef CONFIG_TIMER_CHECKS
-	watchdog_shutdown();
-	delay_ms(1000); /* wait for system to be initialized */
 	timer_checks();
 #endif
-	memset(&timer_rf, 0, sizeof(tim_t));
+	timer_init(&timer_led);
 	timer_add(&timer_led, 2000000, tim_led_cb, &timer_led);
-
 	watchdog_enable();
 
 #ifdef CONFIG_RF_SENDER
@@ -75,7 +72,7 @@ int main(void)
 		return -1;
 	}
 	DEBUG_LOG("RF initialized\n");
-	memset(&timer_rf, 0, sizeof(tim_t));
+	timer_init(&timer_rf);
 	timer_add(&timer_rf, 2000000, tim_rf_cb, &timer_rf);
 #endif
 	while (1) {

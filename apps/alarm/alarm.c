@@ -126,12 +126,11 @@ int main(void)
 	timer_subsystem_init();
 	watchdog_shutdown();
 #ifdef CONFIG_TIMER_CHECKS
-	delay_ms(1000); /* wait for system to be initialized */
 	timer_checks();
 #endif
 
 #ifdef NET
-	memset(&timer_wd, 0, sizeof(tim_t));
+	timer_init(&timer_wd);
 	timer_add(&timer_wd, 500000UL, tim_cb_wd, &timer_wd);
 
 	if (if_init(&eth0, &enc28j60_pkt_send, &enc28j60_pkt_recv) < 0) {

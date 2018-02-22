@@ -42,16 +42,16 @@ void __timer_subsystem_init(void)
 	/* 8-bit timer */
 	TCNT0 = TIM_COUNTER;
 	TCCR0A = 0;
-	TCCR0B = (1<<CS00) | (1<<CS01); /* Timer mode with 64 prescler */
-	TIMSK0 = (1 << TOIE0); /* Enable timer0 overflow interrupt(TOIE0) */
+	TCCR0B = (1 << CS00) | (1 << CS01); /* Timer mode with 64 prescler */
+	TIMSK0 = 1 << TOIE0; /* Enable timer0 overflow interrupt(TOIE0) */
 #endif
 	/* 16-bit timer */
-	TCNT1H = (TIM_COUNTER >> 8);
+	TCNT1H = TIM_COUNTER >> 8;
 	TCNT1L = TIM_COUNTER & 0xFF;
 
 	TCCR1A = 0;
-	TCCR1B = (1<<CS11);    /* Timer mode with 8 prescler */
-	TIMSK1 = (1 << TOIE1); /* Enable timer0 overflow interrupt(TOIE1) */
+	TCCR1B = 1 << CS11;    /* Timer mode with 8 prescler */
+	TIMSK1 = 1 << TOIE1; /* Enable timer0 overflow interrupt(TOIE1) */
 
 	sei();
 }
