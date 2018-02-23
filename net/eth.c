@@ -60,7 +60,7 @@ void eth_output(pkt_t *out, iface_t *iface, const uint8_t *mac_dst,
 	if (pkt_put(&iface->tx, out) < 0) {
 		pkt_free(out);
 	}
-#ifdef X86
+#if defined(X86) && !defined(TEST)
 	/* send the packet immediately */
 	while ((out = pkt_get(&iface->tx)) != NULL) {
 		iface->send(&out->buf);

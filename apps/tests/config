@@ -35,4 +35,4 @@ CONFIG_EVENT=y
 
 # use hash tables instead of lists
 CONFIG_HT_STORAGE=y
-CONFIG_MAX_SOCK_HT_SIZE=24
+CONFIG_MAX_SOCK_HT_SIZE=32

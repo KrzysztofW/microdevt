@@ -1,5 +1,5 @@
 EXE = tests
-CFLAGS = -Wall -Werror -Os -g
+CFLAGS = -Wall -Werror -O0 -g
 SOURCES = tests.c
 export CFG_FILE = $(PWD)/config
 export DEBUG
@@ -30,11 +30,16 @@ OBJ = $(SOURCES:.c=.o)
 
 all: libnet $(SOURCES) $(EXE)
 
+static: libnet $(EXE)_static
+
 libnet:
 	make -C ../../net
 
 $(EXE): $(OBJ)
-	$(CC)  $(OBJ) $(LIBS) $(LDFLAGS) -o $@
+	$(CC) $(OBJ) $(LIBS) $(LDFLAGS) -o $@
+
+$(EXE)_static: $(EXE).o
+	$(CC) $(EXE).o $(STATIC_LIBS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
@@ -42,8 +47,9 @@ $(EXE): $(OBJ)
 clean:
 	make -C ../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(ARCH_DIR)/$(ARCH)/*.o
+	@rm -f $(EXE)_static
 
 run: all
 	LD_LIBRARY_PATH=../../net ./tests
 
-.PHONY: all
+.PHONY: all static

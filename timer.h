@@ -2,6 +2,7 @@
 #define _TIMER_H_
 
 #include <timer.h>
+#include <stdint.h>
 #include "sys/list.h"
 
 typedef enum status {

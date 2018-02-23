@@ -13,9 +13,8 @@ uint16_t send(const buf_t *out)
 	return 0;
 }
 
-uint16_t recv(buf_t *in)
+pkt_t *recv()
 {
-	(void)in;
 	return 0;
 }
 
@@ -102,23 +101,24 @@ static int net_arp_request_test(iface_t *ifa)
 	memcpy(ifa->ip4_addr, src_ip, 4);
 
 	if ((pkt = pkt_alloc()) == NULL) {
-		fprintf(stderr, "can't alloc a packet\n");
+		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
 	arp_output(ifa, ARPOP_REQUEST, dst_mac, (uint8_t *)&dst_ip);
 	if ((out = pkt_get(&ifa->tx)) == NULL) {
-		fprintf(stderr, "can't get tx packet\n");
+		fprintf(stderr, "%s: can't get tx packet\n", __func__);
 		return -1;
 	}
 	if (out->buf.len == 0) {
-		fprintf(stderr, "got empty packet\n");
+		fprintf(stderr, "%s: got empty packet\n", __func__);
 		return -1;
 	}
 	for (i = 0; i < out->buf.len; i++) {
 		if (pkt->buf.data[i] != out->buf.data[i]) {
-			fprintf(stderr, "failed serializing arp request\n");
+			fprintf(stderr, "%s: failed serializing arp request\n",
+				__func__);
 			printf("got:\n");
 			buf_print(&out->buf);
 			printf("expected:\n");
@@ -147,29 +147,29 @@ int net_arp_tests(void)
 	iface_t *interface = NULL;
 
 	if (if_init(&iface, &send, &recv) < 0) {
-		fprintf(stderr, "can't init interface\n");
+		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
 
 	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "can't initialize pkt pool\n");
+		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
 		return -1;
 	}
 	if ((pkt = pkt_alloc()) == NULL) {
-		fprintf(stderr, "can't alloc a packet\n");
+		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
-	/* printf("in pkt:\n"); */
-	/* buf_print(&pkt->buf); */
+	printf("in pkt:\n");
+	buf_print(&pkt->buf);
 	if (pkt_put(&iface.rx, pkt) < 0) {
-		fprintf(stderr , "can't put rx packet\n");
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
 		return -1;
 	}
 	if ((pkt = pkt_get(&iface.rx)) == NULL) {
-		fprintf(stderr , "can't get rx packet\n");
+		fprintf(stderr , "%s: can't get rx packet\n", __func__);
 		return -1;
 	}
 
@@ -178,7 +178,7 @@ int net_arp_tests(void)
 
 	buf_init(&out, arp_reply_pkt, sizeof(arp_reply_pkt));
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "can't get tx packet\n");
+		fprintf(stderr, "%s: can't get tx packet 2\n", __func__);
 		return -1;
 	}
 
@@ -191,25 +191,25 @@ int net_arp_tests(void)
 		goto end;
 	}
 	if (arp_find_entry(ip, &mac, &interface) < 0) {
-		fprintf(stderr, "failed find arp entry\n");
+		fprintf(stderr, "%s: failed find arp entry\n", __func__);
 		ret = -1;
 		goto end;
 	}
 #ifdef CONFIG_MORE_THAN_ONE_INTERFACE
 	if (interface != &iface) {
-		fprintf(stderr, "bad interface\n");
+		fprintf(stderr, "%s: bad interface\n", __func__);
 		ret = -1;
 		goto end;
 	}
 #endif
 	if (mac == NULL) {
-		fprintf(stderr, "mac address is null\n");
+		fprintf(stderr, "%s: mac address is null\n", __func__);
 		ret = -1;
 		goto end;
 	}
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		if (mac[i] != mac_dst[i]) {
-			fprintf(stderr, "bad mac address\n");
+			fprintf(stderr, "%s: bad mac address\n", __func__);
 			ret = -1;
 			goto end;
 		}
@@ -249,17 +249,17 @@ int net_icmp_tests(void)
 	memcpy(iface.ip4_addr, &ip_src, sizeof(uint32_t));
 	memcpy(iface.mac_addr, &mac_src, ETHER_ADDR_LEN);
 	if (if_init(&iface, &send, &recv) < 0) {
-		fprintf(stderr, "can't init interface\n");
+		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
 	pkt_mempool_shutdown();
 	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "can't initialize pkt pool\n");
+		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
 		return -1;
 	}
 
 	if ((pkt = pkt_alloc()) == NULL) {
-		fprintf(stderr, "can't alloc a packet\n");
+		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
 	memset(pkt->buf.data, 0, pkt->buf.size);
@@ -267,18 +267,18 @@ int net_icmp_tests(void)
 
 	arp_add_entry(mac_dst, (uint8_t *)&ip_dst, &iface);
 	if (pkt_put(&iface.rx, pkt) < 0) {
-		fprintf(stderr , "can't put rx packet\n");
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
 		return -1;
 	}
 	if ((pkt = pkt_get(&iface.rx)) == NULL) {
-		fprintf(stderr , "can't get rx packet\n");
+		fprintf(stderr , "%s: can't get rx packet\n", __func__);
 		return -1;
 	}
 	eth_input(pkt, &iface);
 
 	buf_init(&out, icmp_reply_pkt, sizeof(icmp_reply_pkt));
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "can't get tx packet\n");
+		fprintf(stderr, "%s: can't get tx packet\n", __func__);
 		return -1;
 	}
 	if (buf_cmp(&pkt->buf, &out) < 0) {
@@ -311,22 +311,23 @@ unsigned char icmp_port_unrecheable_pkt[] = {
 int udp_fd;
 int udp_server(uint16_t port)
 {
+	int fd;
 	struct sockaddr_in sockaddr;
 
-	if ((udp_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		fprintf(stderr, "can't create socket\n");
+	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		fprintf(stderr, "%s: can't create socket\n", __func__);
 		return -1;
 	}
 	sockaddr.sin_family = AF_INET;
 	sockaddr.sin_addr.s_addr = INADDR_ANY;
 	sockaddr.sin_port = htons(port);
 
-	if (bind(udp_fd, (struct sockaddr *)&sockaddr,
+	if (bind(fd, (struct sockaddr *)&sockaddr,
 		 sizeof(struct sockaddr_in)) < 0) {
-		fprintf(stderr, "can't bind\n");
+		fprintf(stderr, "%s: can't bind\n", __func__);
 		return -1;
 	}
-	return 0;
+	return fd;
 }
 #endif
 int net_udp_tests(void)
@@ -364,23 +365,28 @@ int net_udp_tests(void)
 	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
 	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
 	if (if_init(&iface, &send, &recv) < 0) {
-		fprintf(stderr, "can't init interface\n");
+		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
 	pkt_mempool_shutdown();
 	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "can't initialize pkt pool\n");
+		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
 		return -1;
 	}
 
 	if ((pkt = pkt_alloc()) == NULL) {
-		fprintf(stderr, "can't alloc a packet\n");
+		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
 
-	socket_init();
+#ifdef CONFIG_HT_STORAGE
+	if (socket_init() < 0) {
+		fprintf(stderr, "%s: can't init socket hash tables\n", __func__);
+		return -1;
+	}
+#endif
 
 	arp_add_entry(mac_src, (uint8_t *)&ip_src, &iface);
 
@@ -391,7 +397,7 @@ int net_udp_tests(void)
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "can't get tx packet\n");
+		fprintf(stderr, "%s: can't get tx packet\n", __func__);
 		return -1;
 	}
 
@@ -406,19 +412,19 @@ int net_udp_tests(void)
 #endif
 	dft_route.iface = &iface;
 #ifdef CONFIG_BSD_COMPAT
-	if (udp_server(port) < 0) {
-		fprintf(stderr, "can't start udp server\n");
+	if ((udp_fd = udp_server(port)) < 0) {
+		fprintf(stderr, "%s: can't start udp server\n", __func__);
 		return -1;
 	}
 #else
 	if (sock_info_init(&sock_info, 0, SOCK_DGRAM, htons(port)) < 0) {
-		fprintf(stderr, "can't init udp sock_info\n");
+		fprintf(stderr, "%s: can't init udp sock_info\n", __func__);
 		return -1;
 	}
 	__sock_info_add(&sock_info);
 
 	if (sock_info_bind(&sock_info) < 0) {
-		fprintf(stderr, "can't start udp server\n");
+		fprintf(stderr, "%s: can't start udp server\n", __func__);
 		return -1;
 	}
 #endif
@@ -431,13 +437,13 @@ int net_udp_tests(void)
 #ifdef CONFIG_BSD_COMPAT
 	if ((len = recvfrom(udp_fd, buf, buf_size, 0, (struct sockaddr *)&addr,
 			    &addrlen)) < 0) {
-		fprintf(stderr, "can't get udp pkt\n");
+		fprintf(stderr, "%s: can't get udp pkt\n", __func__);
 		return -1;
 	}
 	printf("udp data: %.*s\n", len, buf);
 #else
 	if (__socket_get_pkt(&sock_info, &pkt, &src_addr, &src_port) < 0) {
-		fprintf(stderr, "can't get udp pkt\n");
+		fprintf(stderr, "%s: can't get udp pkt 2\n", __func__);
 		return -1;
 	}
 	len = pkt->buf.len;
@@ -448,17 +454,17 @@ int net_udp_tests(void)
 #ifdef CONFIG_BSD_COMPAT
 	if (sendto(udp_fd, sb.data, sb.len, 0, (struct sockaddr *)&addr,
 		   sizeof(struct sockaddr_in)) < 0) {
-		fprintf(stderr, "can't put sbuf to udp socket\n");
+		fprintf(stderr, "%s: can't put sbuf to udp socket\n", __func__);
 		return -1;
 	}
 #else
 	if (__socket_put_sbuf(&sock_info, &sb, src_port, src_addr) < 0) {
-		fprintf(stderr, "can't put sbuf to udp socket\n");
+		fprintf(stderr, "%s: can't put sbuf to udp socket\n", __func__);
 		return -1;
 	}
 #endif
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "can't get udp echo packet\n");
+		fprintf(stderr, "%s: can't get udp echo packet\n", __func__);
 		return -1;
 	}
 
@@ -466,12 +472,12 @@ int net_udp_tests(void)
 
 #ifdef CONFIG_BSD_COMPAT
 	if (close(udp_fd) < 0) {
-		fprintf(stderr, "can't close udp socket\n");
+		fprintf(stderr, "%s: can't close udp socket\n", __func__);
 		return -1;
 	}
 #else
 	if (sock_info_unbind(&sock_info) < 0) {
-		fprintf(stderr, "can't close udp socket\n");
+		fprintf(stderr, "%s: can't close udp socket\n", __func__);
 		return -1;
 	}
 #endif
@@ -531,7 +537,7 @@ int tcp_server(uint16_t port)
 	struct sockaddr_in sockaddr;
 
 	if ((tcp_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		fprintf(stderr, "can't create socket\n");
+		fprintf(stderr, "%s: can't create socket\n", __func__);
 		return -1;
 	}
 	sockaddr.sin_family = AF_INET;
@@ -540,11 +546,11 @@ int tcp_server(uint16_t port)
 
 	if (bind(tcp_fd, (struct sockaddr *)&sockaddr,
 		 sizeof(struct sockaddr_in)) < 0) {
-		fprintf(stderr, "can't bind tcp port\n");
+		fprintf(stderr, "%s: can't bind tcp port\n", __func__);
 		return -1;
 	}
 	if (listen(tcp_fd, 5) < 0) {
-		fprintf(stderr, "can't listen on tcp fd\n");
+		fprintf(stderr, "%s: can't listen on tcp fd\n", __func__);
 		return -1;
 	}
 	return 0;
@@ -585,17 +591,17 @@ int net_tcp_tests(void)
 	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
 	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
 	if (if_init(&iface, &send, &recv) < 0) {
-		fprintf(stderr, "can't init interface\n");
+		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
 	pkt_mempool_shutdown(); /* TODO: to be removed */
 	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "can't initialize pkt pool\n");
+		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
 		return -1;
 	}
 
 	if ((pkt = pkt_alloc()) == NULL) {
-		fprintf(stderr, "can't alloc a packet\n");
+		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
 
@@ -610,7 +616,8 @@ int net_tcp_tests(void)
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "TCP SYN => RST: can't get tx packet\n");
+		fprintf(stderr, "%s: TCP SYN => RST: can't get tx packet\n",
+			__func__);
 		return -1;
 	}
 
@@ -627,22 +634,23 @@ int net_tcp_tests(void)
 	/* COMPLETE TCP COMM */
 #ifdef CONFIG_BSD_COMPAT
 	if (tcp_server(port) < 0) {
-		fprintf(stderr, "can't start tcp server on port: %d\n", port);
+		fprintf(stderr, "%s: can't start tcp server on port: %d\n",
+			__func__, port);
 		return -1;
 	}
 #else
 	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
-		fprintf(stderr, "can't init tcp sock_info\n");
+		fprintf(stderr, "%s: can't init tcp sock_info\n", __func__);
 		return -1;
 	}
 	__sock_info_add(&sock_info_server);
 	if (sock_info_listen(&sock_info_server, 5) < 0) {
-		fprintf(stderr, "can't listen on tcp sock_info\n");
+		fprintf(stderr, "%s: can't listen on tcp sock_info\n", __func__);
 		return -1;
 	}
 
 	if (sock_info_bind(&sock_info_server) < 0) {
-		fprintf(stderr, "can't start tcp server\n");
+		fprintf(stderr, "%s: can't start tcp server\n", __func__);
 		return -1;
 	}
 #endif
@@ -652,7 +660,8 @@ int net_tcp_tests(void)
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "TCP SYN: can't get SYN_ACK packet\n");
+		fprintf(stderr, "%s: TCP SYN: can't get SYN_ACK packet\n",
+			__func__);
 		return -1;
 	}
 
@@ -671,13 +680,14 @@ int net_tcp_tests(void)
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) != NULL) {
-		fprintf(stderr, "TCP EST: shouldn't get tx packet after ACK\n");
+		fprintf(stderr, "%s: TCP EST: shouldn't get tx packet after ACK\n",
+			__func__);
 		return -1;
 	}
 
 	/* DATA => ACK */
 	if ((pkt = pkt_alloc()) == NULL) {
-		fprintf(stderr, "can't alloc a packet\n");
+		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
 
@@ -686,7 +696,8 @@ int net_tcp_tests(void)
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "TCP EST: can't get ACK to data packet\n");
+		fprintf(stderr, "%s: TCP EST: can't get ACK to data packet\n",
+			__func__);
 		return -1;
 	}
 
@@ -703,21 +714,23 @@ int net_tcp_tests(void)
 #ifdef CONFIG_BSD_COMPAT
 	if ((client_fd = accept(tcp_fd,
 				(struct sockaddr *)&addr, &addr_len)) < 0) {
-		fprintf(stderr, "TCP: cannot accept connections\n");
+		fprintf(stderr, "%s: TCP: cannot accept connections\n", __func__);
 		return -1;
 	}
 	if (socket_get_pkt(client_fd, &pkt, &addr) < 0) {
-		fprintf(stderr, "TCP: can't get pkt from a tcp connection\n");
+		fprintf(stderr, "%s: TCP: can't get pkt from a tcp connection\n",
+			__func__);
 		return -1;
 	}
 #else
 	if (sock_info_accept(&sock_info_server, &sock_info_client, &src_addr,
 			     &src_port) < 0) {
-		fprintf(stderr, "TCP: cannot accept connections\n");
+		fprintf(stderr, "%s: TCP: cannot accept connections\n", __func__);
 		return -1;
 	}
 	if (__socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) < 0) {
-		fprintf(stderr, "TCP: can't get pkt from a tcp connection\n");
+		fprintf(stderr, "%s: TCP: can't get pkt from a tcp connection\n",
+			__func__);
 		return -1;
 	}
 #endif
@@ -731,7 +744,8 @@ int net_tcp_tests(void)
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) == NULL) {
-		fprintf(stderr, "TCP close: can't get FIN from server\n");
+		fprintf(stderr, "%s: TCP close: can't get FIN from server\n",
+			__func__);
 		return -1;
 	}
 
@@ -749,27 +763,28 @@ int net_tcp_tests(void)
 
 	eth_input(pkt, &iface);
 	if ((pkt = pkt_get(&iface.tx)) != NULL) {
-		fprintf(stderr, "TCP client close: shouldn't get any pkt after FIN ACK\n");
+		fprintf(stderr, "%s: TCP client close: shouldn't get any pkt "
+			"after FIN ACK\n", __func__);
 		return -1;
 	}
 
  end:
 #ifdef CONFIG_BSD_COMPAT
 	if (close(client_fd) < 0) {
-		fprintf(stderr, "can't close tcp client fd\n");
+		fprintf(stderr, "%s: can't close tcp client fd\n", __func__);
 		return -1;
 	}
 	if (close(tcp_fd) < 0) {
-		fprintf(stderr, "can't close tcp server fd\n");
+		fprintf(stderr, "%s: can't close tcp server fd\n", __func__);
 		return -1;
 	}
 #else
 	if (sock_info_unbind(&sock_info_server) < 0) {
-		fprintf(stderr, "can't unbind tcp server socket\n");
+		fprintf(stderr, "%s: can't unbind tcp server socket\n", __func__);
 		return -1;
 	}
 	if (sock_info_unbind(&sock_info_client) < 0) {
-		fprintf(stderr, "can't unbind tcp client socket\n");
+		fprintf(stderr, "%s: can't unbind tcp client socket\n", __func__);
 		return -1;
 	}
 #endif

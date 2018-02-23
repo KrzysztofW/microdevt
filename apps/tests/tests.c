@@ -10,22 +10,14 @@
 #include <sys/hash-tables.h>
 #include <timer.h>
 #include <net/tests.h>
-#include <net/arp.h>
 
 static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 {
-	int i, j;
+	int i;
 
 	for (i = 0; i < len; i++) {
-		unsigned char b = bytes[i];
-
-		if (ring_is_full(ring))
+		if (ring_addc(ring, bytes[i]) < 0)
 			return -1;
-		for (j = 0; j < 8; j++) {
-			unsigned char bit = b >> 7;
-			ring_add_bit(ring, bit);
-			b = b << 1;
-		}
 	}
 	return 0;
 }
@@ -38,7 +30,8 @@ static int ring_check_full(ring_t *ring)
 	unsigned char c;
 
 	for (i = 0; i < ZCHK_RSIZE - 1; i++) {
-		ring_addc(ring, 1);
+		if (ring_addc(ring, 1) < 0)
+			return -1;
 	}
 	if (ring_len(ring) != ZCHK_RSIZE - 1) {
 		return -1;

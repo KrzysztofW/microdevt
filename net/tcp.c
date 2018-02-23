@@ -634,10 +634,15 @@ void tcp_input(pkt_t *pkt)
 		tsyn_entry = &syn_entries.conns[syn_entries.pos];
 
 		/* network endian for seqid and ack */
+#ifdef TEST
+		tsyn_entry->seqid = 0x1207E77B;
+#else
 		tsyn_entry->seqid = rand();
+#endif
 		tsyn_entry->ack = htonl(remote_seqid + 1);
 		tsyn_entry->status = SOCK_TCP_SYN_ACK_SENT;
-		tcp_parse_options(&tsyn_entry->opts, tcp_hdr, tcp_hdr_len - sizeof(tcp_hdr_t));
+		tcp_parse_options(&tsyn_entry->opts, tcp_hdr,
+				  tcp_hdr_len - sizeof(tcp_hdr_t));
 		tcp_send_pkt(ip_hdr, tcp_hdr, TH_SYN|TH_ACK, tsyn_entry);
 		tsyn_entry->seqid = htonl(ntohl(tsyn_entry->seqid) + 1);
 		syn_entries.pos = (syn_entries.pos + 1)
