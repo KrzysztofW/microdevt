@@ -108,8 +108,17 @@ static void rf_kerui_cb(int nb)
 #define RF_BUF_SIZE 64
 uint8_t rf_buf_data[RF_BUF_SIZE];
 
+static void blink_led(void *arg)
+{
+	tim_t *tim = arg;
+
+	PORTB ^= (1 << PB7);
+	timer_reschedule(tim, 1000000UL);
+}
+
 int main(void)
 {
+	tim_t timer_led;
 #ifdef NET
 	tim_t timer_wd;
 #endif
@@ -128,6 +137,10 @@ int main(void)
 #ifdef CONFIG_TIMER_CHECKS
 	timer_checks();
 #endif
+
+	DDRB = 0xFF; /* LED PIN */
+	timer_init(&timer_led);
+	timer_add(&timer_led, 1000000000UL, blink_led, &timer_led);
 
 #ifdef NET
 	timer_init(&timer_wd);
