@@ -28,13 +28,16 @@ OBJ = $(SOURCES:.c=.o)
 all: $(SOURCES) $(EXE)
 
 $(EXE): $(OBJ)
-	$(CC) $(OBJ) $(LDFLAGS) -o $@
+	$(AR) -cr $(EXE).a $(OBJ)
+	ranlib $(EXE).a
+	$(CC) $(EXE).a $(LDFLAGS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
 clean:
-	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec $(ARCH_DIR)/$(ARCH)/*.o
+	@rm -f $(EXE) $(EXE).a *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec
+	@rm -f $(ARCH_DIR)/$(ARCH)/*.o
 
 run_simu: all
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
