@@ -6,8 +6,6 @@
 
 void usart0_init(uint16_t baud)
 {
-	DDRD |= _BV(1) ; /* enable tx output */
-	/* UBRR0H = HI(baud); UBRR0L = LO(baud) */
 	UBRR0 = baud;
 	/* Asynchronous mode, no parity, 1-stop bit, 8-bit data */
 	UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
@@ -33,16 +31,34 @@ uint8_t usart0_get(void)
 	while ((UCSR0A & _BV(RXC0)) == 0) {}
 	return UDR0;
 }
-#if 0 /* unsued so far */
-int16_t usart0_get_delay(uint16_t max_delay)
+
+#ifdef CONFIG_USART1
+void usart1_init(uint16_t baud)
 {
-	/* poll for available data, with timeout */
-	while ((UCSR0A & _BV(RXC0)) == 0  && max_delay != 0)
-		max_delay--;
+	UBRR1 = baud;
+	/* Asynchronous mode, no parity, 1-stop bit, 8-bit data */
+	UCSR1C = _BV(UCSZ01) | _BV(UCSZ00);
 
-	if ((UCSR0A & _BV(RXC0)) == 0 )
-		return -1;
+	/* no 2x mode, no multi-processor mode */
+	UCSR1A = 0x00;
 
-	return UDR0;
+	/* interrupts disabled, rx and tx enabled, 8-bit data */
+	UCSR1B = _BV(RXEN0) | _BV(TXEN0);
 }
+
+void usart1_put(uint8_t b)
+{
+	/* wait for data register to be ready */
+	while ((UCSR1A & _BV(UDRE1)) == 0) {}
+	/* load b for transmission */
+	UDR1 = b;
+}
+
+uint8_t usart1_get(void)
+{
+	/* poll for available data */
+	while ((UCSR1A & _BV(RXC1)) == 0) {}
+	return UDR1;
+}
+
 #endif

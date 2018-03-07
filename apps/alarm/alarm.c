@@ -129,7 +129,7 @@ int main(void)
 
 	init_adc();
 #ifdef DEBUG
-	init_streams();
+	init_stream0(&stdout, &stdin);
 	DEBUG_LOG("KW alarm v0.2\n");
 #endif
 	timer_subsystem_init();

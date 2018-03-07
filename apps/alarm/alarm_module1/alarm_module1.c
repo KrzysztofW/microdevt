@@ -53,7 +53,7 @@ int main(void)
 
 	init_adc();
 #ifdef DEBUG
-	init_streams();
+	init_stream0(&stdout, &stdin);
 	DEBUG_LOG("KW alarm module 1\n");
 #endif
 	watchdog_shutdown();
