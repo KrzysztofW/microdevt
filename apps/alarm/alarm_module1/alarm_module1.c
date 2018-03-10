@@ -63,7 +63,7 @@ int main(void)
 	timer_checks();
 #endif
 	timer_init(&timer_led);
-	timer_add(&timer_led, 2000000, tim_led_cb, &timer_led);
+	timer_add(&timer_led, 0, tim_led_cb, &timer_led);
 	watchdog_enable();
 
 #ifdef CONFIG_RF_SENDER
@@ -71,9 +71,11 @@ int main(void)
 		DEBUG_LOG("can't initialize RF\n");
 		return -1;
 	}
-	DEBUG_LOG("RF initialized\n");
 	timer_init(&timer_rf);
-	timer_add(&timer_rf, 2000000, tim_rf_cb, &timer_rf);
+	timer_add(&timer_rf, 0, tim_rf_cb, &timer_rf);
+
+	/* port D used by the LED and RF sender */
+	DDRD = (1 << PD2);
 #endif
 	while (1) {
 		/* slow functions */

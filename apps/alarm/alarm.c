@@ -140,7 +140,7 @@ int main(void)
 
 	DDRB = 0xFF; /* LED PIN */
 	timer_init(&timer_led);
-	timer_add(&timer_led, 1000000000UL, blink_led, &timer_led);
+	timer_add(&timer_led, 0, blink_led, &timer_led);
 
 #ifdef NET
 	timer_init(&timer_wd);
