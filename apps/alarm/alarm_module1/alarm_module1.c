@@ -6,35 +6,16 @@
 #include <sys/buf.h>
 #include <rf.h>
 #include <timer.h>
+#include "../rf_common.h"
 
 static void tim_rf_cb(void *arg)
 {
 	tim_t *timer = arg;
-#if 1
-	sbuf_t s = SBUF_INITS("Hello world!");
-	rf_sendto(0x69, &s);
-#else
-	buf_t buf;
-	//uint8_t i;
-	uint8_t data[] = {
-		0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55
-		//0x55, 0x55, 0x55, 0x55, 0x01, 0xFF, 0x02, 0x03,
-		//0x04, 0x05, 0x6, 0x7, 0x8, 0x9, 0xa,
-	};
-	uint8_t i;
+	buf_t buf = BUF(16);
+	const char *s = "Hello world!";
 
-	/* rf_arm_snd_timer(); */
-	/* return; */
-
-	buf_init(&buf, data, sizeof(data));
-	if (rf_send_data(&buf) < 0)
-		while (1) {}
-	for (i = 0; i < 50; i++) {
-		if (rf_send_byte(i) < 0)
-			while (1) {}
-	}
-	rf_start_sending();
-#endif
+	__buf_adds(&buf, s);
+	rf_sendto(0x69, &buf, 2);
 	timer_reschedule(timer, 5000000UL);
 }
 

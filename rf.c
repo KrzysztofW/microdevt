@@ -27,17 +27,17 @@ struct rf_data {
 } __attribute__((__packed__));
 typedef struct rf_data rf_data_t;
 
+#ifndef RF_HW_ADDR
+#error "RF_HW_ADDR not defined"
+#endif
+
 #ifdef CONFIG_RF_RECEIVER
-#ifndef RF_ANALOG_PIN
-#error "RF_ANALOG_PIN not defined"
+#ifndef RF_RCV_PIN_NB
+#error "RF_RCV_PIN_NB not defined"
 #endif
 static tim_t rf_rcv_timer;
 static rf_data_t rcv_buf;
-static volatile uint8_t receiving;
-#endif
-
-#ifndef RF_HW_ADDR
-#error "RF_HW_ADDR not defined"
+static uint8_t my_addr = RF_HW_ADDR;
 #endif
 
 #ifdef CONFIG_RF_SENDER
@@ -45,11 +45,10 @@ static volatile uint8_t receiving;
 #define START_FRAME_LENGTH 30	  /* loops */
 
 static tim_t rf_snd_timer;
-#if !defined(RF_SND_PIN) || !defined(RF_SND_PORT)
+#if !defined(RF_SND_PIN_NB) || !defined(RF_SND_PORT)
 #error "RF_SND_PIN and RF_SND_PORT are not defined"
 #endif
 rf_data_t snd_buf;
-static volatile uint8_t sending;
 #endif
 
 /* XXX the size of this structure has to be even (in order to use
@@ -75,25 +74,10 @@ static int rf_ring_add_bit(rf_data_t *buf, uint8_t bit)
 	return ret;
 }
 
-static int rf_get_rcv_len(void)
-{
-	int len;
-
-	//disable_timer_int();
-	len = ring_len(rcv_buf.ring);
-	//enable_timer_int();
-	return len;
-}
-
-static void rf_skip_rcv_size(uint8_t size)
-{
-	disable_timer_int();
-	__ring_skip(rcv_buf.ring, size);
-	enable_timer_int();
-}
-
 static void rf_fill_cmd_ring(uint8_t bit, uint16_t count)
 {
+	static uint8_t receiving;
+
 	if (receiving && count < 11) {
 		if (receiving == 1) {
 			if (bit == 0)
@@ -129,26 +113,28 @@ static void rf_fill_cmd_ring(uint8_t bit, uint16_t count)
 
 static inline void rf_sample(void)
 {
-	unsigned v = analog_read(RF_ANALOG_PIN);
 	static uint16_t cnt;
 	static uint8_t prev_val;
+	uint8_t v, not_v;
 
-	PORTD ^= (1 << PD2);
-	if (v < ANALOG_LOW_VAL) {
-		if (prev_val == 1) {
-			prev_val = 0;
-			rf_fill_cmd_ring(1, cnt);
-			cnt = 0;
-		}
+#ifdef RF_ANALOG_SAMPLING
+	v = analog_read(RF_RCV_PIN_NB);
+	if (v < ANALOG_LOW_VAL)
+		v = 0;
+	else if (v > ANALOG_HI_VAL)
+		v = 1;
+	else
+		return;
+#else
+	v = RF_RCV_PIN & (1 << RF_RCV_PIN_NB);
+#endif
+	not_v = !v;
+	if (prev_val == not_v) {
+		prev_val = v;
+		rf_fill_cmd_ring(not_v, cnt);
+		cnt = 0;
+	} else
 		cnt++;
-	} else if (v > ANALOG_HI_VAL) {
-		if (prev_val == 0) {
-			prev_val = 1;
-			rf_fill_cmd_ring(0, cnt);
-			cnt = 0;
-		}
-		cnt++;
-	}
 }
 #endif
 
@@ -156,60 +142,73 @@ static inline void rf_sample(void)
 /* returns -1 if no data sent */
 static int rf_snd(void)
 {
+	static uint16_t frame_length;
 	static uint8_t bit;
-	static uint8_t frame_delim_started;
 	static uint8_t clk;
-
-	if (sending > 1) {
-		sending--;
-		return 0;
-	}
-
-	if (frame_delim_started < START_FRAME_LENGTH) {
-		RF_SND_PORT ^= 1 << RF_SND_PIN;
-		frame_delim_started++;
-		return 0;
-	}
-
-	if (frame_delim_started == START_FRAME_LENGTH) {
-		RF_SND_PORT &= ~(1 << RF_SND_PIN);
-		frame_delim_started++;
-		return 0;
-	}
-	if (frame_delim_started < FRAME_DELIMITER_LENGTH + START_FRAME_LENGTH) {
-		frame_delim_started++;
-		return 0;
-	}
-	if (frame_delim_started == FRAME_DELIMITER_LENGTH + START_FRAME_LENGTH) {
-		frame_delim_started++;
-		return 0;
-	}
+	static uint8_t frame_delim_started;
+	static uint8_t sending;
 
 	if (bit) {
 		bit--;
 		return 0;
 	}
 
+	if (frame_delim_started < START_FRAME_LENGTH) {
+		/* send garbage data to calibrate the RF sender */
+		RF_SND_PORT ^= 1 << RF_SND_PIN_NB;
+		frame_delim_started++;
+		return 0;
+	}
+
+	if (frame_delim_started == START_FRAME_LENGTH) {
+		uint8_t fl;
+
+		frame_length = 0;
+		RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
+
+		/* get frame length */
+		if (ring_getc(snd_buf.ring, (uint8_t *)&frame_length) < 0 ||
+		    ring_getc(snd_buf.ring, &fl) < 0)
+			goto end;
+
+		frame_length |= fl << 8;
+
+		frame_delim_started++;
+		return 0;
+	}
+	if (frame_delim_started <= FRAME_DELIMITER_LENGTH + START_FRAME_LENGTH) {
+		frame_delim_started++;
+		return 0;
+	}
+
 	if (byte_is_empty(&snd_buf.byte)) {
 		uint8_t c;
 
-		if (ring_getc(snd_buf.ring, &c) < 0) {
-			if (sending) {
-				if (RF_SND_PORT & (1 << RF_SND_PIN)) {
-					RF_SND_PORT &= ~(1 << RF_SND_PIN);
-					frame_delim_started = 0;
-					sending = 0;
-					bit = 0;
-					return -1;
-				} else {
-					RF_SND_PORT |= 1 << RF_SND_PIN;
-					return 0;
-				}
-			}
-			return -1;
+		if (sending && frame_length == 0 && ring_len(snd_buf.ring)) {
+			assert(byte_is_empty(&snd_buf.byte));
+			if (RF_SND_PORT & (1 << RF_SND_PIN_NB)) {
+				sending = 0;
+				frame_delim_started = START_FRAME_LENGTH;
+			} else
+				RF_SND_PORT |= 1 << RF_SND_PIN_NB;
+			return 0;
 		}
+
+		if (ring_getc(snd_buf.ring, &c) < 0) {
+			if (!sending)
+				return -1;
+			if (RF_SND_PORT & (1 << RF_SND_PIN_NB))
+				goto end;
+			RF_SND_PORT |= 1 << RF_SND_PIN_NB;
+			return 0;
+		}
+
+		frame_length--;
 		byte_init(&snd_buf.byte, c);
 	}
+
+	/* use 2 loops for '1' value */
+	bit = byte_get_bit(&snd_buf.byte) ? 2 : 0;
 
 	if (sending == 0) {
 		clk = 1;
@@ -217,17 +216,18 @@ static int rf_snd(void)
 	} else
 		clk ^= 1;
 
-	bit = byte_get_bit(&snd_buf.byte);
-	if (bit)
-		bit = 2;
-
 	/* send bit */
 	if (clk)
-		RF_SND_PORT |= 1 << RF_SND_PIN;
+		RF_SND_PORT |= 1 << RF_SND_PIN_NB;
 	else
-		RF_SND_PORT &= ~(1 << RF_SND_PIN);
-
+		RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
 	return 0;
+ end:
+	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
+	frame_delim_started = 0;
+	sending = 0;
+	bit = 0;
+	return -1;
 }
 
 static void rf_snd_tim_cb(void *arg);
@@ -258,14 +258,21 @@ int rf_send_raw_byte(uint8_t byte)
 }
 #endif
 
-int rf_sendto(uint8_t to, const sbuf_t *data)
+int rf_sendto(uint8_t to, const buf_t *data, int8_t burst)
 {
 	rf_pkt_t pkt;
 	uint32_t csum;
-	buf_t buf;
+	buf_t pkt_buf;
+	uint16_t frame_len;
+	ring_t ring;
 
-	if (sending
-	    || ring_free_entries(snd_buf.ring) < data->len + sizeof(pkt))
+	STATIC_IF(sizeof(ring.head) > sizeof(uint8_t),
+		  if (timer_is_pending(&rf_snd_timer)) return -1,
+		  (void)0);
+
+	if (burst == 0)
+		burst = 1;
+	if (ring_free_entries(snd_buf.ring) < (data->len + sizeof(pkt) + 2) * burst)
 		return -1;
 
 	pkt.from = RF_HW_ADDR;
@@ -277,12 +284,18 @@ int rf_sendto(uint8_t to, const sbuf_t *data)
 	csum = cksum_partial(&pkt, sizeof(rf_pkt_t));
 	csum += cksum_partial(data->data, data->len);
 	pkt.chksum = cksum_finish(csum);
+	buf_init(&pkt_buf, (void *)&pkt, sizeof(pkt));
 
-	buf_init(&buf, (void *)data->data, data->len);
-	__ring_addbuf(snd_buf.ring, &buf);
-
-	buf = sbuf2buf(data);
-	__ring_addbuf(snd_buf.ring, &buf);
+	frame_len = data->len + sizeof(rf_pkt_t);
+	/* send the same command 'burst' times as RF is not very reliable */
+	do {
+		/* add frame length */
+		__ring_addc(snd_buf.ring, frame_len & 0xFF);
+		__ring_addc(snd_buf.ring, (frame_len >> 8) & 0xFF);
+		/* add the buffer */
+		__ring_addbuf(snd_buf.ring, &pkt_buf);
+		__ring_addbuf(snd_buf.ring, data);
+	} while (--burst > 0);
 
 	rf_start_sending();
 	return 0;
@@ -331,11 +344,11 @@ static int rf_parse_kerui_cmds(int rlen)
 	int i;
 
 	if (rlen < RF_KE_CMD_SIZE)
-		return -1;
+		return 0;
 	for (i = 0; i < sizeof(rf_ke_cmds) / RF_KE_CMD_SIZE; i++) {
 		if (ring_cmp(rcv_buf.ring, rf_ke_cmds[i],
 			     RF_KE_CMD_SIZE) == 0) {
-			rf_skip_rcv_size(RF_KE_CMD_SIZE);
+			__ring_skip(rcv_buf.ring, RF_KE_CMD_SIZE);
 			rf_kerui_cb(i);
 			return 0;
 		}
@@ -350,29 +363,28 @@ static void rf_parse_cmds(int rlen)
 	if (rf_parse_kerui_cmds(rlen) >= 0)
 		return;
 #endif
-	rf_skip_rcv_size(1); /* skip 1 byte of garbage */
+	/* skip 1 byte of garbage */
+	__ring_skip(rcv_buf.ring, 1);
 }
 #endif
 int rf_recvfrom(uint8_t *from, buf_t *buf)
 {
-	uint8_t my_addr = RF_HW_ADDR;
 	uint8_t rlen;
 	static uint8_t from_addr;
 	static int valid_data_left;
 
-	while (receiving != 1 && (rlen = rf_get_rcv_len())) {
+	while ((rlen = ring_len(rcv_buf.ring))) {
 		if (valid_data_left) {
 			int l = __ring_get_dont_skip(rcv_buf.ring, buf,
 						     valid_data_left);
 			valid_data_left -= l;
-			rf_skip_rcv_size(l);
+			__ring_skip(rcv_buf.ring, l);
 			*from = from_addr;
 			return 0;
 		}
 
-		/* we got the header but wait if we are still receiving */
-		if (rlen < sizeof(rf_pkt_t) || receiving)
-			return -1;
+                if (rlen < sizeof(rf_pkt_t))
+                        return -1;
 
 		/* check if data is for us */
 		if (ring_cmp(rcv_buf.ring, &my_addr, 1) == 0) {
@@ -387,22 +399,28 @@ int rf_recvfrom(uint8_t *from, buf_t *buf)
 			pkt_len = ntohs(pkt.len);
 			l = pkt_len + sizeof(rf_pkt_t);
 
-			if (rlen < l || __ring_cksum(rcv_buf.ring, l) != 0) {
-				rf_skip_rcv_size(1);
+			if (l > rcv_buf.ring->mask) {
+				__ring_skip(rcv_buf.ring, 1);
+				continue;
+			}
+			if (rlen < l)
+				return -1;
+			if (__ring_cksum(rcv_buf.ring, l) != 0) {
+				__ring_skip(rcv_buf.ring, 1);
 				continue;
 			}
 			*from = pkt.from;
-			rf_skip_rcv_size(sizeof(rf_pkt_t));
+			__ring_skip(rcv_buf.ring, sizeof(rf_pkt_t));
 			l = __ring_get_dont_skip(rcv_buf.ring, buf, pkt_len);
 			valid_data_left = pkt_len - l;
-			rf_skip_rcv_size(l);
+			__ring_skip(rcv_buf.ring, l);
 			return 0;
 		}
 #ifdef CONFIG_RF_CMDS
 		rf_parse_cmds(rlen);
 #else
 		/* skip 1 byte of garbage */
-		rf_skip_rcv_size(1);
+		__ring_skip(rcv_buf.ring, 1);
 #endif
 	}
 	return -1;
@@ -423,6 +441,9 @@ int rf_init(void)
 		DEBUG_LOG("can't create send RF ring\n");
 		return -1;
 	}
+#endif
+#ifndef RF_ANALOG_SAMPLING
+	RF_RCV_PORT &= ~(1 << RF_RCV_PIN_NB);
 #endif
 	return 0;
 }

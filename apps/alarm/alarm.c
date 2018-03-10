@@ -193,7 +193,7 @@ int main(void)
 #ifdef CONFIG_RF_RECEIVER
 		/* TODO: this block should be put in a timer cb */
 		if (rf_recvfrom(&rf_from, &rf_buf) >= 0 && buf_len(&rf_buf)) {
-			DEBUG_LOG("got: %s\n", rf_buf.data);
+			DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
 			buf_reset(&rf_buf);
 		}
 #endif

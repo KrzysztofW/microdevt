@@ -1,8 +1,17 @@
 #ifndef _RF_CFG_H_
 #define _RF_CFG_H_
+#include "rf_common.h"
 
-#define RF_HW_ADDR 0x69
-#define RF_SND_PIN PD2
+#define RF_HW_ADDR RF_MOD0_HW_ADDR
+/* #define RF_ANALOG_SAMPLING */
+#ifdef RF_ANALOG_SAMPLING
+#define RF_RCV_PIN_NB 0
+#else
+#define RF_RCV_PIN_NB PC0
+#define RF_RCV_PORT PORTC
+#define RF_RCV_PIN PINC
+#endif
+#define RF_SND_PIN_NB PD2
 #define RF_SND_PORT PORTD
-#define RF_ANALOG_PIN 0
+
 #endif

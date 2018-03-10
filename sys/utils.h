@@ -8,6 +8,11 @@
 	__builtin_choose_expr(cond, (void)0,                            \
 			      __error__("static assertion failed: "#cond""))
 
+#define STATIC_IF(cond, if_statement, else_statement)			\
+	__builtin_choose_expr(cond,					\
+			      (void)({if_statement;}),			\
+			      (void)({else_statement;}))
+
 #define htons(x) ((x) >> 8 | (x) << 8)
 #define ntohs(x) htons(x)
 #define htonl(l) (((l)<<24) | (((l)&0x00FF0000l)>>8) | (((l)&0x0000FF00l)<<8) | ((l)>>24))
