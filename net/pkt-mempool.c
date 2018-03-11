@@ -140,7 +140,6 @@ int pkt_mempool_init(void)
 	if (pkt_pool == NULL)
 		return -1;
 #endif
-	STATIC_ASSERT(CONFIG_PKT_NB_MAX < 256);
 	for (i = 0; i < CONFIG_PKT_NB_MAX; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
