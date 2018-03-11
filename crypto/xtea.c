@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "usage: %s <string to encode>\n", argv[0]);
 		return -1;
 	}
-	len = strlen(argv[1]);
+	len = strlen(argv[1]) + 1;
 	while (len & 3)
 		len++;
 	buf = BUF(len);

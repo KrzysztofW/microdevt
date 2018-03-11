@@ -6,13 +6,21 @@
 #include "buf.h"
 #include "utils.h"
 
+#ifdef CONFIG_AVR_MCU
+/* only arithmetics on a uint8_t are atomic */
+#define TYPE uint8_t
+#else
+#define TYPE int
+#endif
+
 struct ring {
-	int head;
-	int tail;
-	int mask;
+	TYPE head;
+	TYPE tail;
+	TYPE mask;
 	uint8_t data[];
 } __attribute__((__packed__));
 typedef struct ring ring_t;
+#undef TYPE
 
 /*
       0 1 2 3
@@ -37,6 +45,10 @@ static inline ring_t *ring_create(int size)
 {
 	ring_t *ring;
 
+#ifdef CONFIG_AVR_MCU
+	if (size > 256)
+		return NULL;
+#endif
 	if (!POWEROF2(size))
 		return NULL;
 
@@ -187,7 +199,7 @@ static inline void ring_print_limit(const ring_t *ring, int limit)
 	for (i = 0; i < len; i++) {
 		int pos = (ring->tail + i) & ring->mask;
 
-		printf("0x%X ", ring->data[pos]);
+		printf("0x%02X ", ring->data[pos]);
 	}
 	puts("");
 }

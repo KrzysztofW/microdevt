@@ -141,7 +141,10 @@ static inline void __buf_add(buf_t *buf, const uint8_t *data, int len)
 
 static inline void __buf_adds(buf_t *buf, const char *data)
 {
+	uint8_t c = '\0';
+
 	__buf_add(buf, (uint8_t *)data, strlen(data));
+	__buf_add(buf, &c, 1);
 }
 
 static inline int buf_add(buf_t *buf, const uint8_t *data, int len)
