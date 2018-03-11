@@ -3,7 +3,8 @@
 EXE = alarm_module1
 CFLAGS = -Wall -Werror -Os -g -c
 
-SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../../timer.c $(ARCH_DIR)/$(ARCH)/timer.c
+SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../../timer.c
+SOURCES += $(ARCH_DIR)/$(ARCH)/timer.c ../../../crypto/xtea.c
 
 include config
 include build.mk

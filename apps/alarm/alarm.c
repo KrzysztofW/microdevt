@@ -15,6 +15,14 @@
 #include <net/udp.h>
 #include <net/socket.h>
 #include <net_apps/net_apps.h>
+#include <crypto/xtea.h>
+#include "rf_common.h"
+
+#ifdef CONFIG_RF_RECEIVER
+static uint32_t rf_enc_defkey[4] = {
+	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
+};
+#endif
 
 #ifdef NET
 uint8_t net_wd;
@@ -193,6 +201,7 @@ int main(void)
 #ifdef CONFIG_RF_RECEIVER
 		/* TODO: this block should be put in a timer cb */
 		if (rf_recvfrom(&rf_from, &rf_buf) >= 0 && buf_len(&rf_buf)) {
+			xtea_decode(&rf_buf, rf_enc_defkey);
 			DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
 			buf_reset(&rf_buf);
 		}

@@ -6,16 +6,24 @@
 #include <sys/buf.h>
 #include <rf.h>
 #include <timer.h>
+#include <crypto/xtea.h>
 #include "../rf_common.h"
+
+static uint32_t rf_enc_defkey[4] = {
+	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
+};
 
 static void tim_rf_cb(void *arg)
 {
 	tim_t *timer = arg;
-	buf_t buf = BUF(16);
+	buf_t buf = BUF(32);
 	const char *s = "Hello world!";
 
 	__buf_adds(&buf, s);
-	rf_sendto(0x69, &buf, 2);
+	if (xtea_encode(&buf, rf_enc_defkey) < 0)
+		DEBUG_LOG("can't encode buf\n");
+	if (rf_sendto(0x69, &buf, 2) < 0)
+		DEBUG_LOG("failed sending RF msg\n");
 	timer_reschedule(timer, 5000000UL);
 }
 
