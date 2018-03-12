@@ -212,7 +212,9 @@ int main(int argc, char *argv[])
 		exit(0);
 
 	/* wait for system to be initialized */
-	sleep(3);
+	puts("run in a terminal:");
+	puts("sudo ip link set up dev tap0 && sudo ip a a 1.1.2.1/24 dev tap0");
+	sleep(5);
 
 #ifdef CONFIG_USE_CAPABILITIES
 	/* And before anything else, clear all our capabilities */
