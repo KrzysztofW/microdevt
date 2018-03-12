@@ -22,6 +22,33 @@ static tim_t udp_client_timer;
 
 sock_info_t sock_info_udp_server;
 
+static void udp_get_pkt(sock_info_t *sock_info)
+{
+	uint32_t src_addr;
+	uint16_t src_port;
+	pkt_t *pkt;
+
+	if (__socket_get_pkt(sock_info, &pkt, &src_addr, &src_port) >= 0) {
+		sbuf_t sb = PKT2SBUF(pkt);
+
+		if (__socket_put_sbuf(sock_info, &sb, src_addr, src_port) < 0)
+			DEBUG_LOG("can't put sbuf to udp socket\n");
+
+		src_port = ntohs(src_port);
+		DEBUG_LOG("got from 0x%X on port %u: %.*s\n", src_addr,
+			  src_port, sb.len, sb.data);
+		pkt_free(pkt);
+	}
+}
+
+#ifdef CONFIG_EVENT
+static void ev_udp_server_cb(sock_info_t *sock_info, uint8_t events)
+{
+	DEBUG_LOG("received udp read event\n");
+	udp_get_pkt(sock_info);
+}
+#endif
+
 int udp_server(void)
 {
 	if (sock_info_init(&sock_info_udp_server, SOCK_DGRAM) < 0) {
@@ -33,6 +60,10 @@ int udp_server(void)
 		DEBUG_LOG("can't start udp server\n");
 		return -1;
 	}
+#ifdef CONFIG_EVENT
+	ev_set(&sock_info_udp_server, EV_READ, ev_udp_server_cb);
+#endif
+
 	return 0;
 }
 
@@ -90,17 +121,5 @@ int udp_init(void)
 
 void udp_app(void)
 {
-	uint32_t src_addr;
-	uint16_t src_port;
-	pkt_t *pkt;
-
-	if (__socket_get_pkt(&sock_info_udp_server, &pkt, &src_addr,
-			     &src_port) >= 0) {
-		sbuf_t sb = PKT2SBUF(pkt);
-
-		if (__socket_put_sbuf(&sock_info_udp_server, &sb, src_addr,
-				      src_port) < 0)
-			DEBUG_LOG("can't put sbuf to udp socket\n");
-		pkt_free(pkt);
-	}
+	udp_get_pkt(&sock_info_udp_server);
 }
