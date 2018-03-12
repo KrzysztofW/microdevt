@@ -34,11 +34,11 @@ libnet:
 	make -C ../../net
 
 $(EXE): $(OBJ)
-	$(CC)  $(OBJ) $(LIBS) $(LDFLAGS) -o $@
+	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
 	@if [ -f tun-driver ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
 
 run: all
-	LD_LIBRARY_PATH=../../net sudo ./tun-driver
+	LD_LIBRARY_PATH=../../net ./tun-driver
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
