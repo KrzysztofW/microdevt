@@ -116,12 +116,12 @@ static inline void rf_sample(void)
 	static uint16_t cnt;
 	static uint8_t prev_val;
 	uint8_t v, not_v;
-
 #ifdef RF_ANALOG_SAMPLING
-	v = analog_read(RF_RCV_PIN_NB);
-	if (v < ANALOG_LOW_VAL)
+	uint16_t v_analog = analog_read(RF_RCV_PIN_NB);
+
+	if (v_analog < ANALOG_LOW_VAL)
 		v = 0;
-	else if (v > ANALOG_HI_VAL)
+	else if (v_analog > ANALOG_HI_VAL)
 		v = 1;
 	else
 		return;
