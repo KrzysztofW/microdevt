@@ -18,7 +18,7 @@
 #include <crypto/xtea.h>
 #include "rf_common.h"
 
-#ifdef CONFIG_RF_RECEIVER
+#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
@@ -107,6 +107,24 @@ static void bh(void)
 #endif
 }
 
+#ifdef CONFIG_RF_SENDER
+static void tim_rf_cb(void *arg)
+{
+	tim_t *timer = arg;
+	buf_t buf = BUF(32);
+	const char *s = "I am your master!";
+
+	__buf_adds(&buf, s);
+
+	if (xtea_encode(&buf, rf_enc_defkey) < 0)
+		DEBUG_LOG("can't encode buf\n");
+	if (rf_sendto(RF_MOD1_HW_ADDR, &buf, 2) < 0)
+		DEBUG_LOG("failed sending RF msg\n");
+	timer_reschedule(timer, 5000000UL);
+}
+#endif
+
+#ifdef CONFIG_RF_RECEIVER
 #ifdef CONFIG_RF_KERUI_CMDS
 static void rf_kerui_cb(int nb)
 {
@@ -115,6 +133,7 @@ static void rf_kerui_cb(int nb)
 #endif
 #define RF_BUF_SIZE 64
 uint8_t rf_buf_data[RF_BUF_SIZE];
+#endif
 
 static void blink_led(void *arg)
 {
@@ -133,6 +152,9 @@ int main(void)
 #ifdef CONFIG_RF_RECEIVER
 	buf_t rf_buf;
 	uint8_t rf_from;
+#endif
+#ifdef CONFIG_RF_SENDER
+	tim_t timer_rf;
 #endif
 
 	init_adc();
@@ -186,12 +208,18 @@ int main(void)
 	}
 	buf_init(&rf_buf, rf_buf_data, RF_BUF_SIZE);
 	rf_buf.len = 0;
-#endif
 #ifdef CONFIG_RF_KERUI_CMDS
 	rf_set_kerui_cb(rf_kerui_cb);
 #endif
+#endif
+#ifdef CONFIG_RF_SENDER
+	timer_init(&timer_rf);
+	timer_add(&timer_rf, 0, tim_rf_cb, &timer_rf);
 
 	delay_ms(3000);
+	/* port F used by the RF sender */
+	DDRF = (1 << PF1);
+#endif
 	if (apps_init() < 0)
 		return -1;
 
@@ -201,7 +229,8 @@ int main(void)
 #ifdef CONFIG_RF_RECEIVER
 		/* TODO: this block should be put in a timer cb */
 		if (rf_recvfrom(&rf_from, &rf_buf) >= 0 && buf_len(&rf_buf)) {
-			xtea_decode(&rf_buf, rf_enc_defkey);
+			if (xtea_decode(&rf_buf, rf_enc_defkey) < 0)
+				DEBUG_LOG("can't decode buf\n");
 			DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
 			buf_reset(&rf_buf);
 		}

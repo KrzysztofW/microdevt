@@ -11,7 +11,7 @@
 #define RF_RCV_PORT PORTC
 #define RF_RCV_PIN PINC
 #endif
-#define RF_SND_PIN_NB PD2
-#define RF_SND_PORT PORTD
+#define RF_SND_PIN_NB PF1
+#define RF_SND_PORT PORTF
 
 #endif
