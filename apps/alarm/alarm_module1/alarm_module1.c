@@ -4,14 +4,18 @@
 #include <watchdog.h>
 #include <adc.h>
 #include <sys/buf.h>
-#include <rf.h>
+#include <net/swen.h>
+#include <net/swen_cmds.h>
 #include <timer.h>
 #include <crypto/xtea.h>
 #include "../rf_common.h"
 
+#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
+void *swen_handle;
+#endif
 
 #ifdef CONFIG_RF_SENDER
 static void tim_rf_cb(void *arg)
@@ -24,7 +28,7 @@ static void tim_rf_cb(void *arg)
 
 	if (xtea_encode(&buf, rf_enc_defkey) < 0)
 		DEBUG_LOG("can't encode buf\n");
-	if (rf_sendto(RF_MOD0_HW_ADDR, &buf, 2) < 0)
+	if (swen_sendto(swen_handle, RF_MOD0_HW_ADDR, &buf, 2) < 0)
 		DEBUG_LOG("failed sending RF msg\n");
 	timer_reschedule(timer, 5000000UL);
 }
@@ -38,7 +42,7 @@ void tim_led_cb(void *arg)
 }
 
 #ifdef CONFIG_RF_RECEIVER
-#ifdef CONFIG_RF_KERUI_CMDS
+#ifdef CONFIG_RF_GENERIC_COMMANDS
 static void rf_kerui_cb(int nb)
 {
 	DEBUG_LOG("received kerui cmd %d\n", nb);
@@ -74,11 +78,14 @@ int main(void)
 	timer_add(&timer_led, 0, tim_led_cb, &timer_led);
 	watchdog_enable();
 
-#if defined CONFIG_RF_SENDER || defined CONFIG_RF_RECEIVER
-	if (rf_init() < 0) {
-		DEBUG_LOG("can't initialize RF\n");
+#ifdef CONFIG_RF_RECEIVER
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	swen_handle = swen_init(RF_MOD1_HW_ADDR, rf_kerui_cb, rf_ke_cmds);
+#else
+	swen_handle = swen_init(RF_MOD1_HW_ADDR, NULL, NULL);
+#endif
+	if (swen_handle == NULL)
 		return -1;
-	}
 #endif
 #ifdef CONFIG_RF_SENDER
 	timer_init(&timer_rf);
@@ -90,16 +97,13 @@ int main(void)
 #ifdef CONFIG_RF_RECEIVER
 	buf_init(&rf_buf, rf_buf_data, RF_BUF_SIZE);
 	rf_buf.len = 0;
-#ifdef CONFIG_RF_KERUI_CMDS
-	rf_set_kerui_cb(rf_kerui_cb);
-#endif
 #endif
 	while (1) {
 		/* slow functions */
 #ifdef CONFIG_RF_RECEIVER
 		/* TODO: this block should be put in a timer cb */
-		if (rf_recvfrom(&rf_from, &rf_buf) >= 0 && buf_len(&rf_buf)) {
-			(void)rf_enc_defkey;
+		if (swen_recvfrom(swen_handle, &rf_from, &rf_buf) >= 0
+		    && buf_len(&rf_buf)) {
 			if (xtea_decode(&rf_buf, rf_enc_defkey) < 0)
 				DEBUG_LOG("can't decode buf\n");
 			DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);

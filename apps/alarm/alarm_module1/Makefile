@@ -3,8 +3,8 @@
 EXE = alarm_module1
 CFLAGS = -Wall -Werror -Os -g -c
 
-SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../../timer.c
-SOURCES += $(ARCH_DIR)/$(ARCH)/timer.c ../../../crypto/xtea.c
+SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c
+SOURCES += ../../../crypto/xtea.c
 
 include config
 include build.mk
@@ -24,17 +24,22 @@ endif
 
 CFLAGS += -I../../.. -I.
 
+STATIC_LIBS = ../../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
-all: $(SOURCES) $(EXE)
+all: libnet $(SOURCES) $(EXE)
+
+libnet:
+	make -C ../../../net
 
 $(EXE): $(OBJ)
-	$(CC) $(OBJ) $(LDFLAGS) -o $@
+	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
 clean:
+	make -C ../../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec $(ARCH_DIR)/$(ARCH)/*.o
 
 run_simu: all
