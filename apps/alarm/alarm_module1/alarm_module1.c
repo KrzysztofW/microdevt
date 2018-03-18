@@ -111,7 +111,6 @@ int main(void)
 		}
 #endif
 		watchdog_reset();
-		delay_ms(1);
 	}
 #ifdef CONFIG_RF_SENDER
 	/* rf_shutdown(); */

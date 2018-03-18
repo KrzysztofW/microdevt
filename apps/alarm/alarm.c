@@ -242,9 +242,7 @@ int main(void)
 #if defined(NET) && !defined(CONFIG_EVENT)
 		apps();
 #endif
-
 #ifdef NET_INT
-		/* strangly this is necessary if using SPI interrupts */
 		delay_us(10);
 #endif
 		watchdog_reset();
