@@ -79,11 +79,22 @@ int apps_init(void)
 #ifndef CONFIG_EVENT
 void apps(void)
 {
+#ifdef NET
 #if defined(CONFIG_UDP) && !defined(CONFIG_EVENT)
 	udp_app();
 #endif
 #if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 	tcp_app();
+#endif
+#endif
+#ifdef CONFIG_RF_RECEIVER
+	if (swen_recvfrom(swen_handle, &rf_from, &rf_buf) >= 0
+	    && buf_len(&rf_buf)) {
+		if (xtea_decode(&rf_buf, rf_enc_defkey) < 0)
+			DEBUG_LOG("can't decode buf\n");
+		DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
+		buf_reset(&rf_buf);
+	}
 #endif
 }
 #endif
@@ -191,9 +202,7 @@ int main(void)
 #if defined(CONFIG_UDP) || defined(CONFIG_TCP)
 	socket_init(); /* check return val in case of hash-table storage */
 #endif
-#ifdef NET
 	enc28j60_init(eth0.mac_addr);
-#endif
 
 #ifdef NET_INT
 	PCICR |= _BV(PCIE0);
@@ -228,18 +237,7 @@ int main(void)
 	/* slow functions */
 	while (1) {
 		bh(); /* bottom halves */
-#ifdef CONFIG_RF_RECEIVER
-		/* TODO: this block should be put in a timer cb */
-		if (swen_recvfrom(swen_handle, &rf_from, &rf_buf) >= 0
-		    && buf_len(&rf_buf)) {
-			if (xtea_decode(&rf_buf, rf_enc_defkey) < 0)
-				DEBUG_LOG("can't decode buf\n");
-			DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
-			buf_reset(&rf_buf);
-		}
-#endif
-
-#if defined(NET) && !defined(CONFIG_EVENT)
+#ifndef CONFIG_EVENT
 		apps();
 #endif
 #ifdef NET_INT

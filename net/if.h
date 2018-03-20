@@ -28,9 +28,9 @@ struct iface {
 	uint16_t rx_packets;
 	uint16_t rx_errors;
 	uint16_t rx_dropped;
-	uint16_t rx_packets;
-	uint16_t rx_errors;
-	uint16_t rx_dropped;
+	uint16_t tx_packets;
+	uint16_t tx_errors;
+	uint16_t tx_dropped;
 #endif
 	list_t rx;
 	list_t tx;

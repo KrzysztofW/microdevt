@@ -3,6 +3,7 @@
 #define LIST_POISON1 (void *)0xDEADBEEF
 #define LIST_POISON2 (void *)0xBEEFDEAD
 
+/* #define LIST_DEBUG */
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
