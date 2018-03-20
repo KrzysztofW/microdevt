@@ -1,7 +1,9 @@
 #ifndef _RING_H_
 #define _RING_H_
 
+#ifndef CONFIG_RING_STATIC_ALLOCATIONS
 #include <stdlib.h>
+#endif
 #include <sys/chksum.h>
 #include "buf.h"
 #include "utils.h"
@@ -18,14 +20,29 @@
 #define TYPE int
 #endif
 
+#ifdef CONFIG_RING_STATIC_ALLOC
+#ifndef CONFIG_RING_STATIC_ALLOC_DATA_SIZE
+#define CONFIG_RING_STATIC_ALLOC_DATA_SIZE 256
+#endif
+
+#else  /* no static alloc => unset DATA_SIZE */
+#undef CONFIG_RING_STATIC_ALLOC_DATA_SIZE
+#define CONFIG_RING_STATIC_ALLOC_DATA_SIZE
+#endif
+
 struct ring {
 	volatile TYPE head;
 	volatile TYPE tail;
 	TYPE mask;
-	uint8_t data[];
+	uint8_t data[CONFIG_RING_STATIC_ALLOC_DATA_SIZE];
 } __attribute__((__packed__));
 typedef struct ring ring_t;
 #undef TYPE
+
+#ifdef CONFIG_RING_STATIC_ALLOC
+ring_t __ring_pool[CONFIG_RING_STATIC_ALLOC];
+uint8_t __ring_pool_pos;
+#endif
 
 static inline void ring_reset(ring_t *ring)
 {
@@ -49,16 +66,34 @@ static inline ring_t *ring_create(int size)
 	if (!POWEROF2(size))
 		return NULL;
 
-	if ((ring = calloc(1, sizeof(ring_t) + size)) == NULL)
+#ifndef CONFIG_RING_STATIC_ALLOC
+	if ((ring = malloc(sizeof(ring_t) + size)) == NULL)
 		return NULL;
-
+#else
+	if (__ring_pool_pos >= CONFIG_RING_STATIC_ALLOC) {
+		DEBUG_LOG("%s: too many allocations\n", __func__);
+		abort();
+	}
+	if (size > CONFIG_RING_STATIC_ALLOC_DATA_SIZE) {
+		DEBUG_LOG("%s: size (%d) > %d. "
+			  "Increase CONFIG_RING_STATIC_ALLOC_DATA_SIZE\n",
+			  __func__, size, CONFIG_RING_STATIC_ALLOC_DATA_SIZE);
+		abort();
+	}
+	ring = &__ring_pool[__ring_pool_pos++];
+#endif
 	ring_init(ring, size);
 	return ring;
 }
 
 static inline void ring_free(ring_t *ring)
 {
+#ifndef CONFIG_RING_STATIC_ALLOC
 	free(ring);
+#else
+	assert(__ring_pool_pos);
+	__ring_pool_pos--;
+#endif
 }
 
 static inline int ring_is_full(const ring_t *ring)
@@ -103,10 +138,8 @@ static inline void __ring_addbuf(ring_t *ring, const buf_t *buf)
 	int i;
 	uint8_t *d = buf->data;
 
-	for (i = 0; i < buf->len; i++) {
-		__ring_addc(ring, d[0]);
-		d++;
-	}
+	for (i = 0; i < buf->len; i++)
+		__ring_addc(ring, d[i]);
 }
 
 static inline int ring_addbuf(ring_t *ring, const buf_t *buf)
@@ -121,12 +154,12 @@ static inline void __ring_getc_at(ring_t *ring, uint8_t *c, int pos)
 {
 	assert(pos < ring->mask);
 	pos = (ring->tail + pos ) & ring->mask;
-	*c = (uint8_t)ring->data[pos];
+	*c = ring->data[pos];
 }
 
 static inline void __ring_getc(ring_t *ring, uint8_t *c)
 {
-	*c = (uint8_t)ring->data[ring->tail];
+	*c = ring->data[ring->tail];
 	ring->tail = (ring->tail + 1) & ring->mask;
 }
 

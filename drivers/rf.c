@@ -43,6 +43,11 @@ typedef struct rf_ctx {
 #endif
 } rf_ctx_t;
 
+#ifdef CONFIG_RF_STATIC_ALLOC
+rf_ctx_t __rf_ctx_pool[CONFIG_RF_STATIC_ALLOC];
+uint8_t __rf_ctx_pool_pos;
+#endif
+
 #ifdef CONFIG_RF_RECEIVER
 #ifndef RF_RCV_PIN_NB
 #error "RF_RCV_PIN_NB not defined"
@@ -298,26 +303,42 @@ void *rf_init(uint8_t burst)
 {
 	rf_ctx_t *ctx;
 
+#ifndef CONFIG_RF_STATIC_ALLOC
 	if ((ctx = calloc(1, sizeof(rf_ctx_t))) == NULL) {
-		DEBUG_LOG("%s: cannot allocate memory\n");
+		DEBUG_LOG("%s: cannot allocate memory\n", __func__);
 		return NULL;
 	}
+#else
+	if (__rf_ctx_pool_pos >= CONFIG_RF_STATIC_ALLOC) {
+		DEBUG_LOG("%s: too many allocations\n", __func__);
+		abort();
+	}
+	ctx = &__rf_ctx_pool[__rf_ctx_pool_pos++];
+#endif
+
 #ifdef CONFIG_RF_RECEIVER
+#ifndef CONFIG_RING_STATIC_ALLOC
 	if ((ctx->rcv_data.ring = ring_create(RF_RING_SIZE)) == NULL) {
-		DEBUG_LOG("%s: cannot create receive RF ring\n");
+		DEBUG_LOG("%s: cannot create receive RF ring\n", __func__);
 		return NULL;
 	}
+#else
+	ctx->rcv_data.ring = ring_create(RF_RING_SIZE);
+#endif
 	timer_add(&ctx->rcv_data.timer, RF_SAMPLING_US, rf_rcv_tim_cb, ctx);
 #ifndef RF_ANALOG_SAMPLING
 	RF_RCV_PORT &= ~(1 << RF_RCV_PIN_NB);
 #endif
 #endif
 #ifdef CONFIG_RF_SENDER
+#ifndef CONFIG_RING_STATIC_ALLOC
 	if ((ctx->snd_data.ring = ring_create(RF_RING_SIZE)) == NULL) {
-		DEBUG_LOG("%s: cannot create send RF ring\n");
+		DEBUG_LOG("%s: cannot create send RF ring\n", __func__);
 		return NULL;
 	}
-
+#else
+	ctx->snd_data.ring = ring_create(RF_RING_SIZE);
+#endif
 	if (burst)
 		ctx->burst = burst - 1;
 #endif
@@ -332,12 +353,18 @@ void rf_shutdown(void *handle)
 
 #ifdef CONFIG_RF_RECEIVER
 	timer_del(&ctx->rcv_data.timer);
-	free(ctx->rcv_data.ring);
+	ring_free(ctx->rcv_data.ring);
 #endif
 #ifdef CONFIG_RF_SENDER
 	timer_del(&ctx->snd_data.timer);
-	free(ctx->snd_data.ring);
+	ring_free(ctx->snd_data.ring);
 #endif
+#ifndef CONFIG_RF_STATIC_ALLOC
 	free(ctx);
+#else
+	assert(__rf_ctx_pool_pos);
+	__rf_ctx_pool_pos--;
+	memset(ctx, 0, sizeof(rf_ctx_t));
+#endif
 }
 #endif

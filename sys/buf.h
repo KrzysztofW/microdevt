@@ -81,6 +81,7 @@ static inline int buf_cmp(const buf_t *buf1, const buf_t *buf2)
 	return sbuf_cmp(&sbuf1, &sbuf2);
 }
 
+#ifdef TEST
 static inline int buf_alloc(buf_t *buf, int len)
 {
 	buf->data = malloc(len);
@@ -90,6 +91,7 @@ static inline int buf_alloc(buf_t *buf, int len)
 	buf->len = buf->skip = 0;
 	return 0;
 }
+#endif
 
 static inline void buf_free(buf_t *buf)
 {

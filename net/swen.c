@@ -27,16 +27,29 @@ typedef struct swen_ctx {
 #endif
 } swen_ctx_t;
 
+#ifdef CONFIG_SWEN_STATIC_ALLOC
+swen_ctx_t __swen_ctx_pool[CONFIG_SWEN_STATIC_ALLOC];
+uint8_t __swen_ctx_pool_pos;
+#endif
+
 void *
 swen_init(void *rf_handle, uint8_t addr, void (*generic_cmds_cb)(int nb),
 	  uint8_t *cmds)
 {
-	swen_ctx_t *ctx = malloc(sizeof(swen_ctx_t));
+	swen_ctx_t *ctx;
 
-	if (ctx == NULL) {
-		DEBUG_LOG("%s: cannot allocate memory\n");
+#ifndef CONFIG_SWEN_STATIC_ALLOC
+	if ((ctx = malloc(sizeof(swen_ctx_t))) == NULL) {
+		DEBUG_LOG("%s: cannot allocate memory\n", __func__);
 		return NULL;
 	}
+#else
+	if (__swen_ctx_pool_pos >= CONFIG_SWEN_STATIC_ALLOC) {
+		DEBUG_LOG("%s: too many allocations\n", __func__);
+		abort();
+	}
+	ctx = &__swen_ctx_pool[__swen_ctx_pool_pos++];
+#endif
 	ctx->addr = addr;
 	ctx->rf_handle = rf_handle;
 #ifdef CONFIG_RF_GENERIC_COMMANDS
@@ -53,7 +66,12 @@ void swen_shutdown(void *handle)
 	swen_ctx_t *ctx = handle;
 
 	rf_shutdown(ctx->rf_handle);
+#ifndef CONFIG_SWEN_STATIC_ALLOC
 	free(ctx);
+#else
+	assert(__swen_ctx_pool_pos);
+	__swen_ctx_pool_pos--;
+#endif
 }
 #endif
 #endif
