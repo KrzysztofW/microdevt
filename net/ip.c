@@ -9,10 +9,6 @@
 #include "udp.h"
 #include "tcp.h"
 
-#ifndef CONFIG_IP_TTL
-#error "mandatory CONFIG_IP_TTL option not set"
-#endif
-
 void ip_output(pkt_t *out, iface_t *iface, uint16_t flags)
 {
 	ip_hdr_t *ip = btod(out, ip_hdr_t *);

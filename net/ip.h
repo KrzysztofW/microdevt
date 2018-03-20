@@ -34,11 +34,14 @@ struct ip_hdr {
 	uint16_t chksum;	/* checksum */
 	uint32_t src, dst;	/* source and dest address */
 } __attribute__((__packed__));
-
 typedef struct ip_hdr ip_hdr_t;
 
 #define IP_MIN_HDR_LEN 5
 #define IP_MAX_HDR_LEN 15
+
+#ifndef CONFIG_IP_TTL
+#define CONFIG_IP_TTL 0x38
+#endif
 
 void ip_input(pkt_t *pkt, iface_t *iface);
 void ip_output(pkt_t *out, iface_t *iface, uint16_t flags);

@@ -33,6 +33,14 @@ typedef struct pkt pkt_t;
 		.len  = pkt_len(pkt),                  \
 	}
 
+#ifndef CONFIG_PKT_NB_MAX
+#define CONFIG_PKT_NB_MAX 3
+#endif
+
+#ifndef CONFIG_PKT_SIZE
+#define CONFIG_PKT_SIZE 128
+#endif
+
 void pkt_mempool_shutdown(void);
 int pkt_mempool_init(void);
 pkt_t *pkt_get(list_t *head);

@@ -29,6 +29,10 @@ typedef struct arp_entry {
 #endif
 } arp_entry_t;
 
+#ifndef CONFIG_ARP_TABLE_SIZE
+#define CONFIG_ARP_TABLE_SIZE 2
+#endif
+
 typedef struct arp_entries {
 	arp_entry_t entries[CONFIG_ARP_TABLE_SIZE];
 	uint8_t pos;
