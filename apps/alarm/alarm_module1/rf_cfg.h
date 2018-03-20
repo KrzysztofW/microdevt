@@ -2,8 +2,16 @@
 #define _RF_CFG_H_
 #include "../rf_common.h"
 
-#define RF_HW_ADDR RF_MOD1_HW_ADDR
+#define RF_SAMPLING_US 150
+#define RF_RING_SIZE   256
+
 #define RF_ANALOG_SAMPLING
+#ifdef RF_ANALOG_SAMPLING
+#define RF_RCV_PIN_NB 0
+#define ANALOG_LOW_VAL 160
+#define ANALOG_HI_VAL  630
+#endif
+
 #define RF_RCV_PIN_NB 0
 #define RF_SND_PIN_NB PD2
 #define RF_SND_PORT PORTD

@@ -10,12 +10,6 @@
 #include "rf_cfg.h"
 #include "adc.h"
 
-#define RF_SAMPLING_US 150
-#define RF_RING_SIZE    64
-
-#define ANALOG_LOW_VAL 170
-#define ANALOG_HI_VAL  650
-
 #if RF_SAMPLING_US < CONFIG_TIMER_RESOLUTION_US
 #error "RF sampling will not work with the current timer resolution"
 #endif
