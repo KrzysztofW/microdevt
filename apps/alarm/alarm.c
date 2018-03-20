@@ -35,7 +35,8 @@ iface_t eth0 = {
 	.ip4_mask = { 255, 255, 255, 0 },
 };
 
-#ifdef NET_INT
+/* can't be used with the current interrupt unsafe pkt pool implementation */
+#ifdef ENC28J60_INT
 ISR(PCINT0_vect)
 {
 	enc28j60_get_pkts(&eth0);
@@ -204,7 +205,7 @@ int main(void)
 #endif
 	enc28j60_init(eth0.mac_addr);
 
-#ifdef NET_INT
+#ifdef ENC28J60_INT
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT0);
 #endif
@@ -240,7 +241,7 @@ int main(void)
 #ifndef CONFIG_EVENT
 		apps();
 #endif
-#ifdef NET_INT
+#ifdef ENC28J60_INT
 		delay_us(10);
 #endif
 		watchdog_reset();
