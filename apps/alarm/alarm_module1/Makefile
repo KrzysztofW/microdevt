@@ -52,8 +52,10 @@ upload: all
 	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
 
 size: all
-	#avr-nm -S --size-sort -t d <obj-file>
-	avr-size -C --mcu=${CONFIG_AVR_MCU} alarm_module1
+	avr-size -C --mcu=${CONFIG_AVR_MCU} $(EXE)
+
+nm: all
+	avr-nm -S --size-sort -t d $(EXE)
 
 read_fuses:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h
