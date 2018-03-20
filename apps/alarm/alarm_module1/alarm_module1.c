@@ -8,12 +8,14 @@
 #include <net/swen_cmds.h>
 #include <timer.h>
 #include <crypto/xtea.h>
+#include <drivers/rf.h>
 #include "../rf_common.h"
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
+void *rf_handle;
 void *swen_handle;
 #endif
 
@@ -25,11 +27,11 @@ static void tim_rf_cb(void *arg)
 	const char *s = "Hello world!";
 
 	__buf_adds(&buf, s);
-
 	if (xtea_encode(&buf, rf_enc_defkey) < 0)
 		DEBUG_LOG("can't encode buf\n");
-	if (swen_sendto(swen_handle, RF_MOD0_HW_ADDR, &buf, 2) < 0)
+	if (swen_sendto(swen_handle, RF_MOD0_HW_ADDR, &buf) < 0)
 		DEBUG_LOG("failed sending RF msg\n");
+
 	timer_reschedule(timer, 5000000UL);
 }
 #endif
@@ -78,15 +80,20 @@ int main(void)
 	timer_add(&timer_led, 0, tim_led_cb, &timer_led);
 	watchdog_enable();
 
+#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
+	rf_handle = rf_init(RF_BURST_NUMBER);
+#endif
 #ifdef CONFIG_RF_RECEIVER
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-	swen_handle = swen_init(RF_MOD1_HW_ADDR, rf_kerui_cb, rf_ke_cmds);
+	swen_handle = swen_init(rf_handle, RF_MOD1_HW_ADDR, rf_kerui_cb,
+				rf_ke_cmds);
 #else
-	swen_handle = swen_init(RF_MOD1_HW_ADDR, NULL, NULL);
+	swen_handle = swen_init(rf_handle, RF_MOD1_HW_ADDR, NULL, NULL);
 #endif
 	if (swen_handle == NULL)
 		return -1;
 #endif
+
 #ifdef CONFIG_RF_SENDER
 	timer_init(&timer_rf);
 	timer_add(&timer_rf, 0, tim_rf_cb, &timer_rf);

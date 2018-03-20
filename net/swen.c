@@ -2,16 +2,17 @@
 #include <sys/chksum.h>
 #include <sys/buf.h>
 #include <sys/ring.h>
-#include "../rf.h"
+#include <drivers/rf.h>
+#include "swen.h"
 
 /* XXX the size of this structure has to be even (in order to use
  * cksum_partial() on it). */
-typedef struct __attribute__((__packed__)) rf_pkt_t {
+typedef struct __attribute__((__packed__)) swen_hdr_t {
 	uint8_t to;
 	uint8_t from;
 	uint16_t len;
 	uint16_t chksum;
-} rf_pkt_t;
+} swen_hdr_t;
 
 #if defined CONFIG_RF_SENDER || defined CONFIG_RF_RECEIVER
 typedef struct swen_ctx {
@@ -27,7 +28,8 @@ typedef struct swen_ctx {
 } swen_ctx_t;
 
 void *
-swen_init(uint8_t addr, void (*generic_cmds_cb)(int nb), uint8_t *cmds)
+swen_init(void *rf_handle, uint8_t addr, void (*generic_cmds_cb)(int nb),
+	  uint8_t *cmds)
 {
 	swen_ctx_t *ctx = malloc(sizeof(swen_ctx_t));
 
@@ -36,9 +38,7 @@ swen_init(uint8_t addr, void (*generic_cmds_cb)(int nb), uint8_t *cmds)
 		return NULL;
 	}
 	ctx->addr = addr;
-	ctx->rf_handle = rf_init();
-	if (ctx->rf_handle == NULL)
-		return NULL;
+	ctx->rf_handle = rf_handle;
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	ctx->generic_cmds_cb = generic_cmds_cb;
 	ctx->generic_cmds = cmds;
@@ -59,27 +59,30 @@ void swen_shutdown(void *handle)
 #endif
 
 #ifdef CONFIG_RF_SENDER
-int swen_sendto(void *handle, uint8_t to, const buf_t *data, int8_t burst)
+int swen_sendto(void *handle, uint8_t to, const buf_t *data)
 {
 	swen_ctx_t *ctx = handle;
-	rf_pkt_t pkt;
+	swen_hdr_t hdr;
 	uint32_t csum;
-	buf_t pkt_buf;
+	buf_t hdr_buf;
 	uint16_t frame_len;
+	const buf_t *bufs[2];
 
-	pkt.from = ctx->addr;
-	pkt.to = to;
-	pkt.len = htons(data->len);
-	pkt.chksum = 0;
+	hdr.from = ctx->addr;
+	hdr.to = to;
+	hdr.len = htons(data->len);
+	hdr.chksum = 0;
 
-	STATIC_ASSERT(!(sizeof(rf_pkt_t) & 0x1));
-	csum = cksum_partial(&pkt, sizeof(rf_pkt_t));
+	STATIC_ASSERT(!(sizeof(swen_hdr_t) & 0x1));
+	csum = cksum_partial(&hdr, sizeof(swen_hdr_t));
 	csum += cksum_partial(data->data, data->len);
-	pkt.chksum = cksum_finish(csum);
-	buf_init(&pkt_buf, (void *)&pkt, sizeof(pkt));
-	frame_len = data->len + sizeof(rf_pkt_t);
+	hdr.chksum = cksum_finish(csum);
+	buf_init(&hdr_buf, (void *)&hdr, sizeof(hdr));
+	frame_len = data->len + sizeof(swen_hdr_t);
+	bufs[0] = &hdr_buf;
+	bufs[1] = data;
 
-	return rf_send(ctx->rf_handle, frame_len, burst, &pkt_buf, data, NULL);
+	return rf_output(ctx->rf_handle, frame_len, 2, bufs);
 }
 #endif
 
@@ -131,21 +134,21 @@ int swen_recvfrom(void *handle, uint8_t *from, buf_t *buf)
 			return 0;
 		}
 
-		if (rlen < sizeof(rf_pkt_t))
+		if (rlen < sizeof(swen_hdr_t))
 			return -1;
 
 		/* check if data is for us */
 		if (ring_cmp(ring, &ctx->addr, 1) == 0) {
-			rf_pkt_t pkt;
-			uint16_t pkt_len;
+			swen_hdr_t hdr;
+			uint16_t hdr_len;
 			buf_t b;
 			unsigned l;
 
-			buf_init(&b, &pkt, sizeof(rf_pkt_t));
+			buf_init(&b, &hdr, sizeof(swen_hdr_t));
 			b.len = 0;
-			__ring_get_dont_skip(ring, &b, sizeof(rf_pkt_t));
-			pkt_len = ntohs(pkt.len);
-			l = pkt_len + sizeof(rf_pkt_t);
+			__ring_get_dont_skip(ring, &b, sizeof(swen_hdr_t));
+			hdr_len = ntohs(hdr.len);
+			l = hdr_len + sizeof(swen_hdr_t);
 
 			if (l > ring->mask) {
 				__ring_skip(ring, 1);
@@ -158,11 +161,11 @@ int swen_recvfrom(void *handle, uint8_t *from, buf_t *buf)
 				continue;
 			}
 
-			*from = pkt.from;
-			ctx->from_addr = pkt.from;
-			__ring_skip(ring, sizeof(rf_pkt_t));
-			l = __ring_get_dont_skip(ring, buf, pkt_len);
-			ctx->valid_data_left = pkt_len - l;
+			*from = hdr.from;
+			ctx->from_addr = hdr.from;
+			__ring_skip(ring, sizeof(swen_hdr_t));
+			l = __ring_get_dont_skip(ring, buf, hdr_len);
+			ctx->valid_data_left = hdr_len - l;
 			__ring_skip(ring, l);
 			return 0;
 		}

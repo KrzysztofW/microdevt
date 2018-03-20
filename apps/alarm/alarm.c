@@ -16,12 +16,14 @@
 #include <net/swen.h>
 #include <net/swen_cmds.h>
 #include <crypto/xtea.h>
+#include <drivers/rf.h>
 #include "rf_common.h"
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
+void *rf_handle;
 void *swen_handle;
 #endif
 
@@ -88,15 +90,6 @@ void apps(void)
 	tcp_app();
 #endif
 #endif
-#ifdef CONFIG_RF_RECEIVER
-	if (swen_recvfrom(swen_handle, &rf_from, &rf_buf) >= 0
-	    && buf_len(&rf_buf)) {
-		if (xtea_decode(&rf_buf, rf_enc_defkey) < 0)
-			DEBUG_LOG("can't decode buf\n");
-		DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
-		buf_reset(&rf_buf);
-	}
-#endif
 }
 #endif
 
@@ -131,7 +124,7 @@ static void tim_rf_cb(void *arg)
 
 	if (xtea_encode(&buf, rf_enc_defkey) < 0)
 		DEBUG_LOG("can't encode buf\n");
-	if (swen_sendto(swen_handle, RF_MOD1_HW_ADDR, &buf, 2) < 0)
+	if (swen_sendto(swen_handle, RF_MOD1_HW_ADDR, &buf) < 0)
 		DEBUG_LOG("failed sending RF msg\n");
 	timer_reschedule(timer, 5000000UL);
 }
@@ -212,11 +205,15 @@ int main(void)
 #endif
 	watchdog_enable();
 
+#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
+	rf_handle = rf_init(RF_BURST_NUMBER);
+#endif
 #ifdef CONFIG_RF_RECEIVER
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-	swen_handle = swen_init(RF_MOD0_HW_ADDR, rf_kerui_cb, rf_ke_cmds);
+	swen_handle = swen_init(rf_handle, RF_MOD0_HW_ADDR, rf_kerui_cb,
+				rf_ke_cmds);
 #else
-	swen_handle = swen_init(RF_MOD0_HW_ADDR, NULL, NULL);
+	swen_handle = swen_init(rf_handle, RF_MOD0_HW_ADDR, NULL, NULL);
 #endif
 	if (swen_handle == NULL)
 		return -1;
@@ -238,6 +235,17 @@ int main(void)
 	/* slow functions */
 	while (1) {
 		bh(); /* bottom halves */
+
+#ifdef CONFIG_RF_RECEIVER
+	if (swen_recvfrom(swen_handle, &rf_from, &rf_buf) >= 0
+	    && buf_len(&rf_buf)) {
+		if (xtea_decode(&rf_buf, rf_enc_defkey) < 0)
+			DEBUG_LOG("can't decode buf\n");
+		DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
+		buf_reset(&rf_buf);
+	}
+#endif
+
 #ifndef CONFIG_EVENT
 		apps();
 #endif
