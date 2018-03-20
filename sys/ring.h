@@ -6,29 +6,26 @@
 #include "buf.h"
 #include "utils.h"
 
+/* Single producer - single consumer circular buffer ring implementation.
+ * Note: multi prod/cons rings on AVR architecture are not possible as
+ * atomic 'compare & set' is not provided.
+ */
+
 #ifdef CONFIG_AVR_MCU
-/* only arithmetics on a uint8_t are atomic */
+/* only arithmetics on uint8_t are atomic */
 #define TYPE uint8_t
 #else
 #define TYPE int
 #endif
 
 struct ring {
-	TYPE head;
-	TYPE tail;
+	volatile TYPE head;
+	volatile TYPE tail;
 	TYPE mask;
 	uint8_t data[];
 } __attribute__((__packed__));
 typedef struct ring ring_t;
 #undef TYPE
-
-/*
-      0 1 2 3
-head    |
-tail  |
-size = 3
-
-*/
 
 static inline void ring_reset(ring_t *ring)
 {
@@ -114,10 +111,17 @@ static inline void __ring_addbuf(ring_t *ring, const buf_t *buf)
 
 static inline int ring_addbuf(ring_t *ring, const buf_t *buf)
 {
-	if (ring->mask - ring_len(ring) <= 0)
+	if (buf->len > ring_free_entries(ring))
 		return -1;
 	__ring_addbuf(ring, buf);
 	return 0;
+}
+
+static inline void __ring_getc_at(ring_t *ring, uint8_t *c, int pos)
+{
+	assert(pos < ring->mask);
+	pos = (ring->tail + pos ) & ring->mask;
+	*c = (uint8_t)ring->data[pos];
 }
 
 static inline void __ring_getc(ring_t *ring, uint8_t *c)
@@ -143,9 +147,8 @@ __ring_get_dont_skip(const ring_t *ring, buf_t *buf, int len)
 
 static inline int ring_getc(ring_t *ring, uint8_t *c)
 {
-	if (ring_is_empty(ring)) {
+	if (ring_is_empty(ring))
 		return -1;
-	}
 	__ring_getc(ring, c);
 	return 0;
 }

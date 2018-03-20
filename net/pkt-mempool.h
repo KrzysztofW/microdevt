@@ -6,6 +6,10 @@
 #include "../sys/ring.h"
 #include "../sys/list.h"
 
+/* List based PKT pools are not interrupt safe. */
+
+/* #define RING_POOL */
+
 struct pkt {
 	buf_t buf;
 #ifndef RING_POOL
@@ -34,6 +38,7 @@ int pkt_mempool_init(void);
 pkt_t *pkt_get(list_t *head);
 int pkt_put(list_t *head, pkt_t *pkt);
 
+/* #define PKT_DEBUG */
 #ifdef PKT_DEBUG
 pkt_t *__pkt_alloc(const char *func, int line);
 int __pkt_free(pkt_t *pkt, const char *func, int line);
