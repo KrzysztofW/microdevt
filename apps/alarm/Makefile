@@ -37,14 +37,17 @@ libnet:
 	make -C ../../net
 
 $(EXE): $(OBJ)
-	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
+	$(AR) -cr $(EXE).a $(OBJ)
+	ranlib $(EXE).a
+	$(CC) $(EXE).a $(STATIC_LIBS) $(LDFLAGS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
 clean:
 	make -C ../../net clean
-	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec $(ARCH_DIR)/$(ARCH)/*.o
+	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec
+	@rm -f $(ARCH_DIR)/$(ARCH)/*.o $(EXE).a
 
 run_simu: all
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
