@@ -94,6 +94,13 @@ int main(void)
 		return -1;
 #endif
 
+#ifdef CONFIG_RF_CHECKS
+	if (rf_checks(rf_handle) < 0) {
+		DEBUG_LOG("RF checks failed\n");
+		abort();
+	}
+#endif
+
 #ifdef CONFIG_RF_SENDER
 	timer_init(&timer_rf);
 	timer_add(&timer_rf, 0, tim_rf_cb, &timer_rf);

@@ -61,6 +61,9 @@ uint8_t __rf_ctx_pool_pos;
 #if !defined(RF_SND_PIN_NB) || !defined(RF_SND_PORT)
 #error "RF_SND_PIN and RF_SND_PORT are not defined"
 #endif
+#ifdef CONFIG_RF_CHECKS
+rf_data_t rf_data_check;
+#endif
 #endif
 
 #ifdef CONFIG_RF_RECEIVER
@@ -220,6 +223,9 @@ static int rf_snd(rf_ctx_t *ctx)
 	/* use 2 loops for '1' value */
 	ctx->snd.bit = byte_get_bit(&ctx->snd_data.byte) ? 2 : 0;
 
+#ifdef CONFIG_RF_CHECKS
+	rf_ring_add_bit(&rf_data_check, ctx->snd.bit ? 1 : 0);
+#endif
 	if (ctx->snd.sending == 0)
 		ctx->snd.sending = 1;
 	else
@@ -287,6 +293,100 @@ static void rf_snd_tim_cb(void *arg)
 		return;
 	}
 }
+
+#ifdef CONFIG_RF_CHECKS
+static int rf_buffer_checks(rf_ctx_t *ctx, const buf_t *buf)
+{
+	int i, burst_cnt = ctx->burst;
+
+	if (ring_addc(ctx->snd_data.ring, buf->len & 0xFF) < 0) {
+		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+		return -1;
+	}
+	if (ring_addc(ctx->snd_data.ring, buf->len >> 8) < 0) {
+		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+		return -1;
+	}
+
+	if (ring_addbuf(ctx->snd_data.ring, buf) < 0) {
+		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+		return -1;
+	}
+
+	/* send bytes */
+	while (rf_snd(ctx) >= 0) {}
+
+	if (!ring_is_empty(ctx->snd_data.ring)) {
+		DEBUG_LOG("%s:%d failed (ring len:%d)\n", __func__, __LINE__,
+			  ring_len(ctx->snd_data.ring));
+		ring_print(ctx->snd_data.ring);
+		return -1;
+	}
+
+	if (ring_len(rf_data_check.ring) != buf->len * (burst_cnt + 1)) {
+		DEBUG_LOG("%s:%d failed (ring check len:%d, expected: %d)\n",
+			  __func__, __LINE__, ring_len(rf_data_check.ring),
+			  buf->len * (burst_cnt + 1));
+		return -1;
+	}
+	do {
+		for (i = 0; i < buf->len; i++) {
+			uint8_t c;
+			if (ring_getc(rf_data_check.ring, &c) < 0) {
+				DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+				return -1;
+			}
+			if (c != buf->data[i]) {
+				DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+				return -1;
+			}
+		}
+	} while (burst_cnt--);
+
+	if (!ring_is_empty(rf_data_check.ring)) {
+		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+		return -1;
+	}
+	return 0;
+}
+
+int rf_checks(void *handle)
+{
+	rf_ctx_t *ctx = handle;
+	uint8_t data[] = {
+		0x69, 0x70, 0x00, 0x10, 0xC8, 0xA0, 0x4B, 0xF7,
+		0x17, 0x7F, 0xE7, 0x81, 0x92, 0xE4, 0x0E, 0xA3,
+		0x83, 0xE7, 0x29, 0x74, 0x34, 0x03
+	};
+	uint8_t data2[] = {
+		0x69, 0x70, 0x00, 0x10, 0xC8, 0xA0, 0x4B, 0xF7,
+		0x17, 0x7F, 0xE7, 0x81, 0x92, 0xE4, 0x0E, 0xA3,
+		0x00
+	};
+	buf_t buf;
+	uint8_t tim_armed = 0;
+
+	/* save application send timer */
+	if (timer_is_pending(&ctx->snd_data.timer)) {
+		timer_del(&ctx->snd_data.timer);
+		tim_armed = 1;
+	}
+
+	buf_init(&buf, data, sizeof(data));
+	if (rf_buffer_checks(ctx, &buf) < 0)
+		return -1;
+
+	buf_init(&buf, data2, sizeof(data2));
+	if (rf_buffer_checks(ctx, &buf) < 0)
+		return -1;
+
+	/* restore send timer */
+	if (tim_armed)
+		rf_start_sending(ctx);
+	DEBUG_LOG("=== RF checks passed ===\n");
+	return 0;
+}
+#endif
 #endif
 
 #ifdef CONFIG_RF_RECEIVER
@@ -341,6 +441,12 @@ void *rf_init(uint8_t burst)
 #endif
 	if (burst)
 		ctx->burst = burst - 1;
+#ifdef CONFIG_RF_CHECKS
+	if ((rf_data_check.ring = ring_create(RF_RING_SIZE)) == NULL) {
+		DEBUG_LOG("%s: cannot create check RF ring\n", __func__);
+		return NULL;
+	}
+#endif
 #endif
 	return ctx;
 }
@@ -358,6 +464,9 @@ void rf_shutdown(void *handle)
 #ifdef CONFIG_RF_SENDER
 	timer_del(&ctx->snd_data.timer);
 	ring_free(ctx->snd_data.ring);
+#ifdef CONFIG_RF_CHECKS
+	ring_free(rf_data_check.ring);
+#endif
 #endif
 #ifndef CONFIG_RF_STATIC_ALLOC
 	free(ctx);

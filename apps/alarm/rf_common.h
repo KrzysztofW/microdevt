@@ -28,7 +28,7 @@
 
 #define RF_CMD_ACK      0xFF /* cmd acknowledgment */
 
-#define RF_BURST_NUMBER 2    /* send the same command twice */
+#define RF_BURST_NUMBER 2
 
 /* try to keep this structure a multiple of 4 bytes for xxtea encryption */
 typedef struct __attribute__((__packed__)) rf_cmd {
