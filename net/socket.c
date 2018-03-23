@@ -38,7 +38,6 @@ extern list_t tcp_conns;
 #endif
 
 #ifdef CONFIG_EVENT
-
 void ev_cb(sock_info_t *sock_info, uint8_t event)
 {
 	uint8_t events = EV_NONE;
@@ -54,7 +53,6 @@ void ev_cb(sock_info_t *sock_info, uint8_t event)
 		sock_info->events = events;
 	}
 }
-
 #endif
 
 #ifdef CONFIG_HT_STORAGE
@@ -630,7 +628,7 @@ static pkt_t *socket_alloc_pkt(int hdrlen, const sbuf_t *sbuf)
 	pkt_adj(pkt, hdrlen);
 	if (buf_addsbuf(&pkt->buf, sbuf) < 0) {
 #ifdef CONFIG_BSD_COMPAT
-		errno = ENOBUFS;
+		errno = EMSGSIZE;
 #endif
 		goto error;
 	}
