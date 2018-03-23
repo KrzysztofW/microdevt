@@ -23,7 +23,6 @@ struct arp_res {
 	tim_t tim;
 	iface_t *iface;
 	uint8_t retries;
-	uint32_t ip;
 } __attribute__((__packed__));
 typedef struct arp_res arp_res_t;
 
@@ -129,12 +128,22 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	eth_output(out, iface, tha, ETHERTYPE_ARP);
 }
 
-static arp_res_t *arp_res_lookup(uint32_t ip)
+static uint32_t *arp_res_get_ip(arp_res_t *arp_res)
+{
+	pkt_t *pkt = list_first_entry(&arp_res->pkt_list, pkt_t, list);
+	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+
+	return &ip_hdr->dst;
+}
+
+static arp_res_t *arp_res_lookup(uint32_t *ip)
 {
 	arp_res_t *arp_res;
 
 	list_for_each_entry(arp_res, &arp_wait_list, list) {
-		if (arp_res->ip == ip)
+		uint32_t *arp_res_ip = arp_res_get_ip(arp_res);
+
+		if (*arp_res_ip == *ip)
 			return arp_res;
 	}
 	return NULL;
@@ -156,7 +165,7 @@ static void __arp_process_wait_list(arp_res_t *arp_res, uint8_t delete)
 	free(arp_res);
 }
 
-static void arp_process_wait_list(uint32_t ip, uint8_t delete)
+static void arp_process_wait_list(uint32_t *ip, uint8_t delete)
 {
 	arp_res_t *arp_res;
 
@@ -220,7 +229,7 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 		}
 #endif
 		arp_add_entry(sha, spa, iface);
-		arp_process_wait_list(*(uint32_t *)spa, 0);
+		arp_process_wait_list((uint32_t *)spa, 0);
 		break;
 
 	default:
@@ -235,6 +244,7 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 void arp_retry_cb(void *arg)
 {
 	arp_res_t *arp_res = arg;
+	uint32_t *ip;
 
 	arp_res->retries++;
 	if (arp_res->retries >= ARP_RETRIES) {
@@ -242,8 +252,8 @@ void arp_retry_cb(void *arg)
 		return;
 	}
 	timer_reschedule(&arp_res->tim, ARP_RETRY_TIMEOUT * 1000000);
-	arp_output(arp_res->iface, ARPOP_REQUEST, broadcast_mac,
-		   (uint8_t *)&(arp_res->ip));
+	ip = arp_res_get_ip(arp_res);
+	arp_output(arp_res->iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)ip);
 }
 
 void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface)
@@ -261,7 +271,7 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface)
 		return;
 	}
 #endif
-	if ((arp_res = arp_res_lookup(ip_dst))) {
+	if ((arp_res = arp_res_lookup(&ip_dst))) {
 		list_add_tail(&pkt->list, &arp_res->pkt_list);
 		return;
 	}
@@ -275,7 +285,6 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface)
 	INIT_LIST_HEAD(&arp_res->pkt_list);
 	list_add_tail(&pkt->list, &arp_res->pkt_list);
 	arp_res->retries = 0;
-	arp_res->ip = ip_dst;
 	arp_res->iface = iface;
 	timer_add(&arp_res->tim, ARP_RETRY_TIMEOUT * 1000000, arp_retry_cb,
 		  arp_res);
