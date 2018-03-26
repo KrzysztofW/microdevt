@@ -1,7 +1,6 @@
-#define NET
-
 #include <log.h>
 #include <_stdio.h>
+#include <usart.h>
 #include <common.h>
 #include <watchdog.h>
 #include <adc.h>
@@ -18,6 +17,10 @@
 #include <crypto/xtea.h>
 #include <drivers/rf.h>
 #include "rf_common.h"
+#include "gsm.h"
+
+#define NET
+#define GSM
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint32_t rf_enc_defkey[4] = {
@@ -59,6 +62,14 @@ void tim_cb_wd(void *arg)
 	}
 	net_wd++;
 	timer_reschedule(timer, 10000000UL);
+}
+#endif
+
+#ifdef GSM
+static void gsm_cb(uint8_t status)
+{
+	DEBUG_LOG("sending sms finished with status: %s\n",
+		  status ? "ERROR" : "OK");
 }
 #endif
 
@@ -150,6 +161,14 @@ static void blink_led(void *arg)
 	timer_reschedule(tim, 1000000UL);
 }
 
+ISR(USART0_RX_vect)
+{
+	uint8_t c = UDR0;
+
+	usart1_put(c);
+	DEBUG_LOG("%c", c);
+}
+
 int main(void)
 {
 	tim_t timer_led;
@@ -227,6 +246,11 @@ int main(void)
 
 	if (apps_init() < 0)
 		return -1;
+
+#ifdef GSM
+	gsm_init(gsm_cb);
+	gsm_send_sms("+33687236420", "SMS from KW alarm");
+#endif
 
 	/* slow functions */
 	while (1) {
