@@ -52,6 +52,7 @@ static void rf_kerui_cb(int nb)
 #endif
 #define RF_BUF_SIZE 64
 uint8_t rf_buf_data[RF_BUF_SIZE];
+buf_t rf_buf = BUF_INIT(rf_buf_data);
 #endif
 
 int main(void)
@@ -107,10 +108,6 @@ int main(void)
 
 	/* port D used by the LED and RF sender */
 	DDRD = (1 << PD2);
-#endif
-#ifdef CONFIG_RF_RECEIVER
-	buf_init(&rf_buf, rf_buf_data, RF_BUF_SIZE);
-	rf_buf.len = 0;
 #endif
 	while (1) {
 		/* slow functions */

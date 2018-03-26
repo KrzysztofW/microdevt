@@ -10,7 +10,7 @@
 
 struct static_buf {
 	int len;
-	const unsigned char *data;
+	const uint8_t *data;
 } __attribute__((__packed__));
 typedef struct static_buf sbuf_t;
 
@@ -18,17 +18,23 @@ struct buf {
 	int len;
 	int size;
 	int skip;
-	unsigned char *data;
+	uint8_t *data;
 } __attribute__((__packed__));
 typedef struct buf buf_t;
 
-#define buf2sbuf(buf) (sbuf_t) { .len = buf->len, .data = buf->data }
-#define sbuf2buf(sbuf) (buf_t) { .len = sbuf->len, .data = (void *)sbuf->data, \
-			.size = sbuf->len }
+#define buf2sbuf(buf) (sbuf_t) { .len = (buf)->len, .data = (buf)->data }
+#define sbuf2buf(sbuf) (buf_t) { .len = (sbuf)->len,	\
+			.data = (sbuf)->data,		\
+			.size = (sbuf)->len }
 
 #define SBUF_INITS(str) (sbuf_t)					\
 	{								\
-		.data = (unsigned char *)str, .len = strlen(str)	\
+		.data = (uint8_t *)str, .len = sizeof(str) - 1		\
+	}
+#define BUF_INIT(__data, __len) (buf_t)					\
+	{								\
+		.data = (uint8_t *)__data,				\
+		.size = __len						\
 	}
 #define BUF(sz)						\
 	(buf_t){					\
@@ -135,7 +141,7 @@ static inline unsigned char *buf_data(const buf_t *buf)
 	return buf->data + buf->skip;
 }
 
-static inline void __buf_add(buf_t *buf, const uint8_t *data, int len)
+static inline void __buf_add(buf_t *buf, const void *data, int len)
 {
 	memcpy(buf->data + buf->len + buf->skip, data, len);
 	buf->len += len;
@@ -149,7 +155,7 @@ static inline void __buf_adds(buf_t *buf, const char *data)
 	__buf_add(buf, &c, 1);
 }
 
-static inline int buf_add(buf_t *buf, const uint8_t *data, int len)
+static inline int buf_add(buf_t *buf, const void *data, int len)
 {
 	if (buf_has_room(buf, len) < 0)
 		return -1;
