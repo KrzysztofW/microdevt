@@ -8,7 +8,7 @@ ARCH = x86
 else ifeq ($(CONFIG_ARCH),AVR)
 ifeq ($(DEBUG), 1)
 	SOURCES += $(ARCH_DIR)/avr/_stdio.c
-	SOURCES += $(ARCH_DIR)/avr/usart0.c
+	SOURCES += $(ARCH_DIR)/avr/usart.c
 endif
 
 AVR_FLAGS = -DF_CPU=${CONFIG_AVR_F_CPU} -mmcu=${CONFIG_AVR_MCU}

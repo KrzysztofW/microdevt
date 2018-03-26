@@ -162,10 +162,9 @@ int main(void)
 #ifdef CONFIG_RF_SENDER
 	tim_t timer_rf;
 #endif
-
 	init_adc();
 #ifdef DEBUG
-	init_stream0(&stdout, &stdin);
+	init_stream0(&stdout, &stdin, 1);
 	DEBUG_LOG("KW alarm v0.2\n");
 #endif
 	timer_subsystem_init();
