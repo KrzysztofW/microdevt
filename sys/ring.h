@@ -60,12 +60,19 @@ static inline ring_t *ring_create(int size)
 	ring_t *ring;
 
 #ifdef CONFIG_AVR_MCU
-	if (size > 256)
-		return NULL;
+	if (size > 256) {
+#ifndef CONFIG_RING_STATIC_ALLOC
+		abort();
 #endif
-	if (!POWEROF2(size))
 		return NULL;
-
+	}
+#endif
+	if (!POWEROF2(size)) {
+#ifndef CONFIG_RING_STATIC_ALLOC
+		abort();
+#endif
+		return NULL;
+	}
 #ifndef CONFIG_RING_STATIC_ALLOC
 	if ((ring = malloc(sizeof(ring_t) + size)) == NULL)
 		return NULL;
