@@ -150,6 +150,18 @@ static inline int ring_addbuf(ring_t *ring, const buf_t *buf)
 	return 0;
 }
 
+static inline int ring_add(ring_t *ring, const void *data, int len)
+{
+	int i;
+	const uint8_t *d = data;
+
+	if (len > ring_free_entries(ring))
+		return -1;
+	for (i = 0; i < len; i++)
+		__ring_addc(ring, d[i]);
+	return 0;
+}
+
 static inline void __ring_getc_at(ring_t *ring, uint8_t *c, int pos)
 {
 	assert(pos < ring->mask);
