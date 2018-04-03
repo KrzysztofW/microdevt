@@ -61,7 +61,7 @@ static inline int buf_len(const buf_t *buf)
 	return buf->len;
 }
 
-static inline int buf_free_space(const buf_t *buf)
+static inline int buf_get_free_space(const buf_t *buf)
 {
 	return buf->size - buf->skip - buf->len;
 }

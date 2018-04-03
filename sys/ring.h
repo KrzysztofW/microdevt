@@ -76,6 +76,7 @@ static inline ring_t *ring_create(int size)
 #ifndef CONFIG_RING_STATIC_ALLOC
 	if ((ring = malloc(sizeof(ring_t) + size)) == NULL)
 		return NULL;
+	ring->head = 0;
 #else
 	if (__ring_pool_pos >= CONFIG_RING_STATIC_ALLOC) {
 		DEBUG_LOG("%s: too many allocations\n", __func__);
@@ -186,7 +187,7 @@ static inline int
 __ring_get_dont_skip(const ring_t *ring, buf_t *buf, int len)
 {
 	int i;
-	int blen = buf_free_space(buf);
+	int blen = buf_get_free_space(buf);
 	int l = MIN(blen, len);
 
 	for (i = 0; i < l; i++) {
@@ -210,12 +211,24 @@ static inline void __ring_skip(ring_t *ring, int len)
 	ring->tail = (ring->tail + len) & ring->mask;
 }
 
-static inline int __ring_get(ring_t *ring, buf_t *buf, int len)
+static inline int __ring_get(ring_t *ring, buf_t *buf, int max_len)
 {
-	int l = __ring_get_dont_skip(ring, buf, len);
+	int l = __ring_get_dont_skip(ring, buf, max_len);
 
 	__ring_skip(ring, l);
 	return l;
+}
+
+static inline void __ring_get_buf(ring_t *ring, buf_t *buf)
+{
+	int i;
+
+	for (i = 0; i < buf->size; i++) {
+		int pos = (ring->tail + i) & ring->mask;
+
+		__buf_addc(buf, ring->data[pos]);
+	}
+	__ring_skip(ring, buf->len);
 }
 
 static inline int ring_get(ring_t *ring, buf_t *buf)

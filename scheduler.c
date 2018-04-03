@@ -11,15 +11,17 @@ int schedule_task(const task_t *task)
 {
 	return ring_add(ring, task, sizeof(task_t));
 }
-static task_t task;
-static buf_t buf = BUF_INIT(&task, sizeof(task_t));
 
 void bh(void)
 {
+	task_t task;
+	buf_t buf;
+
 	if (ring_len(ring) < sizeof(task_t))
 		return;
-	__ring_get(ring, &buf, sizeof(task_t));
-	buf_reset(&buf);
+
+	buf = BUF_INIT(&task, sizeof(task_t));
+	__ring_get_buf(ring, &buf);
 	task.cb(task.arg);
 }
 
