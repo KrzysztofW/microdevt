@@ -2,12 +2,7 @@
 
 unsigned char buffer_data[CONFIG_PKT_SIZE * CONFIG_PKT_NB_MAX];
 pkt_t buffer_pool[CONFIG_PKT_NB_MAX];
-#ifndef RING_POOL
-list_t __pkt_pool;
-list_t *pkt_pool = &__pkt_pool;
-#else
 ring_t *pkt_pool;
-#endif
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 static uint8_t emergency_pkt_used;
@@ -18,27 +13,6 @@ int pkt_is_emergency(pkt_t *pkt)
 }
 #endif
 
-#ifndef RING_POOL
-pkt_t *pkt_get(list_t *head)
-{
-	pkt_t *pkt;
-
-	if (list_empty(head))
-		return NULL;
-
-	pkt = list_first_entry(head, pkt_t, list);
-	list_del(&pkt->list);
-	return pkt;
-}
-
-int pkt_put(list_t *head, pkt_t *pkt)
-{
-	assert(pkt->list.next == LIST_POISON1 && pkt->list.prev == LIST_POISON2);
-	list_add_tail(&pkt->list, head);
-	return 0;
-}
-
-#else
 pkt_t *pkt_get(ring_t *ring)
 {
 	uint8_t offset;
@@ -53,7 +27,6 @@ int pkt_put(ring_t *ring, pkt_t *pkt)
 {
 	return ring_addc(ring, pkt->offset);
 }
-#endif
 
 #ifdef PKT_DEBUG
 pkt_t *__pkt_alloc(const char *func, int line)
@@ -121,59 +94,47 @@ pkt_t *pkt_alloc_emergency(void)
 	pkt = malloc(sizeof(pkt_t) + CONFIG_PKT_SIZE);
 	if (pkt == NULL) /* unrecoverable error => reset */
 		return NULL;
-	buf_init(&pkt->buf, ((uint8_t *)pkt) + sizeof(pkt_t), CONFIG_PKT_SIZE);
-	pkt->buf.len = 0;
+	pkt->buf = BUF_INIT(((uint8_t *)pkt) + sizeof(pkt_t), CONFIG_PKT_SIZE);
 	pkt->refcnt = 0;
-#ifndef RING_POOL
+
 	INIT_LIST_HEAD(&pkt->list);
 #ifdef DEBUG
 	/* mark pkt list as poisoned */
 	list_del(&pkt->list);
 #endif
-#endif
 	emergency_pkt_used = 1;
 	return pkt;
 }
+#endif
 
 int pkt_mempool_init(void)
 {
 	uint8_t i;
 
-#ifndef RING_POOL
-	INIT_LIST_HEAD(pkt_pool);
-#else
 	pkt_pool = ring_create(CONFIG_PKT_NB_MAX + 1);
 	if (pkt_pool == NULL)
 		return -1;
-#endif
+
 	for (i = 0; i < CONFIG_PKT_NB_MAX; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
-		buf_init(&pkt->buf, &buffer_data[i * CONFIG_PKT_SIZE],
-			 CONFIG_PKT_SIZE);
-		pkt->buf.len = 0;
+		pkt->buf = BUF_INIT(&buffer_data[i * CONFIG_PKT_SIZE],
+				    CONFIG_PKT_SIZE);
 		pkt->refcnt = 0;
-#ifdef DEBUG
-		pkt->pkt_nb = i;
-#endif
-#ifndef RING_POOL
 		INIT_LIST_HEAD(&pkt->list);
 #ifdef DEBUG
 		/* mark pkt list as poisoned */
 		list_del(&pkt->list);
 #endif
-		pkt_put(pkt_pool, pkt);
-#else
 		pkt->offset = i;
 		ring_addc(pkt_pool, i);
-#endif
 	}
 	return 0;
 }
 
+#ifdef TEST
 void pkt_mempool_shutdown(void)
 {
-#ifdef RING_POOL
 	ring_free(pkt_pool);
-#endif
 }
+#endif

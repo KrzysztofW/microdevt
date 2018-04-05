@@ -40,7 +40,6 @@ iface_t eth0 = {
 	.ip4_mask = { 255, 255, 255, 0 },
 };
 
-/* can't be used with the current interrupt unsafe pkt pool implementation */
 #ifdef ENC28J60_INT
 ISR(PCINT0_vect)
 {
@@ -115,10 +114,8 @@ static void bh(void)
 	eth_input(pkt, &eth0);
 	net_wd = 0;
  send:
-	while ((pkt = pkt_get(&eth0.tx)) != NULL) {
-		cli();
+	while ((pkt = pkt_get(eth0.tx)) != NULL) {
 		eth0.send(&pkt->buf);
-		sei();
 		pkt_free(pkt);
 	}
 #endif

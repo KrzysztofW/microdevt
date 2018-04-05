@@ -57,12 +57,12 @@ void eth_output(pkt_t *out, iface_t *iface, const uint8_t *mac_dst,
 		eh->src[i] = iface->mac_addr[i];
 	}
 	eh->type = type;
-	if (pkt_put(&iface->tx, out) < 0) {
+	if (pkt_put(iface->tx, out) < 0) {
 		pkt_free(out);
 	}
 #if defined(X86) && !defined(TEST)
 	/* send the packet immediately */
-	while ((out = pkt_get(&iface->tx)) != NULL) {
+	while ((out = pkt_get(iface->tx)) != NULL) {
 		iface->send(&out->buf);
 		pkt_free(out);
 	}

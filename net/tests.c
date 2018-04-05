@@ -107,7 +107,7 @@ static int net_arp_request_test(iface_t *ifa)
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
 	arp_output(ifa, ARPOP_REQUEST, dst_mac, (uint8_t *)&dst_ip);
-	if ((out = pkt_get(&ifa->tx)) == NULL) {
+	if ((out = pkt_get(ifa->tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet\n", __func__);
 		return -1;
 	}
@@ -164,11 +164,11 @@ int net_arp_tests(void)
 
 	printf("in pkt:\n");
 	buf_print(&pkt->buf);
-	if (pkt_put(&iface.rx, pkt) < 0) {
+	if (pkt_put(iface.rx, pkt) < 0) {
 		fprintf(stderr , "%s: can't put rx packet\n", __func__);
 		return -1;
 	}
-	if ((pkt = pkt_get(&iface.rx)) == NULL) {
+	if ((pkt = pkt_get(iface.rx)) == NULL) {
 		fprintf(stderr , "%s: can't get rx packet\n", __func__);
 		return -1;
 	}
@@ -177,7 +177,7 @@ int net_arp_tests(void)
 	(void)net_arp_print_entries;
 
 	buf_init(&out, arp_reply_pkt, sizeof(arp_reply_pkt));
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet 2\n", __func__);
 		return -1;
 	}
@@ -266,18 +266,18 @@ int net_icmp_tests(void)
 	buf_init(&pkt->buf, icmp_echo_pkt, sizeof(icmp_echo_pkt));
 
 	arp_add_entry(mac_dst, (uint8_t *)&ip_dst, &iface);
-	if (pkt_put(&iface.rx, pkt) < 0) {
+	if (pkt_put(iface.rx, pkt) < 0) {
 		fprintf(stderr , "%s: can't put rx packet\n", __func__);
 		return -1;
 	}
-	if ((pkt = pkt_get(&iface.rx)) == NULL) {
+	if ((pkt = pkt_get(iface.rx)) == NULL) {
 		fprintf(stderr , "%s: can't get rx packet\n", __func__);
 		return -1;
 	}
 	eth_input(pkt, &iface);
 
 	buf_init(&out, icmp_reply_pkt, sizeof(icmp_reply_pkt));
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet\n", __func__);
 		return -1;
 	}
@@ -396,7 +396,7 @@ int net_udp_tests(void)
 		 sizeof(icmp_port_unrecheable_pkt));
 
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet\n", __func__);
 		return -1;
 	}
@@ -430,7 +430,7 @@ int net_udp_tests(void)
 #endif
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) != NULL) {
+	if ((pkt = pkt_get(iface.tx)) != NULL) {
 		fprintf(stderr, "shouldn't get tx packet\n");
 		return -1;
 	}
@@ -463,7 +463,7 @@ int net_udp_tests(void)
 		return -1;
 	}
 #endif
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get udp echo packet\n", __func__);
 		return -1;
 	}
@@ -615,7 +615,7 @@ int net_tcp_tests(void)
 	buf_init(&out, tcp_pkt_rst_reply, sizeof(tcp_pkt_rst_reply));
 
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP SYN => RST: can't get tx packet\n",
 			__func__);
 		return -1;
@@ -659,7 +659,7 @@ int net_tcp_tests(void)
 	buf_init(&out, tcp_syn_ack_pkt, sizeof(tcp_syn_ack_pkt));
 
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP SYN: can't get SYN_ACK packet\n",
 			__func__);
 		return -1;
@@ -679,7 +679,7 @@ int net_tcp_tests(void)
 	buf_init(&pkt->buf, tcp_ack_pkt, sizeof(tcp_ack_pkt));
 
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) != NULL) {
+	if ((pkt = pkt_get(iface.tx)) != NULL) {
 		fprintf(stderr, "%s: TCP EST: shouldn't get tx packet after ACK\n",
 			__func__);
 		return -1;
@@ -695,7 +695,7 @@ int net_tcp_tests(void)
 	buf_init(&out, tcp_data_ack_pkt, sizeof(tcp_data_ack_pkt));
 
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP EST: can't get ACK to data packet\n",
 			__func__);
 		return -1;
@@ -743,7 +743,7 @@ int net_tcp_tests(void)
 	buf_init(&out, tcp_fin_ack_server_pkt, sizeof(tcp_fin_ack_server_pkt));
 
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) == NULL) {
+	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP close: can't get FIN from server\n",
 			__func__);
 		return -1;
@@ -762,7 +762,7 @@ int net_tcp_tests(void)
 	buf_init(&pkt->buf, tcp_ack_client_pkt, sizeof(tcp_ack_client_pkt));
 
 	eth_input(pkt, &iface);
-	if ((pkt = pkt_get(&iface.tx)) != NULL) {
+	if ((pkt = pkt_get(iface.tx)) != NULL) {
 		fprintf(stderr, "%s: TCP client close: shouldn't get any pkt "
 			"after FIN ACK\n", __func__);
 		return -1;

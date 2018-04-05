@@ -6,20 +6,10 @@
 #include "../sys/ring.h"
 #include "../sys/list.h"
 
-/* List based PKT pools are not interrupt safe. */
-
-/* #define RING_POOL */
-
 struct pkt {
 	buf_t buf;
-#ifndef RING_POOL
 	list_t list;
-#else
 	uint8_t offset;
-#endif
-#ifdef DEBUG
-	uint8_t pkt_nb;
-#endif
 	uint8_t refcnt;
 } __attribute__((__packed__));
 typedef struct pkt pkt_t;
@@ -43,8 +33,8 @@ typedef struct pkt pkt_t;
 
 void pkt_mempool_shutdown(void);
 int pkt_mempool_init(void);
-pkt_t *pkt_get(list_t *head);
-int pkt_put(list_t *head, pkt_t *pkt);
+pkt_t *pkt_get(ring_t *ring);
+int pkt_put(ring_t *ring, pkt_t *pkt);
 
 /* #define PKT_DEBUG */
 #ifdef PKT_DEBUG
