@@ -1,12 +1,14 @@
 #include "socket.h"
-#include "../sys/errno.h"
+
+#include <sys/errno.h>
+#include <sys/list.h>
+#include <sys/hash-tables.h>
+#include <scheduler.h>
 #include "eth.h"
 #include "ip.h"
 #ifdef CONFIG_UDP
 #include "udp.h"
 #endif
-#include "../sys/list.h"
-#include "../sys/hash-tables.h"
 
 #ifndef CONFIG_HT_STORAGE
 #undef CONFIG_MAX_SOCK_HT_SIZE
@@ -38,19 +40,42 @@ extern list_t tcp_conns;
 #endif
 
 #ifdef CONFIG_EVENT
-void ev_cb(sock_info_t *sock_info, uint8_t event)
+static void socket_event_cb(void *arg)
 {
-	uint8_t events = EV_NONE;
+	sock_info_t *sock_info = arg;
 
-	if ((sock_info->events & EV_READ) && (event & EV_READ))
-		events = EV_READ;
-	if ((sock_info->events & EV_WRITE) && (event & EV_WRITE))
-		events |= EV_WRITE;
-	if (events != EV_NONE) {
-		events = sock_info->events;
-		sock_info->events = EV_NONE;
-		sock_info->ev_cb(sock_info, events);
-		sock_info->events = events;
+	sock_info->ev_cb(sock_info, sock_info->events_available);
+
+	/* reload the write event */
+	if (sock_info->events_available & sock_info->events_wanted & EV_WRITE)
+		socket_schedule_ev(sock_info, EV_WRITE);
+}
+
+void socket_schedule_ev(sock_info_t *sock_info, uint8_t events)
+{
+	if ((sock_info->events_wanted & events) || (events & EV_ERROR)) {
+		task_t task = {
+			.cb = socket_event_cb,
+			.arg = sock_info,
+		};
+
+		sock_info->events_available = events;
+		schedule_task(&task);
+	}
+}
+
+void socket_ev_set(sock_info_t *sock_info, uint8_t events,
+		   void (*ev_cb)(struct sock_info *sock_info, uint8_t events))
+{
+	sock_info->events_wanted = events;
+	sock_info->ev_cb = ev_cb;
+
+	/* a task should be scheduled here immediately if data to read
+	 * is available. */
+	if ((sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn &&
+	     !list_empty(&sock_info->trq.tcp_conn->pkt_list_head))
+	    || !list_empty(&sock_info->trq.pkt_list)) {
+		socket_schedule_ev(sock_info, EV_READ);
 	}
 }
 #endif
@@ -439,7 +464,7 @@ int sock_info_bind(sock_info_t *sock_info, uint16_t port)
 #ifdef CONFIG_EVENT
 	if (sock_info->type == SOCK_DGRAM) {
 		if (bind_on_port(port, sock_info) >= 0) {
-			ev_cb(sock_info, EV_WRITE);
+			socket_schedule_ev(sock_info, EV_WRITE);
 			return 0;
 		}
 		return -1;

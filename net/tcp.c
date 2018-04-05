@@ -35,7 +35,8 @@ static tcp_syn_t *syn_find_entry(const tcp_uid_t *uid)
 	int i;
 
 	for (i = 0; i < CONFIG_TCP_SYN_TABLE_SIZE; i++) {
-		if (memcmp(&syn_entries.conns[i].tuid, uid, sizeof(tcp_uid_t)) == 0)
+		if (memcmp(&syn_entries.conns[i].tuid, uid,
+			   sizeof(tcp_uid_t)) == 0)
 			return &syn_entries.conns[i];
 	}
 	return NULL;
@@ -108,7 +109,7 @@ static inline void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 	tcp_conn_cnt--;
 
 #ifdef CONFIG_EVENT
-	ev_cb(sock_info, EV_READ);
+	socket_schedule_ev(sock_info, EV_READ);
 #endif
 }
 
@@ -260,11 +261,11 @@ static inline void tcp_arm_retrn_timer(tcp_conn_t *tcp_conn, pkt_t *pkt)
 		  * (tcp_conn->retrn.cnt + 1), tcp_retransmit, tcp_conn);
 }
 
-static void tcp_conn_mark_closed(tcp_conn_t *tcp_conn)
+static void tcp_conn_mark_closed(tcp_conn_t *tcp_conn, uint8_t error)
 {
 	tcp_conn->syn.status = SOCK_CLOSED;
 #ifdef CONFIG_EVENT
-	ev_cb(tcp_conn->sock_info, EV_READ);
+	socket_schedule_ev(tcp_conn->sock_info, error ? EV_ERROR : EV_READ);
 #endif
 }
 
@@ -275,7 +276,7 @@ static void tcp_retransmit(void *arg)
 
 	if (tcp_conn->retrn.cnt >= TCP_IN_PROGRESS_RETRIES) {
 		if (tcp_conn->syn.status != SOCK_CLOSED)
-			tcp_conn_mark_closed(tcp_conn);
+			tcp_conn_mark_closed(tcp_conn, 1);
 		tcp_retrn_wipe(tcp_conn);
 		return;
 	}
@@ -518,7 +519,7 @@ void tcp_input(pkt_t *pkt)
 
 		if (tcp_hdr->ctrl & TH_RST) {
 			if (tcp_conn->syn.status != SOCK_CLOSED)
-				tcp_conn_mark_closed(tcp_conn);
+				tcp_conn_mark_closed(tcp_conn, 1);
 			goto end;
 		}
 
@@ -549,7 +550,7 @@ void tcp_input(pkt_t *pkt)
 		} else if (tcp_hdr->ctrl == TH_ACK
 			   && tcp_conn->syn.status == SOCK_TCP_FIN_SENT
 			   && tcp_hdr->ack == tcp_conn->syn.seqid) {
-			tcp_conn_mark_closed(tcp_conn);
+			tcp_conn_mark_closed(tcp_conn, 0);
 			goto end;
 		}
 
@@ -575,7 +576,7 @@ void tcp_input(pkt_t *pkt)
 
 		socket_append_pkt(&tcp_conn->pkt_list_head, pkt);
 #ifdef CONFIG_EVENT
-		ev_cb(tcp_conn->sock_info, EV_READ);
+		socket_schedule_ev(tcp_conn->sock_info, EV_READ);
 #endif
 		return;
 	}
@@ -586,7 +587,7 @@ void tcp_input(pkt_t *pkt)
 	tcp_conn = tcp_client_conn_lookup(&tuid);
 	if (tcp_hdr->ctrl & TH_RST) {
 		if (tcp_conn != NULL)
-			tcp_conn_mark_closed(tcp_conn);
+			tcp_conn_mark_closed(tcp_conn, 1);
 		goto end;
 	}
 	tuid.dst_addr = dst_addr;
@@ -599,7 +600,7 @@ void tcp_input(pkt_t *pkt)
 
 		if (tcp_conn->syn.status != SOCK_TCP_SYN_SENT
 		    || htonl(remote_ack - 1) != tcp_conn->syn.seqid) {
-			tcp_conn_mark_closed(tcp_conn);
+			tcp_conn_mark_closed(tcp_conn, 0);
 			goto end;
 		}
 
@@ -620,7 +621,7 @@ void tcp_input(pkt_t *pkt)
 			goto end;
 		}
 #ifdef CONFIG_EVENT
-		ev_cb(tcp_conn->sock_info, EV_READ|EV_WRITE);
+		socket_schedule_ev(tcp_conn->sock_info, EV_WRITE);
 #endif
 		goto end;
 	}
@@ -692,7 +693,7 @@ void tcp_input(pkt_t *pkt)
 			tcp_conn->syn.ack = tcp_hdr->seq;
 			tcp_conn->syn.opts = tsyn_entry->opts;
 #ifdef CONFIG_EVENT
-			ev_cb(sock_info, EV_READ);
+			socket_schedule_ev(sock_info, EV_READ);
 #endif
 			goto end;
 

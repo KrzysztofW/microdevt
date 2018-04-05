@@ -2,7 +2,7 @@ ifdef CONFIG_TIMER_CHECKS
 CFLAGS += -DCONFIG_TIMER_CHECKS
 endif
 
-SOURCES = ../timer.c ../arch/$(ARCH)/timer.c
+SOURCES = ../timer.c ../arch/$(ARCH)/timer.c ../scheduler.c
 
 SOURCES += eth.c if.c arp.c ip.c
 SOURCES += tr_chksum.c ../sys/chksum.c pkt-mempool.c route.c

@@ -72,7 +72,7 @@ void udp_input(pkt_t *pkt, iface_t *iface)
 
 	socket_append_pkt(&sock_info->trq.pkt_list, pkt);
 #ifdef CONFIG_EVENT
-	ev_cb(sock_info, EV_READ);
+	socket_schedule_ev(sock_info, EV_READ);
 #endif
 	return;
 

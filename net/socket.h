@@ -103,7 +103,9 @@ typedef struct listen listen_t;
 typedef enum event_flags{
 	EV_NONE  = 0,
 	EV_READ  = 1,
-	EV_WRITE = 2,
+	EV_WRITE = 1 << 1,
+	EV_ERROR = 1 << 2,
+	/* EV_LAST  = 1 << 7, */
 } event_flags_t;
 #endif
 
@@ -128,7 +130,8 @@ struct sock_info {
 	/* TODO tx_pkt_list */
 #ifdef CONFIG_EVENT
 	void (*ev_cb)(struct sock_info *sock_info, uint8_t events);
-	uint8_t events;
+	uint8_t events_wanted;
+	uint8_t events_available;
 #endif
 } __attribute__((__packed__));
 typedef struct sock_info sock_info_t;
@@ -148,14 +151,9 @@ typedef struct sock_info sock_info_t;
 #define SBUF2SOCKINFO(sb) *(sock_info_t **)(sb)->data
 
 #ifdef CONFIG_EVENT
-void ev_cb(sock_info_t *sock_info, uint8_t event);
-static inline void
-ev_set(sock_info_t *sock_info, uint8_t events,
-       void (*ev_cb)(struct sock_info *sock_info, uint8_t events))
-{
-	sock_info->events = events;
-	sock_info->ev_cb = ev_cb;
-}
+void socket_schedule_ev(sock_info_t *sock_info, uint8_t events);
+void socket_ev_set(sock_info_t *sock_info, uint8_t events,
+		   void (*ev_cb)(struct sock_info *sock_info, uint8_t events));
 #endif
 
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt);

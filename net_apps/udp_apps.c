@@ -61,7 +61,7 @@ int udp_server(void)
 		return -1;
 	}
 #ifdef CONFIG_EVENT
-	ev_set(&sock_info_udp_server, EV_READ, ev_udp_server_cb);
+	socket_ev_set(&sock_info_udp_server, EV_READ, ev_udp_server_cb);
 #endif
 
 	return 0;

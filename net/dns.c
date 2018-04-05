@@ -188,7 +188,7 @@ static int dns_query_ctx_init(dns_query_ctx_t *ctx, const sbuf_t *sb)
 	memset(ctx, 0, sizeof(dns_query_ctx_t));
 	if (sock_info_init(&ctx->sock_info, SOCK_DGRAM) < 0)
 		return -1;
-	ev_set(&ctx->sock_info, EV_READ, ev_dns_cb);
+	socket_ev_set(&ctx->sock_info, EV_READ, ev_dns_cb);
 	ctx->name_len = sb->len;
 	ctx->tr_id = rand();
 	INIT_LIST_HEAD(&ctx->list);

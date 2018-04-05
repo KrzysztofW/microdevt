@@ -117,7 +117,7 @@ static void tcp_app_client_init(void)
 		return;
 	}
 	if (sock_info_connect(&sock_info_client, client_addr, htons(port + 1)) >= 0) {
-		ev_set(&sock_info_client, EV_READ, ev_connect_cb);
+		socket_ev_set(&sock_info_client, EV_READ, ev_connect_cb);
 		return;
 	}
 	DEBUG_LOG("can't connect\n");
@@ -148,7 +148,7 @@ int tcp_server(void)
 	}
 
 #ifdef CONFIG_EVENT
-	ev_set(&sock_info_server, EV_READ, ev_accept_cb);
+	socket_ev_set(&sock_info_server, EV_READ, ev_accept_cb);
 #endif
 	return 0;
 }
@@ -274,7 +274,7 @@ static void ev_accept_cb(sock_info_t *sock_info, uint8_t events)
 				     &src_addr, &src_port) >= 0) {
 			DEBUG_LOG("accepted connection from:0x%lX on port %u\n",
 				  ntohl(src_addr), (uint16_t)ntohs(src_port));
-			ev_set(&ctx[i].sock_info, EV_READ, ev_client_cb);
+			socket_ev_set(&ctx[i].sock_info, EV_READ, ev_client_cb);
 		}
 	}
 }
