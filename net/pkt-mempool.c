@@ -9,12 +9,14 @@ list_t *pkt_pool = &__pkt_pool;
 ring_t *pkt_pool;
 #endif
 
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 static uint8_t emergency_pkt_used;
 
 int pkt_is_emergency(pkt_t *pkt)
 {
 	return (pkt > buffer_pool + CONFIG_PKT_NB_MAX || pkt < buffer_pool);
 }
+#endif
 
 #ifndef RING_POOL
 pkt_t *pkt_get(list_t *head)
@@ -70,13 +72,14 @@ int __pkt_free(pkt_t *pkt, const char *func, int line)
 		pkt->refcnt--;
 		return 0;
 	}
-
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
 		assert(emergency_pkt_used);
 		free(pkt);
 		emergency_pkt_used = 0;
 		return 0;
 	}
+#endif
 	buf_reset(&pkt->buf);
 	return pkt_put(pkt_pool, pkt);
 }
@@ -93,18 +96,21 @@ int pkt_free(pkt_t *pkt)
 		return 0;
 	}
 
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
 		assert(emergency_pkt_used);
 		free(pkt);
 		emergency_pkt_used = 0;
 		return 0;
 	}
+#endif
 	buf_reset(&pkt->buf);
 	return pkt_put(pkt_pool, pkt);
 }
 
 #endif
 
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 pkt_t *pkt_alloc_emergency(void)
 {
 	pkt_t *pkt;

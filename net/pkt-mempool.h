@@ -60,8 +60,10 @@ int pkt_free(pkt_t *pkt);
 /* the emergency pkt should only be used for sending to avoid a race
  * on packet allocation if all packets are used.
  */
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 pkt_t *pkt_alloc_emergency(void);
 int pkt_is_emergency(pkt_t *pkt);
+#endif
 
 static inline int pkt_len(const pkt_t *pkt)
 {

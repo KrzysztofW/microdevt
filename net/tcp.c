@@ -237,10 +237,13 @@ static inline void tcp_arm_retrn_timer(tcp_conn_t *tcp_conn, pkt_t *pkt)
 	if (pkt) {
 		tcp_retrn_pkt_t *retrn_pkt;
 
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 		/* no retransmission for emergency packets */
 		if (pkt_is_emergency(pkt))
 			return;
-
+#endif
+		/* XXX TODO: check if there is room at the begining or the end of the packet
+		 * to avoid this malloc. */
 		if ((retrn_pkt = malloc(sizeof(tcp_retrn_pkt_t))) == NULL)
 			return;
 		tcp_conn->retrn.cnt = 0;

@@ -616,7 +616,11 @@ static pkt_t *socket_alloc_pkt(int hdrlen, const sbuf_t *sbuf)
 {
 	pkt_t *pkt;
 
-	if ((pkt = pkt_alloc()) == NULL && (pkt = pkt_alloc_emergency()) == NULL) {
+	if ((pkt = pkt_alloc()) == NULL
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
+	    && (pkt = pkt_alloc_emergency()) == NULL
+#endif
+	    ) {
 #ifdef CONFIG_BSD_COMPAT
 		errno = ENOBUFS;
 #endif

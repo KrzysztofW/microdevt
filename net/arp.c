@@ -96,7 +96,11 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	uint8_t *data;
 	uint8_t arp_hdr_len;
 
-	if ((out = pkt_alloc()) == NULL && (out = pkt_alloc_emergency()) == NULL) {
+	if ((out = pkt_alloc()) == NULL
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
+	    && (out = pkt_alloc_emergency()) == NULL
+#endif
+	    ) {
 		/* inc stats */
 		return;
 	}
