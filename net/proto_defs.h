@@ -1,6 +1,11 @@
 #ifndef _PROTO_DEFS_H_
 #define _PROTO_DEFS_H_
 
+/* Supported l3 protocols - internal values */
+#define L3_PROTO_IP       0x0
+#define L3_PROTO_ARP      0x2
+#define L3_PROTO_SWEN     0x3
+
 /* Ethernet */
 #define ETHER_ADDR_LEN 6
 #define ETHER_TYPE_LEN 2

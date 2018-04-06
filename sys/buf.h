@@ -1,6 +1,5 @@
 #ifndef _BUF_H_
 #define _BUF_H_
-#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,6 +109,13 @@ static inline void buf_reset(buf_t *buf)
 	buf->len = 0;
 	buf->skip = 0;
 }
+
+static inline void __buf_reset_keep(buf_t *buf)
+{
+	buf->len = buf->skip;
+	buf->skip = 0;
+}
+
 static inline void sbuf_reset(sbuf_t *sbuf)
 {
 	sbuf->len = 0;
@@ -147,12 +153,22 @@ static inline void __buf_add(buf_t *buf, const void *data, int len)
 	buf->len += len;
 }
 
-static inline void __buf_adds(buf_t *buf, const char *data)
+static inline void __buf_adds(buf_t *buf, const char *data, int len)
 {
 	uint8_t c = '\0';
 
-	__buf_add(buf, (uint8_t *)data, strlen(data));
+	__buf_add(buf, (uint8_t *)data, len);
 	__buf_add(buf, &c, 1);
+}
+
+static inline int buf_adds(buf_t *buf, const char *data)
+{
+	int len = strlen(data);
+
+	if (buf_has_room(buf, len + 1) < 0)
+		return -1;
+	__buf_adds(buf, data, len);
+	return 0;
 }
 
 static inline int buf_add(buf_t *buf, const void *data, int len)
@@ -179,6 +195,23 @@ static inline int buf_get_lastc(buf_t *buf, uint8_t *c)
 		return -1;
 	*c = buf->data[buf->skip + buf->len - 1];
 	buf->len--;
+	return 0;
+}
+
+static inline void __buf_getc(buf_t *buf, uint8_t *c)
+{
+	uint8_t *data = buf_data(buf);
+
+	*c = data[0];
+	buf->len--;
+	buf->skip++;
+}
+
+static inline int buf_getc(buf_t *buf, uint8_t *c)
+{
+	if (buf_len(buf) < 1)
+		return -1;
+	__buf_getc(buf, c);
 	return 0;
 }
 

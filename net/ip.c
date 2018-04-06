@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <sys/utils.h>
 #include <sys/chksum.h>
 #include "tr_chksum.h"
 #include "ip.h"
@@ -9,10 +9,9 @@
 #include "udp.h"
 #include "tcp.h"
 
-void ip_output(pkt_t *out, iface_t *iface, uint16_t flags)
+int ip_output(pkt_t *out, const iface_t *iface, uint16_t flags)
 {
 	ip_hdr_t *ip = btod(out, ip_hdr_t *);
-	uint8_t *mac_addr;
 	uint32_t ip_dst;
 	uint32_t *mask;
 	uint32_t *ip_addr;
@@ -24,7 +23,7 @@ void ip_output(pkt_t *out, iface_t *iface, uint16_t flags)
 	if (iface == NULL) {
 		/* no interface to send the pkt to */
 		pkt_free(out);
-		return;
+		return -1;
 	}
 	mask = (uint32_t *)iface->ip4_mask;
 	ip_addr = (uint32_t *)iface->ip4_addr;
@@ -33,7 +32,7 @@ void ip_output(pkt_t *out, iface_t *iface, uint16_t flags)
 	if (ip->dst == 0) {
 		/* no dest ip address set. Drop the packet */
 		pkt_free(out);
-		return;
+		return -1;
 	}
 
 	ip->src = *ip_addr;
@@ -53,25 +52,21 @@ void ip_output(pkt_t *out, iface_t *iface, uint16_t flags)
 	else
 		ip_dst = ip->dst;
 
-	if (arp_find_entry(ip_dst, &mac_addr, &iface) < 0) {
-		arp_resolve(out, ip_dst, iface);
-		return;
-	}
-
 	pkt_adj(out, (int)sizeof(ip_hdr_t));
 	if (ip->p == IPPROTO_UDP) {
 		udp_hdr_t *udp_hdr = btod(out, udp_hdr_t *);
 		set_transport_cksum(ip, udp_hdr, udp_hdr->length);
 	} else if (ip->p == IPPROTO_TCP) {
 		tcp_hdr_t *tcp_hdr = btod(out, tcp_hdr_t *);
-		set_transport_cksum(ip, tcp_hdr, htons(payload_len - sizeof(ip_hdr_t)));
+		set_transport_cksum(ip, tcp_hdr,
+				    htons(payload_len - sizeof(ip_hdr_t)));
 	}
-	pkt_adj(out, -(int)sizeof(ip_hdr_t));
 
-	eth_output(out, iface, mac_addr, ETHERTYPE_IP);
+	pkt_adj(out, -(int)sizeof(ip_hdr_t));
+	return iface->if_output(out, iface, L3_PROTO_IP, &ip_dst);
 }
 
-void ip_input(pkt_t *pkt, iface_t *iface)
+void ip_input(pkt_t *pkt, const iface_t *iface)
 {
 	ip_hdr_t *ip;
 	uint32_t *ip_addr = (uint32_t *)iface->ip4_addr;

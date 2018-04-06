@@ -3,6 +3,7 @@
 
 #include <sys/buf.h>
 #include <net/pkt-mempool.h>
+#include <net/if.h>
 
 /* buffer boundaries applied to internal 8K ram
  * entire available packet buffer space is allocated
@@ -33,7 +34,13 @@ void enc28j60_phy_write(uint8_t address, uint16_t data);
 
 void enc28j60_init(uint8_t *macaddr);
 
-uint16_t enc28j60_pkt_send(const buf_t *out);
-pkt_t *enc28j60_pkt_recv(void);
+/* This function is supposed to be called from BHs. */
+/* \param iface		Interface on whitch to send (not supported for now). */
+/* \param pkt		Pointer to the packet. */
+/* \return		0 (generic return). */
+int enc28j60_pkt_send(const iface_t *iface, pkt_t *pkt);
+
+/* \param iface		Pointer to the interface. */
+void enc28j60_pkt_recv(const iface_t *iface);
 
 #endif

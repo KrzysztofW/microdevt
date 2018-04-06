@@ -3,7 +3,7 @@
 #include "ip.h"
 #include "icmp.h"
 
-void eth_input(pkt_t *pkt, iface_t *iface)
+static inline void __eth_input(pkt_t *pkt, const iface_t *iface)
 {
 	eth_hdr_t *eh;
 
@@ -26,11 +26,11 @@ void eth_input(pkt_t *pkt, iface_t *iface)
 	case ETHERTYPE_IP:
 		ip_input(pkt, iface);
 		return;
-
+#ifdef CONFIG_IPV6
 	case ETHERTYPE_IPV6:
-		//ip6_input(pkt, iface);
-		break;
-
+		ip6_input(pkt, iface);
+		return;
+#endif
 	default:
 		/* unsupported ethertype */
 		break;
@@ -39,33 +39,51 @@ void eth_input(pkt_t *pkt, iface_t *iface)
 	pkt_free(pkt);
 }
 
-void eth_output(pkt_t *out, iface_t *iface, const uint8_t *mac_dst,
-		uint16_t type)
+void eth_input(const iface_t *iface)
+{
+	pkt_t *pkt;
+
+	while ((pkt = pkt_get(iface->rx)))
+		__eth_input(pkt, iface);
+}
+
+int eth_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst)
 {
 	eth_hdr_t *eh;
 	int i;
+	const uint8_t *mac_dst;
+	uint16_t l3_proto;
 
-	if ((iface->flags & IF_UP) == 0) {
-		pkt_free(out);
-		return;
+	if ((iface->flags & IF_UP) == 0)
+		goto end;
+
+	switch (type) {
+	case L3_PROTO_IP:
+		if (arp_find_entry(dst, &mac_dst, &iface) < 0) {
+			arp_resolve(out, dst, iface);
+			return 0;
+		}
+		l3_proto = ETHERTYPE_IP;
+		break;
+	case L3_PROTO_ARP:
+		mac_dst = dst;
+		l3_proto = ETHERTYPE_ARP;
+		break;
+	default:
+		/* unsupported */
+		goto end;
 	}
 
 	pkt_adj(out, -(int)sizeof(eth_hdr_t));
 	eh = btod(out, eth_hdr_t *);
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		eh->dst[i] = mac_dst[i];
-		eh->src[i] = iface->mac_addr[i];
+		eh->src[i] = iface->hw_addr[i];
 	}
-	eh->type = type;
-	if (pkt_put(iface->tx, out) < 0) {
-		pkt_free(out);
-	}
-#if defined(X86) && !defined(TEST)
-	/* send the packet immediately */
-	while ((out = pkt_get(iface->tx)) != NULL) {
-		iface->send(&out->buf);
-		pkt_free(out);
-	}
-#endif
+	eh->type = l3_proto;
+	return iface->send(iface, out);
+ end:
+	pkt_free(out);
 	/* TODO update iface stats */
+	return -1;
 }

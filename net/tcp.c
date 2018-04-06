@@ -298,7 +298,7 @@ static void tcp_retransmit(void *arg)
 }
 #endif
 
-static void
+static int
 __tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl, uint16_t sport,
 	     uint16_t dport, tcp_syn_t *tcp_syn)
 {
@@ -327,21 +327,21 @@ __tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl, uint16_t sport,
 	}
 	tcp_hdr->hdr_len = tcp_hdr_len / 4;
 
-	ip_output(pkt, NULL, IP_DF);
+	return ip_output(pkt, NULL, IP_DF);
 }
 
-void tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags)
+int tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags)
 {
 #ifdef CONFIG_TCP_RETRANSMIT
 	tcp_arm_retrn_timer(tcp_conn, pkt);
 #endif
 	/* XXX */
-	__tcp_output(pkt, tcp_conn->syn.tuid.src_addr, flags,
-		     tcp_conn->syn.tuid.dst_port, tcp_conn->syn.tuid.src_port,
-		     &tcp_conn->syn);
+	return __tcp_output(pkt, tcp_conn->syn.tuid.src_addr, flags,
+			    tcp_conn->syn.tuid.dst_port,
+			    tcp_conn->syn.tuid.src_port, &tcp_conn->syn);
 }
 
-static void
+static int
 tcp_send_pkt(const ip_hdr_t *ip_hdr, const tcp_hdr_t *tcp_hdr, uint8_t flags,
 	     tcp_syn_t *tcp_syn)
 {
@@ -349,12 +349,12 @@ tcp_send_pkt(const ip_hdr_t *ip_hdr, const tcp_hdr_t *tcp_hdr, uint8_t flags,
 
 	if ((out = pkt_alloc()) == NULL &&
 	    (out = pkt_alloc_emergency()) == NULL) {
-		return;
+		return -1;
 	}
 
 	__tcp_adj_out_pkt(out);
-	__tcp_output(out, ip_hdr->src, flags, tcp_hdr->dst_port,
-		     tcp_hdr->src_port, tcp_syn);
+	return __tcp_output(out, ip_hdr->src, flags, tcp_hdr->dst_port,
+			    tcp_hdr->src_port, tcp_syn);
 }
 
 #ifdef CONFIG_TCP_RETRANSMIT
@@ -473,8 +473,7 @@ int tcp_connect(uint32_t dst_addr, uint16_t dst_port, void *si)
 	sock_info->trq.tcp_conn = tcp_conn;
 
 	__tcp_adj_out_pkt(pkt);
-	tcp_output(pkt, tcp_conn, TH_SYN);
-	return 0;
+	return tcp_output(pkt, tcp_conn, TH_SYN);
 }
 #endif
 

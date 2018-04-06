@@ -62,14 +62,14 @@ static inline ring_t *ring_create(int size)
 #ifdef CONFIG_AVR_MCU
 	if (size > 256) {
 #ifndef CONFIG_RING_STATIC_ALLOC
-		abort();
+		__abort();
 #endif
 		return NULL;
 	}
 #endif
 	if (!POWEROF2(size)) {
 #ifndef CONFIG_RING_STATIC_ALLOC
-		abort();
+		__abort();
 #endif
 		return NULL;
 	}
@@ -80,13 +80,13 @@ static inline ring_t *ring_create(int size)
 #else
 	if (__ring_pool_pos >= CONFIG_RING_STATIC_ALLOC) {
 		DEBUG_LOG("%s: too many allocations\n", __func__);
-		abort();
+		__abort();
 	}
 	if (size > CONFIG_RING_STATIC_ALLOC_DATA_SIZE) {
 		DEBUG_LOG("%s: size (%d) > %d. "
 			  "Increase CONFIG_RING_STATIC_ALLOC_DATA_SIZE\n",
 			  __func__, size, CONFIG_RING_STATIC_ALLOC_DATA_SIZE);
-		abort();
+		__abort();
 	}
 	ring = &__ring_pool[__ring_pool_pos++];
 #endif

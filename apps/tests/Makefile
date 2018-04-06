@@ -21,7 +21,7 @@ NET_APPS_DIR=../../net_apps
 ARCH_DIR=../../arch
 include $(NET_APPS_DIR)/build.mk
 
-CFLAGS += -I../..
+CFLAGS += -I../.. -I.
 
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
@@ -38,8 +38,8 @@ libnet:
 $(EXE): $(OBJ) $(STATIC_LIBS)
 	$(CC) $(OBJ) $(LIBS) $(LDFLAGS) -o $@
 
-$(EXE)_static: $(EXE).o  $(STATIC_LIBS)
-	$(CC) $(EXE).o $(STATIC_LIBS) -o $@
+$(EXE)_static: $(OBJ) $(STATIC_LIBS)
+	$(CC) $(OBJ) $(STATIC_LIBS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c

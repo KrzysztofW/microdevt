@@ -7,32 +7,36 @@
 #include "socket.h"
 #include "pkt-mempool.h"
 
-uint16_t send(const buf_t *out)
+void recv(const iface_t *iface) {}
+
+static int send(const struct iface *iface, pkt_t *pkt)
 {
-	(void)out;
+	if (pkt_put(iface->tx, pkt) < 0)
+		return -1;
 	return 0;
 }
 
-pkt_t *recv()
-{
-	return 0;
-}
+static uint8_t ip[] = { 192, 168, 2, 32 };
+static uint8_t ip_mask[] = { 255, 255, 255, 0 };
+static uint8_t mac[] = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x40 };
 
-iface_t iface = {
+static iface_t iface = {
 	.flags = IF_UP|IF_RUNNING,
-	.mac_addr = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x40 },
-	.ip4_addr = { 192, 168, 2, 32 },
+	.hw_addr = mac,
+	.ip4_addr = ip,
+	.ip4_mask = ip_mask,
 	.send = &send,
+	.recv = &recv,
 };
 
-unsigned char arp_request_pkt[] = {
+static unsigned char arp_request_pkt[] = {
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x48, 0x4D, 0x7E,
 	0xE4, 0xDA, 0x65, 0x08, 0x06, 0x00, 0x01, 0x08, 0x00,
 	0x06, 0x04, 0x00, 0x01, 0x48, 0x4D, 0x7E, 0xE4, 0xDA,
 	0x65, 0xC0, 0xA8, 0x02, 0xA3, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0xC0, 0xA8, 0x02, 0x20
 };
-unsigned char arp_reply_pkt[] = {
+static unsigned char arp_reply_pkt[] = {
 	0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65, 0x54, 0x52, 0x00,
 	0x02, 0x00, 0x40, 0x08, 0x06, 0x00, 0x01, 0x08, 0x00,
 	0x06, 0x04, 0x00, 0x02, 0x54, 0x52, 0x00, 0x02, 0x00,
@@ -45,7 +49,7 @@ unsigned char arp_reply_pkt[] = {
  * ip_src:  192.168.2.163
  * ip_dst:  172.217.22.131
  */
-unsigned char icmp_echo_pkt[] = {
+static unsigned char icmp_echo_pkt[] = {
 	0xe8, 0x39, 0x35, 0x10, 0xfc, 0xed, 0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65,
 	0x08, 0x00, 0x45, 0x00, 0x00, 0x54, 0xc6, 0x5c, 0x40, 0x00, 0x40, 0x01,
 	0xed, 0xa4, 0xc0, 0xa8, 0x02, 0xa3, 0xac, 0xd9, 0x16, 0x83, 0x08, 0x00,
@@ -57,7 +61,7 @@ unsigned char icmp_echo_pkt[] = {
 	0x36, 0x37
 };
 
-unsigned char icmp_reply_pkt[] = {
+static unsigned char icmp_reply_pkt[] = {
 	0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65, 0xe8, 0x39, 0x35, 0x10, 0xfc, 0xed,
 	0x08, 0x00, 0x45, 0x00, 0x00, 0x54, 0x00, 0x00, 0x00, 0x00, 0x38, 0x01,
 	0xfc, 0x01, 0xac, 0xd9, 0x16, 0x83, 0xc0, 0xa8, 0x02, 0xa3, 0x00, 0x00,
@@ -97,7 +101,7 @@ static int net_arp_request_test(iface_t *ifa)
 	int i;
 	pkt_t *out, *pkt;
 
-	memcpy(ifa->mac_addr, src_mac, 6);
+	memcpy(ifa->hw_addr, src_mac, 6);
 	memcpy(ifa->ip4_addr, src_ip, 4);
 
 	if ((pkt = pkt_alloc()) == NULL) {
@@ -133,7 +137,7 @@ static int net_arp_request_test(iface_t *ifa)
 
 int net_arp_tests(void)
 {
-	int ret = 0, i;
+	int i, ret = 0;
 	pkt_t *pkt;
 	buf_t out;
 	/* ip addr 192.168.2.163 */
@@ -143,21 +147,23 @@ int net_arp_tests(void)
 	uint32_t ip = 0xA302A8C0;
 #endif
 	uint8_t mac_dst[] = { 0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65 };
-	uint8_t *mac = NULL;
-	iface_t *interface = NULL;
+	const uint8_t *mac = NULL;
+	const iface_t *interface = NULL;
 
-	if (if_init(&iface, &send, &recv) < 0) {
+	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
 		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
 
 	if (pkt_mempool_init() < 0) {
 		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
+		if_shutdown(&iface);
 		return -1;
 	}
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
@@ -166,20 +172,18 @@ int net_arp_tests(void)
 	buf_print(&pkt->buf);
 	if (pkt_put(iface.rx, pkt) < 0) {
 		fprintf(stderr , "%s: can't put rx packet\n", __func__);
-		return -1;
-	}
-	if ((pkt = pkt_get(iface.rx)) == NULL) {
-		fprintf(stderr , "%s: can't get rx packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
-	eth_input(pkt, &iface);
+	eth_input(&iface);
 	(void)net_arp_print_entries;
 
 	buf_init(&out, arp_reply_pkt, sizeof(arp_reply_pkt));
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet 2\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
@@ -187,37 +191,43 @@ int net_arp_tests(void)
 		buf_print(&pkt->buf);
 		printf("expected:\n");
 		buf_print(&out);
-		ret = -1;
+		pkt_free(pkt);
 		goto end;
 	}
-	if (arp_find_entry(ip, &mac, &interface) < 0) {
+	if (arp_find_entry(&ip, &mac, &interface) < 0) {
 		fprintf(stderr, "%s: failed find arp entry\n", __func__);
+		pkt_free(pkt);
 		ret = -1;
 		goto end;
 	}
 #ifdef CONFIG_MORE_THAN_ONE_INTERFACE
 	if (interface != &iface) {
 		fprintf(stderr, "%s: bad interface\n", __func__);
+		pkt_free(pkt);
 		ret = -1;
 		goto end;
 	}
 #endif
 	if (mac == NULL) {
 		fprintf(stderr, "%s: mac address is null\n", __func__);
+		pkt_free(pkt);
 		ret = -1;
 		goto end;
 	}
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		if (mac[i] != mac_dst[i]) {
 			fprintf(stderr, "%s: bad mac address\n", __func__);
+			pkt_free(pkt);
 			ret = -1;
 			goto end;
 		}
 	}
 	if (net_arp_request_test(&iface) < 0)
 		ret = -1;
+
  end:
-	pkt_free(pkt);
+	pkt_mempool_shutdown();
+	if_shutdown(&iface);
 	return ret;
 }
 
@@ -229,6 +239,7 @@ int net_arp_tests(void)
 
 int net_icmp_tests(void)
 {
+	int ret = 0;
 	pkt_t *pkt;
 	buf_t out;
 	/* ip_src:  172.217.22.131 */
@@ -246,21 +257,22 @@ int net_icmp_tests(void)
 	uint8_t mac_src[] = { 0xe8, 0x39, 0x35, 0x10, 0xfc, 0xed };
 	uint8_t mac_dst[] = { 0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65 };
 
-	memcpy(iface.ip4_addr, &ip_src, sizeof(uint32_t));
-	memcpy(iface.mac_addr, &mac_src, ETHER_ADDR_LEN);
-	if (if_init(&iface, &send, &recv) < 0) {
+	iface.ip4_addr = (void *)&ip_src;
+	iface.hw_addr = mac_src;
+	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
 		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
-	pkt_mempool_shutdown();
 	if (pkt_mempool_init() < 0) {
 		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
+		if_shutdown(&iface);
 		return -1;
 	}
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, icmp_echo_pkt, sizeof(icmp_echo_pkt));
@@ -268,18 +280,18 @@ int net_icmp_tests(void)
 	arp_add_entry(mac_dst, (uint8_t *)&ip_dst, &iface);
 	if (pkt_put(iface.rx, pkt) < 0) {
 		fprintf(stderr , "%s: can't put rx packet\n", __func__);
-		return -1;
+		pkt_free(pkt);
+		ret = -1;
+		goto end;
 	}
-	if ((pkt = pkt_get(iface.rx)) == NULL) {
-		fprintf(stderr , "%s: can't get rx packet\n", __func__);
-		return -1;
-	}
-	eth_input(pkt, &iface);
+
+	eth_input(&iface);
 
 	buf_init(&out, icmp_reply_pkt, sizeof(icmp_reply_pkt));
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("out pkt:\n");
@@ -287,10 +299,14 @@ int net_icmp_tests(void)
 		printf("expected:\n");
 		buf_print(&out);
 		pkt_free(pkt);
-		return -1;
+		ret = -1;
+		goto end;
 	}
+
+ end:
 	pkt_mempool_shutdown();
-	return 0;
+	if_shutdown(&iface);
+	return ret;
 }
 
 unsigned char udp_pkt[] = {
@@ -308,8 +324,8 @@ unsigned char icmp_port_unrecheable_pkt[] = {
 
 #ifdef CONFIG_UDP
 #ifdef CONFIG_BSD_COMPAT
-int udp_fd;
-int udp_server(uint16_t port)
+static int udp_fd;
+static int udp_server(uint16_t port)
 {
 	int fd;
 	struct sockaddr_in sockaddr;
@@ -358,25 +374,26 @@ int net_udp_tests(void)
 	uint16_t src_port;
 #endif
 	sbuf_t sb;
-	int buf_size = 512, len;
+	int buf_size = 512, len, ret = 0;
 	char buf[buf_size];
 
 	memset(buf, 0, buf_size);
-	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
-	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
-	if (if_init(&iface, &send, &recv) < 0) {
+	iface.ip4_addr = (void *)&ip_dst;
+	iface.hw_addr = mac_dst;
+	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
 		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
-	pkt_mempool_shutdown();
 	if (pkt_mempool_init() < 0) {
+		if_shutdown(&iface);
 		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
 		return -1;
 	}
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
@@ -384,7 +401,9 @@ int net_udp_tests(void)
 #ifdef CONFIG_HT_STORAGE
 	if (socket_init() < 0) {
 		fprintf(stderr, "%s: can't init socket hash tables\n", __func__);
-		return -1;
+		ret = -1;
+		pkt_free(pkt);
+		goto end;
 	}
 #endif
 
@@ -395,10 +414,17 @@ int net_udp_tests(void)
 	buf_init(&out, icmp_port_unrecheable_pkt,
 		 sizeof(icmp_port_unrecheable_pkt));
 
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		ret = -1;
+		goto end;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
@@ -407,44 +433,60 @@ int net_udp_tests(void)
 		printf("expected:\n");
 		buf_print(&out);
 		pkt_free(pkt);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #endif
 	dft_route.iface = &iface;
 #ifdef CONFIG_BSD_COMPAT
 	if ((udp_fd = udp_server(port)) < 0) {
 		fprintf(stderr, "%s: can't start udp server\n", __func__);
-		return -1;
+		ret = -1;
+		pkt_free(pkt);
+		goto end;
 	}
 #else
 	if (sock_info_init(&sock_info, 0, SOCK_DGRAM, htons(port)) < 0) {
 		fprintf(stderr, "%s: can't init udp sock_info\n", __func__);
 		return -1;
 	}
-	__sock_info_add(&sock_info);
 
+	__sock_info_add(&sock_info);
 	if (sock_info_bind(&sock_info) < 0) {
 		fprintf(stderr, "%s: can't start udp server\n", __func__);
-		return -1;
+		pkt_free(pkt);
+		ret = -1;
+		goto end;
 	}
 #endif
+
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		ret = -1;
+		pkt_free(pkt);
+		goto end;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) != NULL) {
 		fprintf(stderr, "shouldn't get tx packet\n");
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #ifdef CONFIG_BSD_COMPAT
 	if ((len = recvfrom(udp_fd, buf, buf_size, 0, (struct sockaddr *)&addr,
 			    &addrlen)) < 0) {
 		fprintf(stderr, "%s: can't get udp pkt\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	printf("udp data: %.*s\n", len, buf);
 #else
 	if (__socket_get_pkt(&sock_info, &pkt, &src_addr, &src_port) < 0) {
 		fprintf(stderr, "%s: can't get udp pkt 2\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	len = pkt->buf.len;
 	printf("udp data: %.*s\n", pkt->buf.len, buf_data(&pkt->buf));
@@ -455,36 +497,44 @@ int net_udp_tests(void)
 	if (sendto(udp_fd, sb.data, sb.len, 0, (struct sockaddr *)&addr,
 		   sizeof(struct sockaddr_in)) < 0) {
 		fprintf(stderr, "%s: can't put sbuf to udp socket\n", __func__);
-		return -1;
+		ret = -1;
+		pkt_free(pkt);
+		goto end;
 	}
 #else
 	if (__socket_put_sbuf(&sock_info, &sb, src_port, src_addr) < 0) {
 		fprintf(stderr, "%s: can't put sbuf to udp socket\n", __func__);
-		return -1;
+		pkt_free(pkt);
+		ret = -1;
+		goto end;
 	}
 #endif
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: can't get udp echo packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	buf_print(&pkt->buf);
+	pkt_free(pkt);
 
 #ifdef CONFIG_BSD_COMPAT
 	if (close(udp_fd) < 0) {
 		fprintf(stderr, "%s: can't close udp socket\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #else
 	if (sock_info_unbind(&sock_info) < 0) {
 		fprintf(stderr, "%s: can't close udp socket\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #endif
+ end:
 	socket_shutdown();
 	pkt_mempool_shutdown();
-
-	return 0;
+	return ret;
 }
 #endif
 #ifdef CONFIG_TCP
@@ -531,8 +581,8 @@ unsigned char tcp_ack_client_pkt[] = {
 };
 
 #ifdef CONFIG_BSD_COMPAT
-int tcp_fd;
-int tcp_server(uint16_t port)
+static int tcp_fd;
+static int tcp_server(uint16_t port)
 {
 	struct sockaddr_in sockaddr;
 
@@ -561,6 +611,7 @@ int net_tcp_tests(void)
 {
 	pkt_t *pkt;
 	buf_t out;
+	int ret = 0;
 	/* ip_src: 192.168.0.11 */
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	uint32_t ip_src = 0xc0a8000b;
@@ -588,15 +639,15 @@ int net_tcp_tests(void)
 #endif
 	sbuf_t sb;
 
-	memcpy(iface.ip4_addr, &ip_dst, sizeof(uint32_t));
-	memcpy(iface.mac_addr, &mac_dst, ETHER_ADDR_LEN);
-	if (if_init(&iface, &send, &recv) < 0) {
+	iface.ip4_addr = (void *)&ip_dst;
+	iface.hw_addr = mac_dst;
+	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
 		fprintf(stderr, "%s: can't init interface\n", __func__);
 		return -1;
 	}
-	pkt_mempool_shutdown(); /* TODO: to be removed */
 	if (pkt_mempool_init() < 0) {
 		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
+		if_shutdown(&iface);
 		return -1;
 	}
 
@@ -614,11 +665,18 @@ int net_tcp_tests(void)
 	buf_init(&pkt->buf, tcp_pkt, sizeof(tcp_pkt));
 	buf_init(&out, tcp_pkt_rst_reply, sizeof(tcp_pkt_rst_reply));
 
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		ret = -1;
+		goto end;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP SYN => RST: can't get tx packet\n",
 			__func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
@@ -628,7 +686,8 @@ int net_tcp_tests(void)
 		printf("expected:\n");
 		buf_print(&out);
 		pkt_free(pkt);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	/* COMPLETE TCP COMM */
@@ -641,24 +700,33 @@ int net_tcp_tests(void)
 #else
 	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
 		fprintf(stderr, "%s: can't init tcp sock_info\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	__sock_info_add(&sock_info_server);
 	if (sock_info_listen(&sock_info_server, 5) < 0) {
 		fprintf(stderr, "%s: can't listen on tcp sock_info\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	if (sock_info_bind(&sock_info_server) < 0) {
 		fprintf(stderr, "%s: can't start tcp server\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #endif
 	/* SYN => SYN_ACK */
 	buf_init(&pkt->buf, tcp_syn_pkt, sizeof(tcp_syn_pkt));
 	buf_init(&out, tcp_syn_ack_pkt, sizeof(tcp_syn_ack_pkt));
 
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		ret = -1;
+		goto end;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP SYN: can't get SYN_ACK packet\n",
 			__func__);
@@ -672,17 +740,25 @@ int net_tcp_tests(void)
 		printf("expected:\n");
 		buf_print(&out);
 		pkt_free(pkt);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	/* SYN_ACK => ACK */
 	buf_init(&pkt->buf, tcp_ack_pkt, sizeof(tcp_ack_pkt));
 
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		ret = -1;
+		goto end;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) != NULL) {
 		fprintf(stderr, "%s: TCP EST: shouldn't get tx packet after ACK\n",
 			__func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	/* DATA => ACK */
@@ -694,11 +770,17 @@ int net_tcp_tests(void)
 	buf_init(&pkt->buf, tcp_data_pkt, sizeof(tcp_data_pkt));
 	buf_init(&out, tcp_data_ack_pkt, sizeof(tcp_data_ack_pkt));
 
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		return -1;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP EST: can't get ACK to data packet\n",
 			__func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
@@ -708,30 +790,35 @@ int net_tcp_tests(void)
 		printf("expected:\n");
 		buf_print(&out);
 		pkt_free(pkt);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	pkt_free(pkt);
 #ifdef CONFIG_BSD_COMPAT
 	if ((client_fd = accept(tcp_fd,
 				(struct sockaddr *)&addr, &addr_len)) < 0) {
 		fprintf(stderr, "%s: TCP: cannot accept connections\n", __func__);
-		return -1;
+		ret = -1;
+		goto end2;
 	}
 	if (socket_get_pkt(client_fd, &pkt, &addr) < 0) {
 		fprintf(stderr, "%s: TCP: can't get pkt from a tcp connection\n",
 			__func__);
-		return -1;
+		ret = -1;
+		goto end2;
 	}
 #else
 	if (sock_info_accept(&sock_info_server, &sock_info_client, &src_addr,
 			     &src_port) < 0) {
 		fprintf(stderr, "%s: TCP: cannot accept connections\n", __func__);
-		return -1;
+		ret = -1;
+		goto end2;
 	}
 	if (__socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) < 0) {
 		fprintf(stderr, "%s: TCP: can't get pkt from a tcp connection\n",
 			__func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #endif
 	sb = PKT2SBUF(pkt);
@@ -742,11 +829,18 @@ int net_tcp_tests(void)
 	buf_init(&pkt->buf, tcp_fin_ack_client_pkt, sizeof(tcp_fin_ack_client_pkt));
 	buf_init(&out, tcp_fin_ack_server_pkt, sizeof(tcp_fin_ack_server_pkt));
 
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		ret = -1;
+		goto end2;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP close: can't get FIN from server\n",
 			__func__);
-		return -1;
+		ret = -1;
+		goto end2;
 	}
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
@@ -756,19 +850,27 @@ int net_tcp_tests(void)
 		printf("expected:\n");
 		buf_print(&out);
 		pkt_free(pkt);
-		goto end;
+		ret = -1;
+		goto end2;
 	}
 
 	buf_init(&pkt->buf, tcp_ack_client_pkt, sizeof(tcp_ack_client_pkt));
 
-	eth_input(pkt, &iface);
+	if (pkt_put(iface.rx, pkt) < 0) {
+		fprintf(stderr , "%s: can't put rx packet\n", __func__);
+		ret = -1;
+		goto end2;
+	}
+
+	eth_input(&iface);
 	if ((pkt = pkt_get(iface.tx)) != NULL) {
 		fprintf(stderr, "%s: TCP client close: shouldn't get any pkt "
 			"after FIN ACK\n", __func__);
-		return -1;
+		ret = -1;
+		goto end2;
 	}
 
- end:
+ end2:
 #ifdef CONFIG_BSD_COMPAT
 	if (close(client_fd) < 0) {
 		fprintf(stderr, "%s: can't close tcp client fd\n", __func__);
@@ -788,10 +890,11 @@ int net_tcp_tests(void)
 		return -1;
 	}
 #endif
+ end:
 	socket_shutdown();
 	pkt_mempool_shutdown();
 
-	return 0;
+	return ret;
 }
 
 #endif

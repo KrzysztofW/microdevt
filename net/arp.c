@@ -21,20 +21,21 @@ struct arp_res {
 	list_t list;
 	list_t pkt_list;
 	tim_t tim;
-	iface_t *iface;
+	const iface_t *iface;
 	uint8_t retries;
 } __attribute__((__packed__));
 typedef struct arp_res arp_res_t;
 
 list_t arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
 
-int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
+int
+arp_find_entry(const uint32_t *ip, const uint8_t **mac, const iface_t **iface)
 {
 	int i;
 
 	/* linear search ... that's bad but it saves space */
 	for (i = 0; i < CONFIG_ARP_TABLE_SIZE; i++) {
-		if (arp_entries.entries[i].ip == ip) {
+		if (arp_entries.entries[i].ip == *ip) {
 			*mac = arp_entries.entries[i].mac;
 #ifdef CONFIG_MORE_THAN_ONE_INTERFACE
 			*iface = arp_entries.entries[i].iface;
@@ -47,7 +48,7 @@ int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface)
 	return -1;
 }
 
-void arp_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
+void arp_add_entry(const uint8_t *sha, const uint8_t *spa, const iface_t *iface)
 {
 	int i;
 	arp_entry_t *e = &arp_entries.entries[arp_entries.pos];
@@ -70,7 +71,8 @@ void arp_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 }
 
 #ifdef CONFIG_IPV6
-static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
+static void
+arp6_add_entry(const uint8_t *sha, const uint8_t *spa, iface_t *iface)
 {
 	int i;
 	arp6_entry_t *e = arp6_entries.entries[arp6_entries.pos];
@@ -88,7 +90,8 @@ static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface)
 }
 #endif
 
-void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
+int
+arp_output(const iface_t *iface, int op, const uint8_t *tha, const uint8_t *tpa)
 {
 	int i;
 	pkt_t *out;
@@ -102,7 +105,7 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 #endif
 	    ) {
 		/* inc stats */
-		return;
+		return -1;
 	}
 	arp_hdr_len = ETHER_ADDR_LEN * 2 + IP_ADDR_LEN * 2;
 
@@ -117,7 +120,7 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	data = ah->data;
 
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
-		*(data + i) = iface->mac_addr[i];
+		*(data + i) = iface->hw_addr[i];
 		if (i < IP_ADDR_LEN) {
 			*(data + i + ETHER_ADDR_LEN) = iface->ip4_addr[i];
 			*(data + i + ETHER_ADDR_LEN * 2 + IP_ADDR_LEN) = tpa[i];
@@ -129,7 +132,7 @@ void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa)
 	}
 	pkt_adj(out, arp_hdr_len);
 	pkt_adj(out, -((int)sizeof(arp_hdr_t) + arp_hdr_len));
-	eth_output(out, iface, tha, ETHERTYPE_ARP);
+	return eth_output(out, iface, L3_PROTO_ARP, tha);
 }
 
 static uint32_t *arp_res_get_ip(arp_res_t *arp_res)
@@ -140,7 +143,7 @@ static uint32_t *arp_res_get_ip(arp_res_t *arp_res)
 	return &ip_hdr->dst;
 }
 
-static arp_res_t *arp_res_lookup(uint32_t *ip)
+static arp_res_t *arp_res_lookup(const uint32_t *ip)
 {
 	arp_res_t *arp_res;
 
@@ -161,8 +164,12 @@ static void __arp_process_wait_list(arp_res_t *arp_res, uint8_t delete)
 		list_del(&pkt->list);
 		if (delete)
 			pkt_free(pkt);
-		else
-			ip_output(pkt, arp_res->iface, 0);
+		else {
+			ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+
+			eth_output(pkt, arp_res->iface, ETHERTYPE_IP,
+				   &ip_hdr->dst);
+		}
 	}
 	timer_del(&arp_res->tim);
 	list_del(&arp_res->list);
@@ -178,7 +185,7 @@ static void arp_process_wait_list(uint32_t *ip, uint8_t delete)
 	__arp_process_wait_list(arp_res, delete);
 }
 
-void arp_input(pkt_t *pkt, iface_t *iface)
+void arp_input(pkt_t *pkt, const iface_t *iface)
 {
 	uint8_t *sha, *spa, *tha, *tpa;
 	arp_hdr_t *ah = btod(pkt, arp_hdr_t *);
@@ -260,14 +267,14 @@ void arp_retry_cb(void *arg)
 	arp_output(arp_res->iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)ip);
 }
 
-void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface)
+void arp_resolve(pkt_t *pkt, const uint32_t *ip_dst, const iface_t *iface)
 {
 	arp_res_t *arp_res;
 #ifdef CONFIG_TCP_RETRANSMIT
 	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
 #endif
 
-	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)&ip_dst);
+	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)ip_dst);
 
 #ifdef CONFIG_TCP_RETRANSMIT
 	if (ip_hdr->p == IPPROTO_TCP) {
@@ -275,7 +282,7 @@ void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface)
 		return;
 	}
 #endif
-	if ((arp_res = arp_res_lookup(&ip_dst))) {
+	if ((arp_res = arp_res_lookup(ip_dst))) {
 		list_add_tail(&pkt->list, &arp_res->pkt_list);
 		return;
 	}

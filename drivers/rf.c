@@ -1,21 +1,22 @@
-#include <avr/io.h>
 #include <stdio.h>
 #include <string.h>
-#include <avr/pgmspace.h>
 #include <timer.h>
 #include <sys/byte.h>
 #include <sys/chksum.h>
+#include <net/swen.h>
+#include <scheduler.h>
 #include "rf.h"
 #include "rf_cfg.h"
+#ifndef X86
 #include "adc.h"
-
+#endif
 #if RF_SAMPLING_US < CONFIG_TIMER_RESOLUTION_US
 #error "RF sampling will not work with the current timer resolution"
 #endif
 
 typedef struct rf_data {
 	byte_t  byte;
-	ring_t *ring;
+	pkt_t  *pkt;
 	tim_t   timer;
 } rf_data_t;
 
@@ -23,29 +24,26 @@ typedef struct rf_ctx {
 #ifdef CONFIG_RF_RECEIVER
 	rf_data_t rcv_data;
 	struct {
-		uint8_t   cnt;
-		uint8_t   prev_val;
-		uint8_t   receiving;
+		uint8_t cnt;
+		uint8_t prev_val;
+		uint8_t receiving;
 	} rcv;
 #endif
 #ifdef CONFIG_RF_SENDER
 	rf_data_t snd_data;
 	uint8_t   burst;
 	struct {
-		uint16_t  frame_len;
-		uint8_t   frame_pos;
-		uint8_t   bit;
-		uint8_t   clk;
-		uint8_t   sending;
-		uint8_t   burst_cnt;
-		uint8_t   rpos;
+		uint8_t  frame_pos;
+		uint8_t  bit;
+		uint8_t  clk;
+		uint8_t  burst_cnt;
 	} snd;
 #endif
 } rf_ctx_t;
 
 #ifdef CONFIG_RF_STATIC_ALLOC
-rf_ctx_t __rf_ctx_pool[CONFIG_RF_STATIC_ALLOC];
-uint8_t __rf_ctx_pool_pos;
+static rf_ctx_t __rf_ctx_pool[CONFIG_RF_STATIC_ALLOC];
+static uint8_t __rf_ctx_pool_pos;
 #endif
 
 #ifdef CONFIG_RF_RECEIVER
@@ -62,46 +60,39 @@ uint8_t __rf_ctx_pool_pos;
 #error "RF_SND_PIN and RF_SND_PORT are not defined"
 #endif
 #ifdef CONFIG_RF_CHECKS
-rf_data_t rf_data_check;
+static pkt_t *pkt_recv;
+static rf_ctx_t rf_check_recv_ctx;
 #endif
 #endif
 
 #ifdef CONFIG_RF_RECEIVER
-ring_t *rf_get_ring(void *handle)
-{
-	rf_ctx_t *ctx = handle;
 
-	return ctx->rcv_data.ring;
-}
+void rf_input(const iface_t *iface) {}
 
-static int rf_ring_add_bit(rf_data_t *rf, uint8_t bit)
+static int rf_add_bit(rf_ctx_t *ctx, uint8_t bit)
 {
-	int byte = byte_add_bit(&rf->byte, bit);
-	int ret;
+	int byte = byte_add_bit(&ctx->rcv_data.byte, bit);
 
 	if (byte < 0)
 		return 0;
 
-	ret = ring_addc(rf->ring, byte);
-	return ret;
+	return buf_addc(&ctx->rcv_data.pkt->buf, byte);
 }
 
-static void rf_fill_ring(rf_ctx_t *ctx, uint8_t bit)
+static void rf_fill_data(const iface_t *iface, uint8_t bit)
 {
+	rf_ctx_t *ctx = iface->priv;
+
 	if (ctx->rcv.receiving && ctx->rcv.cnt < 11) {
 		if (ctx->rcv.receiving == 1) {
+			/* first bit must be set to '1' */
 			if (bit == 0)
 				goto end;
 			ctx->rcv.receiving = 2;
 		}
 
-		if (ctx->rcv.cnt > 3) {
-			if (rf_ring_add_bit(&ctx->rcv_data, 1) < 0)
-				goto end;
-		} else {
-			if (rf_ring_add_bit(&ctx->rcv_data, 0) < 0)
-				goto end;
-		}
+		if (rf_add_bit(ctx, (ctx->rcv.cnt > 3)) < 0)
+			goto end;
 		return;
 	}
 
@@ -111,16 +102,27 @@ static void rf_fill_ring(rf_ctx_t *ctx, uint8_t bit)
 			goto end;
 
 		byte_reset(&ctx->rcv_data.byte);
+		if (ctx->rcv.receiving) {
+			if_schedule_receive(iface, &ctx->rcv_data.pkt);
+			return;
+		}
+		if (ctx->rcv_data.pkt == NULL &&
+		    (ctx->rcv_data.pkt = pkt_get(iface->pkt_pool)) == NULL) {
+			DEBUG_LOG("%s: cannot alloc pkt\n", __func__);
+			goto end;
+		}
 		ctx->rcv.receiving = 1;
 		return;
 	}
  end:
+	if_schedule_receive(iface, NULL);
 	ctx->rcv.receiving = 0;
 	byte_reset(&ctx->rcv_data.byte);
 }
 
-static inline void rf_sample(rf_ctx_t *ctx)
+static inline void rf_sample(iface_t *iface)
 {
+	rf_ctx_t *ctx = iface->priv;
 	uint8_t v, not_v;
 #ifdef RF_ANALOG_SAMPLING
 	uint16_t v_analog = analog_read(RF_RCV_PIN_NB);
@@ -137,7 +139,7 @@ static inline void rf_sample(rf_ctx_t *ctx)
 	not_v = !v;
 	if (ctx->rcv.prev_val == not_v) {
 		ctx->rcv.prev_val = v;
-		rf_fill_ring(ctx, not_v);
+		rf_fill_data(iface, not_v);
 		ctx->rcv.cnt = 0;
 	} else
 		ctx->rcv.cnt++;
@@ -160,25 +162,7 @@ static int rf_snd(rf_ctx_t *ctx)
 	}
 
 	if (ctx->snd.frame_pos == START_FRAME_LENGTH) {
-		uint8_t fl;
-		int rlen = ring_len(ctx->snd_data.ring);
-
-		assert(ctx->snd.frame_len == 0);
 		RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
-		if (rlen < sizeof(ctx->snd.frame_len) + 1)
-			goto end;
-
-		/* get frame length */
-		__ring_getc_at(ctx->snd_data.ring,
-			       (uint8_t *)&ctx->snd.frame_len, 0);
-		__ring_getc_at(ctx->snd_data.ring, &fl, 1);
-		ctx->snd.frame_len |= fl << 8;
-		ctx->snd.rpos += 2;
-
-		/* data are being added right now */
-		if (rlen < ctx->snd.frame_len)
-			goto end;
-
 		ctx->snd.frame_pos++;
 		return 0;
 	}
@@ -190,33 +174,20 @@ static int rf_snd(rf_ctx_t *ctx)
 
 	if (byte_is_empty(&ctx->snd_data.byte)) {
 		uint8_t c;
-		int rlen = ring_len(ctx->snd_data.ring);
 
-		if (rlen == 0) {
-			if (!ctx->snd.sending)
-				return -1;
-			if (RF_SND_PORT & (1 << RF_SND_PIN_NB))
-				goto end;
-			RF_SND_PORT |= 1 << RF_SND_PIN_NB;
-			return 0;
-		}
-		if (ctx->snd.sending && ctx->snd.frame_len == 0) {
-			if (RF_SND_PORT & (1 << RF_SND_PIN_NB)) {
-				ctx->snd.sending = 0;
-				ctx->snd.frame_pos = START_FRAME_LENGTH;
-				if (ctx->snd.burst_cnt >= ctx->burst) {
-					__ring_skip(ctx->snd_data.ring, ctx->snd.rpos);
-					ctx->snd.burst_cnt = 0;
-				} else
-					ctx->snd.burst_cnt++;
-				ctx->snd.rpos = 0;
-			} else
+		if (pkt_len(ctx->snd_data.pkt) == 0) {
+			if (ctx->snd.burst_cnt == ctx->burst) {
+				if (RF_SND_PORT & (1 << RF_SND_PIN_NB))
+					return -1;
 				RF_SND_PORT |= 1 << RF_SND_PIN_NB;
+				return 0;
+			}
+			ctx->snd.burst_cnt++;
+			__buf_reset_keep(&ctx->snd_data.pkt->buf);
+			ctx->snd.frame_pos = START_FRAME_LENGTH;
 			return 0;
 		}
-		__ring_getc_at(ctx->snd_data.ring, &c, ctx->snd.rpos);
-		ctx->snd.rpos++;
-		ctx->snd.frame_len--;
+		__buf_getc(&ctx->snd_data.pkt->buf, &c);
 		byte_init(&ctx->snd_data.byte, c);
 	}
 
@@ -224,135 +195,115 @@ static int rf_snd(rf_ctx_t *ctx)
 	ctx->snd.bit = byte_get_bit(&ctx->snd_data.byte) ? 2 : 0;
 
 #ifdef CONFIG_RF_CHECKS
-	rf_ring_add_bit(&rf_data_check, ctx->snd.bit ? 1 : 0);
+	rf_add_bit(&rf_check_recv_ctx, ctx->snd.bit ? 1 : 0);
 #endif
-	if (ctx->snd.sending == 0)
-		ctx->snd.sending = 1;
-	else
-		ctx->snd.clk ^= 1;
 
 	/* send bit */
 	if (ctx->snd.clk == 0)
 		RF_SND_PORT |= 1 << RF_SND_PIN_NB;
 	else
 		RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
-
+	ctx->snd.clk ^= 1;
 	return 0;
- end:
-	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
-	memset(&ctx->snd, 0, sizeof(ctx->snd));
-
-	return -1;
 }
 
 static void rf_snd_tim_cb(void *arg);
 
-static void rf_start_sending(rf_ctx_t *ctx)
+static void rf_start_sending(const iface_t *iface)
 {
-#ifdef CONFIG_RF_RECEIVER
-	timer_del(&ctx->rcv_data.timer);
-#endif
+	rf_ctx_t *ctx = iface->priv;
+
 	if (timer_is_pending(&ctx->snd_data.timer))
 		return;
-	timer_add(&ctx->snd_data.timer, RF_SAMPLING_US * 2, rf_snd_tim_cb, ctx);
+	if ((ctx->snd_data.pkt = pkt_get(iface->tx)) == NULL)
+		return;
+
+#ifdef CONFIG_RF_RECEIVER
+	/* disable receiving while sending */
+	timer_del(&ctx->rcv_data.timer);
+#endif
+	timer_add(&ctx->snd_data.timer, RF_SAMPLING_US * 2, rf_snd_tim_cb,
+		  (void *)iface);
 }
 
-int rf_output(void *handle, uint16_t frame_len, uint8_t nb_bufs,
-	      const buf_t **bufs)
+int rf_output(const iface_t *iface, pkt_t *pkt)
 {
-	rf_ctx_t *ctx = handle;
-	uint8_t i;
-
-	if (ring_free_entries(ctx->snd_data.ring) < frame_len + 2)
+	if (pkt_put(iface->tx, pkt) < 0)
 		return -1;
-
-	/* add frame length */
-	__ring_addc(ctx->snd_data.ring, frame_len & 0xFF);
-	__ring_addc(ctx->snd_data.ring, (frame_len >> 8) & 0xFF);
-
-	/* add the buffers */
-	for (i = 0; i < nb_bufs; i++)
-		__ring_addbuf(ctx->snd_data.ring, bufs[i]);
-
-	rf_start_sending(ctx);
+	rf_start_sending(iface);
 	return 0;
 }
 #endif
 #ifdef CONFIG_RF_SENDER
+
 static void rf_snd_tim_cb(void *arg)
 {
-	rf_ctx_t *ctx = arg;
+	iface_t *iface = arg;
+	rf_ctx_t *ctx = iface->priv;
 
-	timer_reschedule(&ctx->snd_data.timer, RF_SAMPLING_US * 2);
-	if (rf_snd(ctx) < 0) {
-#ifdef CONFIG_RF_RECEIVER
-		/* enable receiving */
-		timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
-#endif
-		timer_del(&ctx->snd_data.timer);
+ again:
+	if (rf_snd(ctx) >= 0) {
+		timer_reschedule(&ctx->snd_data.timer, RF_SAMPLING_US * 2);
 		return;
 	}
+
+	memset(&ctx->snd, 0, sizeof(ctx->snd));
+	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
+	if_schedule_tx_pkt_free(ctx->snd_data.pkt);
+
+	/* send next packet */
+	if ((ctx->snd_data.pkt = pkt_get(iface->tx)) != NULL) {
+		ctx->snd.frame_pos = START_FRAME_LENGTH;
+		goto again;
+	}
+
+#ifdef CONFIG_RF_RECEIVER
+	/* enable receiving */
+	timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
+#endif
 }
 
 #ifdef CONFIG_RF_CHECKS
-static int rf_buffer_checks(rf_ctx_t *ctx, const buf_t *buf)
+static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
 {
-	int i, burst_cnt = ctx->burst;
+	int i;
+	int data_len = pkt->buf.len;
 
-	if (ring_addc(ctx->snd_data.ring, buf->len & 0xFF) < 0) {
-		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-		return -1;
-	}
-	if (ring_addc(ctx->snd_data.ring, buf->len >> 8) < 0) {
-		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-		return -1;
-	}
-
-	if (ring_addbuf(ctx->snd_data.ring, buf) < 0) {
-		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-		return -1;
-	}
+	ctx->snd_data.pkt = pkt;
+	rf_check_recv_ctx.rcv_data.pkt = pkt_recv;
 
 	/* send bytes */
 	while (rf_snd(ctx) >= 0) {}
 
-	if (!ring_is_empty(ctx->snd_data.ring)) {
-		DEBUG_LOG("%s:%d failed (ring len:%d)\n", __func__, __LINE__,
-			  ring_len(ctx->snd_data.ring));
-		ring_print(ctx->snd_data.ring);
-		return -1;
-	}
-
-	if (ring_len(rf_data_check.ring) != buf->len * (burst_cnt + 1)) {
-		DEBUG_LOG("%s:%d failed (ring check len:%d, expected: %d)\n",
-			  __func__, __LINE__, ring_len(rf_data_check.ring),
-			  buf->len * (burst_cnt + 1));
-		return -1;
-	}
-	do {
-		for (i = 0; i < buf->len; i++) {
-			uint8_t c;
-			if (ring_getc(rf_data_check.ring, &c) < 0) {
-				DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-				return -1;
-			}
-			if (c != buf->data[i]) {
-				DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-				return -1;
-			}
-		}
-	} while (burst_cnt--);
-
-	if (!ring_is_empty(rf_data_check.ring)) {
+	if (pkt_recv->buf.len == 0) {
 		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
 		return -1;
 	}
+	pkt->buf.len += pkt->buf.skip;
+	pkt->buf.skip = 0;
+
+	if (pkt_recv->buf.len != data_len * (ctx->burst + 1)) {
+		DEBUG_LOG("%s:%d failed (len:%d, expected: %d)\n",
+			  __func__, __LINE__, pkt_recv->buf.len,
+			  data_len * (ctx->burst + 1));
+		return -1;
+	}
+	for (i = 0; i < ctx->burst; i++) {
+		buf_t tmp;
+
+		buf_init(&tmp, pkt_recv->buf.data + (pkt->buf.len * i),
+			 pkt->buf.len);
+		if (buf_cmp(&pkt->buf, &tmp) != 0) {
+			DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
-int rf_checks(void *handle)
+int rf_checks(const iface_t *iface)
 {
-	rf_ctx_t *ctx = handle;
 	uint8_t data[] = {
 		0x69, 0x70, 0x00, 0x10, 0xC8, 0xA0, 0x4B, 0xF7,
 		0x17, 0x7F, 0xE7, 0x81, 0x92, 0xE4, 0x0E, 0xA3,
@@ -363,26 +314,37 @@ int rf_checks(void *handle)
 		0x17, 0x7F, 0xE7, 0x81, 0x92, 0xE4, 0x0E, 0xA3,
 		0x00
 	};
-	buf_t buf;
-	uint8_t tim_armed = 0;
+	rf_ctx_t *ctx = iface->priv;
+	pkt_t *pkt;
 
-	/* save application send timer */
-	if (timer_is_pending(&ctx->snd_data.timer)) {
-		timer_del(&ctx->snd_data.timer);
-		tim_armed = 1;
+	DEBUG_LOG("starting RF checks\n");
+
+	pkt = pkt_alloc();
+	pkt_recv = pkt_alloc();
+
+	if (pkt == NULL || pkt_recv == NULL) {
+		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
+		return -1;
 	}
 
-	buf_init(&buf, data, sizeof(data));
-	if (rf_buffer_checks(ctx, &buf) < 0)
+	buf_init(&pkt->buf, data, sizeof(data));
+	if (rf_buffer_checks(ctx, pkt) < 0) {
+		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
 		return -1;
+	}
+	memset(&ctx->snd, 0, sizeof(ctx->snd));
+	buf_reset(&pkt_recv->buf);
+	buf_init(&pkt->buf, data2, sizeof(data2));
 
-	buf_init(&buf, data2, sizeof(data2));
-	if (rf_buffer_checks(ctx, &buf) < 0)
+	if (rf_buffer_checks(ctx, pkt) < 0) {
+		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
 		return -1;
+	}
 
-	/* restore send timer */
-	if (tim_armed)
-		rf_start_sending(ctx);
+	memset(&ctx->snd, 0, sizeof(ctx->snd));
+	pkt_free(pkt_recv);
+	pkt_free(pkt);
+
 	DEBUG_LOG("=== RF checks passed ===\n");
 	return 0;
 }
@@ -392,81 +354,59 @@ int rf_checks(void *handle)
 #ifdef CONFIG_RF_RECEIVER
 static void rf_rcv_tim_cb(void *arg)
 {
-	rf_ctx_t *ctx = arg;
+	rf_ctx_t *ctx = ((iface_t *)(arg))->priv;
 
 	timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
-	rf_sample(ctx);
+	rf_sample(arg);
 }
 #endif
 
-void *rf_init(uint8_t burst)
+int rf_init(iface_t *iface, uint8_t burst)
 {
 	rf_ctx_t *ctx;
 
 #ifndef CONFIG_RF_STATIC_ALLOC
 	if ((ctx = calloc(1, sizeof(rf_ctx_t))) == NULL) {
 		DEBUG_LOG("%s: cannot allocate memory\n", __func__);
-		return NULL;
+		return -1;
 	}
 #else
 	if (__rf_ctx_pool_pos >= CONFIG_RF_STATIC_ALLOC) {
-		DEBUG_LOG("%s: too many allocations\n", __func__);
-		abort();
+		__abort();
 	}
 	ctx = &__rf_ctx_pool[__rf_ctx_pool_pos++];
 #endif
 
 #ifdef CONFIG_RF_RECEIVER
-#ifndef CONFIG_RING_STATIC_ALLOC
-	if ((ctx->rcv_data.ring = ring_create(RF_RING_SIZE)) == NULL) {
-		DEBUG_LOG("%s: cannot create receive RF ring\n", __func__);
-		return NULL;
-	}
-#else
-	ctx->rcv_data.ring = ring_create(RF_RING_SIZE);
+#ifndef X86
+	timer_add(&ctx->rcv_data.timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);
+	#else
+	(void)rf_rcv_tim_cb;
 #endif
-	timer_add(&ctx->rcv_data.timer, RF_SAMPLING_US, rf_rcv_tim_cb, ctx);
 #ifndef RF_ANALOG_SAMPLING
 	RF_RCV_PORT &= ~(1 << RF_RCV_PIN_NB);
 #endif
 #endif
 #ifdef CONFIG_RF_SENDER
-#ifndef CONFIG_RING_STATIC_ALLOC
-	if ((ctx->snd_data.ring = ring_create(RF_RING_SIZE)) == NULL) {
-		DEBUG_LOG("%s: cannot create send RF ring\n", __func__);
-		return NULL;
-	}
-#else
-	ctx->snd_data.ring = ring_create(RF_RING_SIZE);
-#endif
 	if (burst)
 		ctx->burst = burst - 1;
-#ifdef CONFIG_RF_CHECKS
-	if ((rf_data_check.ring = ring_create(RF_RING_SIZE)) == NULL) {
-		DEBUG_LOG("%s: cannot create check RF ring\n", __func__);
-		return NULL;
-	}
 #endif
-#endif
-	return ctx;
+	iface->priv = ctx;
+	return 0;
 }
 
 
-#if 0 /* Will never be used in an infinite loop. Save space, don't compile it */
-void rf_shutdown(void *handle)
+/* XXX Will never be used in an infinite loop. Save space, don't compile it */
+#if 0
+void rf_shutdown(const iface_t *iface)
 {
-	rf_ctx_t *ctx = handle;
+	rf_ctx_t *ctx = iface->priv;
 
 #ifdef CONFIG_RF_RECEIVER
 	timer_del(&ctx->rcv_data.timer);
-	ring_free(ctx->rcv_data.ring);
 #endif
 #ifdef CONFIG_RF_SENDER
 	timer_del(&ctx->snd_data.timer);
-	ring_free(ctx->snd_data.ring);
-#ifdef CONFIG_RF_CHECKS
-	ring_free(rf_data_check.ring);
-#endif
 #endif
 #ifndef CONFIG_RF_STATIC_ALLOC
 	free(ctx);

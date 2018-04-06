@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>
@@ -20,6 +19,7 @@
 #endif
 
 #include <timer.h>
+#include <scheduler.h>
 #include <net/eth.h>
 #include <net/route.h>
 #define SOCKLEN_DEFINED
@@ -33,34 +33,35 @@
 
 struct pollfd tun_fds[1];
 
-pkt_t *recv(void)
-{
-	return 0;
-}
+static void recv(const iface_t *iface) {}
 
-uint16_t send(const buf_t *out)
+static int send(const iface_t *iface, pkt_t *pkt)
 {
 	ssize_t nwrite;
 
-	if (out->len == 0)
-		return 0;
-	nwrite = write(tun_fds[0].fd, out->data, out->len);
+	nwrite = write(tun_fds[0].fd, buf_data(&pkt->buf), pkt->buf.len);
+	pkt_free(pkt);
 	if (nwrite < 0) {
 		if (errno != EAGAIN) {
 			fprintf(stderr, "tun device is not up (%m)\n");
 			exit(EXIT_FAILURE);
 		}
-		return 0;
+		return -1;
 	}
-	return nwrite;
+	return 0;
 }
 
-iface_t iface = {
+static uint8_t ip[] = { 1, 1, 2, 2 };
+static uint8_t ip_mask[] = { 255, 255, 255, 0 };
+static uint8_t mac[] = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x41 };
+
+static iface_t iface = {
 	.flags = IF_UP|IF_RUNNING,
-	.mac_addr = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x41 },
-	.ip4_addr = { 1,1,2,2 },
-	.ip4_mask = { 255, 255, 255, 0 },
+	.hw_addr = mac,
+	.ip4_addr = ip,
+	.ip4_mask = ip_mask,
 	.send = &send,
+	.recv = &recv,
 };
 
 static void tun_alloc(char *dev)
@@ -84,7 +85,7 @@ static void tun_alloc(char *dev)
 	tun_fds[0].events = POLLIN;
 }
 
-static pkt_t *tun_receive_pkt(void)
+static int tun_receive_pkt(const iface_t *iface)
 {
 	pkt_t *pkt;
 	uint8_t buf[2048];
@@ -92,27 +93,27 @@ static pkt_t *tun_receive_pkt(void)
 
 	if (poll(tun_fds, 1, -1) < 0) {
 		if (errno == EINTR)
-			return NULL;
+			return -1;
 		fprintf(stderr, "can't poll on tun fd (%m (%d))\n", errno);
-		return NULL;
+		return -1;
 	}
 	if ((tun_fds[0].revents & POLLIN) == 0)
-		return NULL;
+		return -1;
 
 	nread = read(tun_fds[0].fd, buf, sizeof(buf));
 	if (nread < 0 && errno == EAGAIN) {
-		return NULL;
+		return -1;
 	}
 
 	if (nread < 0) {
 		if (errno == EAGAIN)
-			return NULL;
+			return -1;
 		fprintf(stderr , "%s: reading tun device failed (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
 	if (nread == 0)
-		return NULL;
+		return -1;
 #if 0
 	printf("read: %ld\n", nread);
 	for (i = 0; i < nread; i++) {
@@ -126,14 +127,15 @@ static pkt_t *tun_receive_pkt(void)
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "can't alloc a packet\n");
-		return NULL;
+		return -1;
 	}
 
 	if (buf_add(&pkt->buf, buf, nread) < 0) {
 		pkt_free(pkt);
-		return NULL;
+		return -1;
 	}
-	return pkt;
+	pkt_put(iface->rx, pkt);
+	return 0;
 }
 
 int main(int argc, char *argv[])
@@ -224,7 +226,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 #endif
-	if (if_init(&iface, &send, &recv) < 0) {
+	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
 		fprintf(stderr, "can't init interface\n");
 		return -1;
 	}
@@ -243,6 +245,10 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_TIMER_CHECKS
 	timer_checks();
 #endif
+	if (scheduler_init() < 0) {
+		fprintf(stderr, "cannot initilize scheduler\n");
+		return -1;
+	}
 
 	socket_init();
 	dft_route.iface = &iface;
@@ -273,10 +279,10 @@ int main(int argc, char *argv[])
 #endif
 
 	while (1) {
-		pkt_t *pkt = tun_receive_pkt();
+		if (tun_receive_pkt(&iface) >= 0)
+			eth_input(&iface);
 
-		if (pkt)
-			eth_input(pkt, &iface);
+		bh();
 #if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 		udp_app();
 #endif

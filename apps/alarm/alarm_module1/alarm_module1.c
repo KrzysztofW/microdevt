@@ -6,17 +6,30 @@
 #include <sys/buf.h>
 #include <net/swen.h>
 #include <net/swen_cmds.h>
+#include <net/event.h>
 #include <timer.h>
 #include <crypto/xtea.h>
 #include <drivers/rf.h>
+#include <scheduler.h>
 #include "../rf_common.h"
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
+static uint8_t rf_addr = RF_MOD1_HW_ADDR;
+
+static iface_t eth1 = {
+	.flags = IF_UP|IF_RUNNING|IF_NOARP,
+	.hw_addr = &rf_addr,
+#ifdef CONFIG_RF_RECEIVER
+	.recv = &rf_input,
+#endif
+#ifdef CONFIG_RF_SENDER
+	.send = &rf_output,
+#endif
+};
+
 static uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
-void *rf_handle;
-void *swen_handle;
 #endif
 
 #ifdef CONFIG_RF_SENDER
@@ -24,14 +37,15 @@ static void tim_rf_cb(void *arg)
 {
 	tim_t *timer = arg;
 	buf_t buf = BUF(32);
+	sbuf_t sbuf = buf2sbuf(&buf);
 	const char *s = "Hello world!";
 
-	__buf_adds(&buf, s);
+	__buf_adds(&buf, s, strlen(s));
+
 	if (xtea_encode(&buf, rf_enc_defkey) < 0)
 		DEBUG_LOG("can't encode buf\n");
-	if (swen_sendto(swen_handle, RF_MOD0_HW_ADDR, &buf) < 0)
+	if (swen_sendto(&eth1, RF_MOD0_HW_ADDR, &sbuf) < 0)
 		DEBUG_LOG("failed sending RF msg\n");
-
 	timer_reschedule(timer, 5000000UL);
 }
 #endif
@@ -44,15 +58,24 @@ void tim_led_cb(void *arg)
 }
 
 #ifdef CONFIG_RF_RECEIVER
+static void
+rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
+{
+	if (events & EV_READ) {
+		if (xtea_decode(buf, rf_enc_defkey) < 0) {
+			DEBUG_LOG("cannot decode buf\n");
+			return;
+		}
+		DEBUG_LOG("got from 0x%X: %s\n", from, buf_data(buf));
+	}
+}
+
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 static void rf_kerui_cb(int nb)
 {
 	DEBUG_LOG("received kerui cmd %d\n", nb);
 }
 #endif
-#define RF_BUF_SIZE 64
-uint8_t rf_buf_data[RF_BUF_SIZE];
-buf_t rf_buf = BUF_INIT(rf_buf_data);
 #endif
 
 int main(void)
@@ -61,10 +84,6 @@ int main(void)
 	tim_t timer_rf;
 #endif
 	tim_t timer_led;
-#ifdef CONFIG_RF_RECEIVER
-	buf_t rf_buf;
-	uint8_t rf_from;
-#endif
 
 	init_adc();
 #ifdef DEBUG
@@ -73,6 +92,7 @@ int main(void)
 #endif
 	watchdog_shutdown();
 	timer_subsystem_init();
+	scheduler_init();
 
 #ifdef CONFIG_TIMER_CHECKS
 	timer_checks();
@@ -82,45 +102,43 @@ int main(void)
 	watchdog_enable();
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
-	rf_handle = rf_init(RF_BURST_NUMBER);
+	if (pkt_mempool_init() < 0) {
+		DEBUG_LOG("cannot init pkt pool\n");
+		return -1;
+	}
+	if (if_init(&eth1, IF_TYPE_RF) < 0) {
+		DEBUG_LOG("cannot init RF iface\n");
+		return -1;
+	}
+	if (rf_init(&eth1, RF_BURST_NUMBER) < 0) {
+		DEBUG_LOG("cannot init RF\n");
+		return -1;
+	}
 #endif
 #ifdef CONFIG_RF_RECEIVER
+	swen_ev_set(rf_event_cb);
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-	swen_handle = swen_init(rf_handle, RF_MOD1_HW_ADDR, rf_kerui_cb,
-				rf_ke_cmds);
-#else
-	swen_handle = swen_init(rf_handle, RF_MOD1_HW_ADDR, NULL, NULL);
+	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
-	if (swen_handle == NULL)
-		return -1;
-#endif
-
-#ifdef CONFIG_RF_CHECKS
-	if (rf_checks(rf_handle) < 0) {
-		DEBUG_LOG("RF checks failed\n");
-		abort();
-	}
 #endif
 
 #ifdef CONFIG_RF_SENDER
+#ifdef CONFIG_RF_CHECKS
+	if (rf_checks(&eth1) < 0) {
+		__abort();
+	}
+#endif
 	timer_init(&timer_rf);
 	timer_add(&timer_rf, 0, tim_rf_cb, &timer_rf);
 
 	/* port D used by the LED and RF sender */
 	DDRD = (1 << PD2);
 #endif
+
+	/* slow functions */
 	while (1) {
-		/* slow functions */
-#ifdef CONFIG_RF_RECEIVER
-		/* TODO: this block should be put in a timer cb */
-		if (swen_recvfrom(swen_handle, &rf_from, &rf_buf) >= 0
-		    && buf_len(&rf_buf)) {
-			if (xtea_decode(&rf_buf, rf_enc_defkey) < 0)
-				DEBUG_LOG("can't decode buf\n");
-			DEBUG_LOG("from: 0x%X: %s\n", rf_from, rf_buf.data);
-			buf_reset(&rf_buf);
-		}
-#endif
+		bh(); /* bottom halves */
+
 		watchdog_reset();
 	}
 #ifdef CONFIG_RF_SENDER

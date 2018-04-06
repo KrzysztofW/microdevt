@@ -6,7 +6,7 @@
 #include "socket.h"
 #include "../sys/hash-tables.h"
 
-void udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
+int udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
 {
 	udp_hdr_t *udp_hdr = btod(pkt, udp_hdr_t *);
 	ip_hdr_t *ip_hdr;
@@ -20,10 +20,10 @@ void udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
 	udp_hdr->src_port = sport;
 	udp_hdr->dst_port = dport;
 
-	ip_output(pkt, NULL, 0);
+	return ip_output(pkt, NULL, 0);
 }
 
-void udp_input(pkt_t *pkt, iface_t *iface)
+void udp_input(pkt_t *pkt, const iface_t *iface)
 {
 	udp_hdr_t *udp_hdr;
 	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);

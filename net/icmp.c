@@ -7,8 +7,9 @@
 #include "socket.h"
 #endif
 
-void icmp_output(pkt_t *out, iface_t *iface, int type, int code, uint16_t id,
-		 uint16_t seq, const buf_t *id_data, uint16_t ip_flags)
+int
+icmp_output(pkt_t *out, const iface_t *iface, int type, int code, uint16_t id,
+	    uint16_t seq, const buf_t *id_data, uint16_t ip_flags)
 {
 	icmp_hdr_t *icmp_hdr;
 
@@ -25,10 +26,10 @@ void icmp_output(pkt_t *out, iface_t *iface, int type, int code, uint16_t id,
 	pkt_adj(out, -(int)sizeof(icmp_hdr_t));
 	icmp_hdr->cksum = cksum(icmp_hdr, sizeof(icmp_hdr_t) + id_data->len);
 	pkt_adj(out, -(int)sizeof(ip_hdr_t));
-	ip_output(out, iface, ip_flags);
+	return ip_output(out, iface, ip_flags);
 }
 
-void icmp_input(pkt_t *pkt, iface_t *iface)
+void icmp_input(pkt_t *pkt, const iface_t *iface)
 {
 	icmp_hdr_t *icmp_hdr;
 	ip_hdr_t *ip = btod(pkt, ip_hdr_t *);

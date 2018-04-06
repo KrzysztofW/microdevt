@@ -4,7 +4,7 @@ EXE = alarm
 CFLAGS = -Wall -Werror -Os -g -c
 
 SOURCES = alarm.c $(ARCH_DIR)/$(ARCH)/enc28j60.c $(ARCH_DIR)/$(ARCH)/adc.c
-SOURCES += ../../crypto/xtea.c gsm.c
+SOURCES += ../../crypto/xtea.c gsm.c ../../scheduler.c
 
 include config
 include build.mk

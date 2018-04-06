@@ -25,7 +25,7 @@ CFLAGS += -I../..
 
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
-SOURCES += ../../sys/errno.c
+SOURCES += ../../sys/errno.c ../../scheduler.c
 OBJ = $(SOURCES:.c=.o)
 
 all: libnet $(SOURCES) $(EXE)

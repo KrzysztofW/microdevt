@@ -53,14 +53,12 @@ static void socket_event_cb(void *arg)
 
 void socket_schedule_ev(sock_info_t *sock_info, uint8_t events)
 {
+	assert(events);
+	if (sock_info->ev_cb == NULL)
+		return;
 	if ((sock_info->events_wanted & events) || (events & EV_ERROR)) {
-		task_t task = {
-			.cb = socket_event_cb,
-			.arg = sock_info,
-		};
-
 		sock_info->events_available = events;
-		schedule_task(&task);
+		schedule_task(socket_event_cb, sock_info);
 	}
 }
 
@@ -318,6 +316,8 @@ int sock_info_init(sock_info_t *sock_info, int sock_type)
 	int fd;
 	int retries = 0;
 #endif
+	memset(sock_info, 0, sizeof(sock_info_t));
+
 	switch (sock_type) {
 #ifdef CONFIG_UDP
 	case SOCK_DGRAM:
@@ -334,7 +334,6 @@ int sock_info_init(sock_info_t *sock_info, int sock_type)
 		return -1;
 	}
 	sock_info->type = sock_type;
-	sock_info->port = 0;
 #ifndef CONFIG_HT_STORAGE
 	INIT_LIST_HEAD(&sock_info->list);
 #endif
@@ -640,6 +639,7 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 static pkt_t *socket_alloc_pkt(int hdrlen, const sbuf_t *sbuf)
 {
 	pkt_t *pkt;
+	int needed_pkt_size = sbuf->len + hdrlen;
 
 	if ((pkt = pkt_alloc()) == NULL
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
@@ -652,17 +652,22 @@ static pkt_t *socket_alloc_pkt(int hdrlen, const sbuf_t *sbuf)
 		return NULL;
 	}
 
-	pkt_adj(pkt, (int)sizeof(eth_hdr_t));
-	pkt_adj(pkt, (int)sizeof(ip_hdr_t));
-	pkt_adj(pkt, hdrlen);
-	if (buf_addsbuf(&pkt->buf, sbuf) < 0) {
+#ifdef CONFIG_TCP_RETRANSMIT
+	needed_pkt_size += sizeof(tcp_retrn_pkt_t);
+#endif
+	if (pkt->buf.size < needed_pkt_size) {
 #ifdef CONFIG_BSD_COMPAT
 		errno = EMSGSIZE;
 #endif
 		goto error;
 	}
 
+	pkt_adj(pkt, (int)sizeof(eth_hdr_t));
+	pkt_adj(pkt, (int)sizeof(ip_hdr_t));
+	pkt_adj(pkt, hdrlen);
+	__buf_add(&pkt->buf, sbuf->data, sbuf->len);
 	pkt_adj(pkt, -hdrlen);
+
 	return pkt;
  error:
 	pkt_free(pkt);
@@ -708,16 +713,24 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		if (sock_info->port == 0 && sock_info_bind(sock_info, 0) < 0)
 			return -1;
 
-		if ((pkt = socket_alloc_pkt((int)sizeof(udp_hdr_t), sbuf)) == NULL)
+		pkt = socket_alloc_pkt((int)sizeof(udp_hdr_t), sbuf);
+		if (pkt == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = ENOBUFS;
+#endif
 			return -1;
+		}
 
-		udp_output(pkt, dst_addr, sock_info->port, dst_port);
-		return 0;
+		return udp_output(pkt, dst_addr, sock_info->port, dst_port);
 #endif
 #ifdef CONFIG_TCP
 	case SOCK_TYPE_TCP:
-		if ((tcp_conn = socket_get_tcp_conn(sock_info)) == NULL)
+		if ((tcp_conn = socket_get_tcp_conn(sock_info)) == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EBADF;
+#endif
 			return -1;
+		}
 
 		if (tcp_conn->syn.status != SOCK_CONNECTED) {
 #ifdef CONFIG_BSD_COMPAT
@@ -726,11 +739,22 @@ int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 			return -1;
 		}
 
-		if ((pkt = socket_alloc_pkt((int)sizeof(tcp_hdr_t), sbuf)) == NULL)
+		pkt = socket_alloc_pkt((int)sizeof(tcp_hdr_t), sbuf);
+		if (pkt == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = ENOBUFS;
+#endif
 			return -1;
+		}
 
-		tcp_output(pkt, tcp_conn, TH_PUSH | TH_ACK);
-		tcp_conn->syn.seqid = htonl(ntohl(tcp_conn->syn.seqid) + sbuf->len);
+		if (tcp_output(pkt, tcp_conn, TH_PUSH | TH_ACK) < 0) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EBADF;
+#endif
+			return -1;
+		}
+		tcp_conn->syn.seqid = htonl(ntohl(tcp_conn->syn.seqid) +
+					    sbuf->len);
 		return 0;
 #endif
 	default:

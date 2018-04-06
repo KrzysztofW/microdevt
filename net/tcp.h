@@ -113,7 +113,7 @@ tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid);
 void tcp_conn_delete(tcp_conn_t *tcp_conn);
 int
 tcp_connect(uint32_t dst_addr, uint16_t dst_port, void *sock_info);
-void tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags);
+int tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags);
 void tcp_input(pkt_t *pkt);
 
 #endif

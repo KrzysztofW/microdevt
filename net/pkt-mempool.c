@@ -34,7 +34,7 @@ pkt_t *__pkt_alloc(const char *func, int line)
 	pkt_t *pkt;
 
 	pkt = pkt_get(pkt_pool);
-	printf("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
+	DEBUG_LOG("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
 	return pkt;
 }
 
@@ -111,11 +111,11 @@ int pkt_mempool_init(void)
 {
 	uint8_t i;
 
-	pkt_pool = ring_create(CONFIG_PKT_NB_MAX + 1);
+	pkt_pool = ring_create(CONFIG_PKT_NB_MAX);
 	if (pkt_pool == NULL)
 		return -1;
 
-	for (i = 0; i < CONFIG_PKT_NB_MAX; i++) {
+	for (i = 0; i < CONFIG_PKT_NB_MAX - 1; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
 		pkt->buf = BUF_INIT(&buffer_data[i * CONFIG_PKT_SIZE],

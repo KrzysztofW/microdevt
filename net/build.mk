@@ -4,22 +4,31 @@ endif
 
 SOURCES = ../timer.c ../arch/$(ARCH)/timer.c ../scheduler.c
 
-SOURCES += eth.c if.c arp.c ip.c
-SOURCES += tr_chksum.c ../sys/chksum.c pkt-mempool.c route.c
+ifdef CONFIG_ETHERNET
+SOURCES += eth.c
+SOURCES += arp.c
+CFLAGS += -DCONFIG_ETHERNET -DCONFIG_ARP
+endif
+
+SOURCES += if.c
+
+ifdef CONFIG_IP
+SOURCES += ip.c
+CFLAGS += -DCONFIG_IP
+ifdef CONFIG_IP_TTL
+CFLAGS += -DCONFIG_IP_TTL=$(CONFIG_IP_TTL)
+endif
+endif
+
+SOURCES += tr_chksum.c ../sys/chksum.c route.c
 
 ifdef CONFIG_PKT_NB_MAX
 CFLAGS += -DCONFIG_PKT_NB_MAX=$(CONFIG_PKT_NB_MAX)
-endif
-ifdef CONFIG_PKT_SIZE
 CFLAGS += -DCONFIG_PKT_SIZE=$(CONFIG_PKT_SIZE)
-endif
-
+SOURCES += pkt-mempool.c
 ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 CFLAGS += -DCONFIG_PKT_MEM_POOL_EMERGENCY_PKT=$(CONFIG_PKT_MEM_POOL_EMERGENCY_PKT)
 endif
-
-ifdef CONFIG_IP_TTL
-CFLAGS += -DCONFIG_IP_TTL=$(CONFIG_IP_TTL)
 endif
 
 ifdef CONFIG_ICMP

@@ -19,8 +19,9 @@ typedef struct icmp icmp_hdr_t;
 #define MAX_ICMP_DATA_SIZE (int)(CONFIG_PKT_SIZE - sizeof(eth_hdr_t) \
 				 - sizeof(ip_hdr_t) - sizeof(icmp_hdr_t))
 
-void icmp_input(pkt_t *pkt, iface_t *iface);
-void icmp_output(pkt_t *out, iface_t *iface, int type, int code,
-		 uint16_t id, uint16_t seq, const buf_t *id_data, uint16_t ip_flags);
+void icmp_input(pkt_t *pkt, const iface_t *iface);
+int
+icmp_output(pkt_t *out, const iface_t *iface, int type, int code,
+	    uint16_t id, uint16_t seq, const buf_t *id_data, uint16_t ip_flags);
 
 #endif

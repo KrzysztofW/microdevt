@@ -1,8 +1,9 @@
-#include <assert.h>
+#include <sys/utils.h>
 #include <sys/chksum.h>
 #include <sys/buf.h>
 #include <sys/ring.h>
 #include <drivers/rf.h>
+#include "event.h"
 #include "swen.h"
 
 /* XXX the size of this structure has to be even (in order to use
@@ -10,123 +11,99 @@
 typedef struct __attribute__((__packed__)) swen_hdr_t {
 	uint8_t to;
 	uint8_t from;
-	uint16_t len;
+	uint16_t proto :  2;
+	uint16_t len   : 14;
 	uint16_t chksum;
 } swen_hdr_t;
 
-#if defined CONFIG_RF_SENDER || defined CONFIG_RF_RECEIVER
-typedef struct swen_ctx {
-	uint8_t addr; /* XXX to be removed (already in iface) */
-	uint8_t from_addr;
-	uint8_t valid_data_left;
-
-	void   *rf_handle;
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-	void (*generic_cmds_cb)(int nb);
-	uint8_t *generic_cmds;
-#endif
-} swen_ctx_t;
+void (*generic_cmds_cb)(int nb);
+static const uint8_t *generic_cmds;
 
-#ifdef CONFIG_SWEN_STATIC_ALLOC
-swen_ctx_t __swen_ctx_pool[CONFIG_SWEN_STATIC_ALLOC];
-uint8_t __swen_ctx_pool_pos;
-#endif
-
-void *
-swen_init(void *rf_handle, uint8_t addr, void (*generic_cmds_cb)(int nb),
-	  uint8_t *cmds)
+void
+swen_generic_cmds_init(void (*generic_cmds_cb)(int nb), const uint8_t *cmds)
 {
-	swen_ctx_t *ctx;
-
-#ifndef CONFIG_SWEN_STATIC_ALLOC
-	if ((ctx = malloc(sizeof(swen_ctx_t))) == NULL) {
-		DEBUG_LOG("%s: cannot allocate memory\n", __func__);
-		return NULL;
-	}
-#else
-	if (__swen_ctx_pool_pos >= CONFIG_SWEN_STATIC_ALLOC) {
-		DEBUG_LOG("%s: too many allocations\n", __func__);
-		abort();
-	}
-	ctx = &__swen_ctx_pool[__swen_ctx_pool_pos++];
-#endif
-	ctx->addr = addr;
-	ctx->rf_handle = rf_handle;
-#ifdef CONFIG_RF_GENERIC_COMMANDS
-	ctx->generic_cmds_cb = generic_cmds_cb;
-	ctx->generic_cmds = cmds;
-#endif
-	return ctx;
-}
-
-/* Will never be used in an infinite loop. Save space, don't compile it */
-#if 0
-void swen_shutdown(void *handle)
-{
-	swen_ctx_t *ctx = handle;
-
-	rf_shutdown(ctx->rf_handle);
-#ifndef CONFIG_SWEN_STATIC_ALLOC
-	free(ctx);
-#else
-	assert(__swen_ctx_pool_pos);
-	__swen_ctx_pool_pos--;
-#endif
+	generic_cmds_cb = generic_cmds_cb;
+	generic_cmds = cmds;
 }
 #endif
-#endif
+
+void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
 
 #ifdef CONFIG_RF_SENDER
-int swen_sendto(void *handle, uint8_t to, const buf_t *data)
+#ifdef CONFIG_IP_OVER_SWEN
+int swen_get_route(const uint32_t *ip, uint8_t *dst)
 {
-	swen_ctx_t *ctx = handle;
-	swen_hdr_t hdr;
-	uint32_t csum;
-	buf_t hdr_buf;
-	uint16_t frame_len;
-	const buf_t *bufs[2];
-
-	hdr.from = ctx->addr;
-	hdr.to = to;
-	hdr.len = htons(data->len);
-	hdr.chksum = 0;
-
-	STATIC_ASSERT(!(sizeof(swen_hdr_t) & 0x1));
-	csum = cksum_partial(&hdr, sizeof(swen_hdr_t));
-	csum += cksum_partial(data->data, data->len);
-	hdr.chksum = cksum_finish(csum);
-	buf_init(&hdr_buf, (void *)&hdr, sizeof(hdr));
-	frame_len = data->len + sizeof(swen_hdr_t);
-	bufs[0] = &hdr_buf;
-	bufs[1] = data;
-
-	return rf_output(ctx->rf_handle, frame_len, 2, bufs);
+	/* TODO */
+	*dst = 0x00;
+	return 0;
 }
 #endif
 
-#ifdef CONFIG_RF_RECEIVER
-#ifdef CONFIG_RF_GENERIC_COMMANDS
-static int
-swen_parse_generic_cmds(swen_ctx_t *ctx, ring_t *ring, int rlen)
+int
+swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
+{
+	swen_hdr_t *hdr;
+
+	pkt_adj(pkt, -(int)sizeof(swen_hdr_t));
+	hdr = btod(pkt, swen_hdr_t *);
+	hdr->from = *(iface->hw_addr);
+
+#ifdef CONFIG_IP_OVER_SWEN
+	if (type == L3_PROTO_IP) {
+		if (swen_get_route(dst, &hdr->to) < 0) {
+			/* no route */
+			pkt_free(pkt);
+			return -1;
+		}
+	} else
+#endif
+		hdr->to = *(uint8_t *)dst;
+	hdr->proto = type;
+	hdr->len = htons(pkt_len(pkt));
+	hdr->chksum = 0;
+	hdr->chksum = cksum(hdr, pkt_len(pkt));
+	iface->send(iface, pkt);
+	return 0;
+}
+
+int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf)
+{
+	pkt_t *pkt = pkt_alloc();
+
+	if (pkt == NULL)
+		return -1;
+
+	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
+	if (buf_addsbuf(&pkt->buf, sbuf) < 0)
+		return -1;
+	return swen_output(pkt, iface, L3_PROTO_SWEN, NULL);
+}
+#endif
+
+#if defined CONFIG_RF_RECEIVER && defined CONFIG_RF_GENERIC_COMMANDS
+static int swen_parse_generic_cmds(const buf_t *buf)
 {
 	uint8_t cmd_index;
-	uint8_t *cmds;
+	const uint8_t *cmds;
+	sbuf_t sbuf = buf2sbuf(buf);
 
-	if (ctx->generic_cmds_cb == NULL || ctx->generic_cmds == NULL)
+	if (generic_cmds_cb == NULL || generic_cmds == NULL)
 		return -1;
 
 	cmd_index = 0;
-	cmds = ctx->generic_cmds;
+	cmds = generic_cmds;
 	while (cmds[0] != 0) {
 		uint8_t len = cmds[0];
+		sbuf_t cmd;
 
 		/* ring len is the same throughout the loop */
-		if (rlen < len)
-			return 0;
+		if (buf->len < len)
+			return -1;
 		cmds++;
-		if (ring_cmp(ring, cmds, len) == 0) {
-			__ring_skip(ring, len);
-			ctx->generic_cmds_cb(cmd_index);
+		sbuf_init(&cmd, cmds, len);
+		if (sbuf_cmp(&sbuf, &cmd) == 0) {
+			generic_cmds_cb(cmd_index);
 			return 0;
 		}
 		cmd_index++;
@@ -136,63 +113,77 @@ swen_parse_generic_cmds(swen_ctx_t *ctx, ring_t *ring, int rlen)
 }
 #endif
 
-int swen_recvfrom(void *handle, uint8_t *from, buf_t *buf)
+void swen_ev_set(void (*ev_cb)(uint8_t from, uint8_t events, buf_t *buf))
 {
-	swen_ctx_t *ctx = handle;
-	ring_t *ring = rf_get_ring(ctx->rf_handle);
-	uint8_t rlen;
+	swen_event_cb = ev_cb;
+}
 
-	while ((rlen = ring_len(ring))) {
-		if (ctx->valid_data_left) {
-			uint8_t l = __ring_get_dont_skip(ring, buf,
-							 ctx->valid_data_left);
-			ctx->valid_data_left -= l;
-			__ring_skip(ring, l);
-			*from = ctx->from_addr;
-			return 0;
-		}
+static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
+{
+	swen_hdr_t *hdr;
 
-		if (rlen < sizeof(swen_hdr_t))
-			return -1;
-
-		/* check if data is for us */
-		if (ring_cmp(ring, &ctx->addr, 1) == 0) {
-			swen_hdr_t hdr;
-			uint16_t hdr_len;
-			buf_t b;
-			unsigned l;
-
-			buf_init(&b, &hdr, sizeof(swen_hdr_t));
-			b.len = 0;
-			__ring_get_dont_skip(ring, &b, sizeof(swen_hdr_t));
-			hdr_len = ntohs(hdr.len);
-			l = hdr_len + sizeof(swen_hdr_t);
-
-			if (l > ring->mask) {
-				__ring_skip(ring, 1);
-				continue;
-			}
-			if (rlen < l)
-				return -1;
-			if (__ring_cksum(ring, l) != 0) {
-				__ring_skip(ring, 1);
-				continue;
-			}
-
-			*from = hdr.from;
-			ctx->from_addr = hdr.from;
-			__ring_skip(ring, sizeof(swen_hdr_t));
-			l = __ring_get_dont_skip(ring, buf, hdr_len);
-			ctx->valid_data_left = hdr_len - l;
-			__ring_skip(ring, l);
-			return 0;
-		}
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-		if (swen_parse_generic_cmds(ctx, ring, rlen) < 0)
+	if (swen_parse_generic_cmds(&pkt->buf) >= 0)
+		goto end;
 #endif
-			/* skip 1 byte of garbage */
-			__ring_skip(ring, 1);
+
+	if (pkt->buf.len < sizeof(swen_hdr_t))
+		goto end;
+
+	hdr = btod(pkt, swen_hdr_t *);
+
+	/* check if data is for us */
+	if (hdr->to != iface->hw_addr[0])
+		goto end;
+
+	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
+	if (hdr->len != pkt->buf.len)
+		goto end;
+
+	if (cksum(hdr, pkt->buf.len) != 0)
+		goto end;
+
+	/* TODO: chained pkts */
+
+	switch (hdr->proto) {
+	case RF_TYPE_SWEN:
+		if (swen_event_cb)
+			swen_event_cb(hdr->from, EV_READ, &pkt->buf);
+		break;
+#ifdef CONFIG_SWEN_L4
+	case RF_TYPE_SWEN4:
+		swen_l4_input(hdr->from, pkt, iface);
+		return;
+#endif
+#ifdef CONFIG_IP_OVER_SWEN
+#ifdef CONFIG_IP
+	case RF_TYPE_IP:
+		ip_input(pkt, iface);
+		return;
+#endif
+#ifdef CONFIG_ICMP
+	case RF_TYPE_ICMP:
+		ip_icmp(pkt, iface);
+		return;
+#endif
+#endif
+	default:
+		/* unsupported */
+		break;
 	}
-	return -1;
+ end:
+	pkt_free(pkt);
+}
+
+#ifdef CONFIG_RF_RECEIVER
+void swen_input(const iface_t *iface)
+{
+	pkt_t *pkt;
+
+	while ((pkt = pkt_get(iface->rx))) {
+		/* XXX swen_hdr_t size must be <= MIN generic command size */
+		if (pkt_len(pkt) > sizeof(swen_hdr_t))
+			__swen_input(pkt, iface);
+	}
 }
 #endif

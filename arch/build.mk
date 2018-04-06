@@ -6,7 +6,7 @@ else ifeq ($(CONFIG_ARCH),X86_TEST)
 ARCH = x86
 
 else ifeq ($(CONFIG_ARCH),AVR)
-ifeq ($(DEBUG), 1)
+ifeq "$(or $(CONFIG_USART0), $(CONFIG_USART1))" "y"
 	SOURCES += $(ARCH_DIR)/avr/_stdio.c
 	SOURCES += $(ARCH_DIR)/avr/usart.c
 endif

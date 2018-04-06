@@ -12,7 +12,7 @@ struct udp_hdr {
 
 typedef struct udp_hdr udp_hdr_t;
 
-void udp_input(pkt_t *pkt, iface_t *iface);
-void udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport);
+void udp_input(pkt_t *pkt, const iface_t *iface);
+int udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport);
 
 #endif

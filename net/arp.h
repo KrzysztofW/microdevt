@@ -55,15 +55,18 @@ typedef struct arp6_entries {
 
 extern uint8_t broadcast_mac[];
 
-void arp_input(pkt_t *pkt, iface_t *iface);
-int arp_find_entry(uint32_t ip, uint8_t **mac, iface_t **iface);
-void arp_output(iface_t *iface, int op, uint8_t *tha, uint8_t *tpa);
-void arp_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface);
+void arp_input(pkt_t *pkt, const iface_t *iface);
+int arp_find_entry(const uint32_t *ip, const uint8_t **mac,
+		   const iface_t **iface);
+int arp_output(const iface_t *iface, int op, const uint8_t *tha,
+	       const uint8_t *tpa);
+void
+arp_add_entry(const uint8_t *sha, const uint8_t *spa, const iface_t *iface);
 #ifdef CONFIG_IPV6
-static void arp6_add_entry(uint8_t *sha, uint8_t *spa, iface_t *iface);
+static void arp6_add_entry(uint8_t *sha, uint8_t *spa, const iface_t *iface);
 #endif
 
-void arp_resolve(pkt_t *pkt, uint32_t ip_dst, iface_t *iface);
+void arp_resolve(pkt_t *pkt, const uint32_t *ip_dst, const iface_t *iface);
 
 #ifdef TEST
 arp_entries_t *arp_get_entries(void);

@@ -18,7 +18,7 @@ static uint32_t client_addr = 0x01010201;
 static tim_t tcp_client_timer;
 #define TCP_TIMER_RECONNECT 5000000UL /* reconnect every 5 seconds */
 
-sock_info_t sock_info_client;
+static sock_info_t sock_info_client;
 
 static void tcp_app_client_init(void);
 
@@ -125,7 +125,7 @@ static void tcp_app_client_init(void)
 #endif	/* CONFIG_EVENT */
 #endif	/* CONFIG_TCP_CLIENT */
 
-sock_info_t sock_info_server;
+static sock_info_t sock_info_server;
 
 #ifdef CONFIG_EVENT
 static void ev_accept_cb(sock_info_t *sock_info, uint8_t events);

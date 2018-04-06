@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <assert.h>
 #include <stdint.h>
 
 #include <sys/ring.h>
@@ -10,6 +9,7 @@
 #include <sys/hash-tables.h>
 #include <timer.h>
 #include <net/tests.h>
+#include <drivers/rf.h>
 
 static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 {
@@ -396,6 +396,42 @@ static int timer_check(void)
 	return 0;
 }
 
+static int send(const struct iface *iface, pkt_t *pkt)
+{
+	return 0;
+}
+
+static void recv(const struct iface *iface) {}
+
+static int driver_rf_checks(void)
+{
+	iface_t iface;
+	int ret = -1;
+
+	memset(&iface, 0, sizeof(iface_t));
+	iface.send = &send;
+	iface.recv = &recv;
+	if (if_init(&iface, IF_TYPE_RF) < 0) {
+		fprintf(stderr, "%s: cannot init interface\n", __func__);
+		return -1;
+	}
+
+	if (pkt_mempool_init() < 0) {
+		fprintf(stderr, "%s: cannot initialize pkt pool\n", __func__);
+		if_shutdown(&iface);
+		return -1;
+	}
+	if (rf_init(&iface, 2) < 0) {
+		fprintf(stderr, "%s: cannot initialize RF\n", __func__);
+		goto end;
+	}
+	ret = rf_checks(&iface);
+ end:
+	if_shutdown(&iface);
+	pkt_mempool_shutdown();
+	return ret;
+}
+
 int main(int argc, char **argv)
 {
 	(void)argc;
@@ -427,6 +463,13 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	printf("  ==> timer checks succeeded\n");
+
+	if (driver_rf_checks() < 0) {
+		fprintf(stderr, "  ==> driver RF tests failed\n");
+		return -1;
+	}
+	printf("  ==> driver RF tests succeeded\n");
+
 	if (net_arp_tests() < 0) {
 		fprintf(stderr, "  ==> net arp tests failed\n");
 		return -1;
