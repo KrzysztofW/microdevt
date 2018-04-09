@@ -35,10 +35,10 @@ static: libnet $(EXE)_static
 libnet:
 	make -C ../../net
 
-$(EXE): $(OBJ)
+$(EXE): $(OBJ) $(STATIC_LIBS)
 	$(CC) $(OBJ) $(LIBS) $(LDFLAGS) -o $@
 
-$(EXE)_static: $(EXE).o
+$(EXE)_static: $(EXE).o  $(STATIC_LIBS)
 	$(CC) $(EXE).o $(STATIC_LIBS) -o $@
 
 %.c:

@@ -29,11 +29,11 @@ CFLAGS += -I..
 
 all: $(OBJ) $(SO) libnet-$(ARCH).a
 
-libnet-$(ARCH).a:
+libnet-$(ARCH).a: $(OBJ)
 	$(AR) -cr $(LIBNAME).a $(OBJ)
 	ranlib $(LIBNAME).a
 
-libnet-$(ARCH).so:
+libnet-$(ARCH).so: $(OBJ)
 	$(CC) $(LDFLAGS) $(LIBS) -o $(LIBNAME).so $(OBJ)
 
 CHKSUM_TEST_OBJ = chksum_test.o chksum.o

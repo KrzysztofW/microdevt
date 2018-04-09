@@ -33,7 +33,7 @@ all: libnet $(SOURCES) $(EXE)
 libnet:
 	make -C ../../net
 
-$(EXE): $(OBJ)
+$(EXE): $(OBJ) $(STATIC_LIBS)
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
 	@if [ -f tun-driver ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
 

@@ -36,7 +36,7 @@ all: libnet $(SOURCES) $(EXE)
 libnet:
 	make -C ../../net
 
-$(EXE): $(OBJ)
+$(EXE): $(OBJ) $(STATIC_LIBS)
 	$(AR) -cr $(EXE).a $(OBJ)
 	ranlib $(EXE).a
 	$(CC) $(EXE).a $(STATIC_LIBS) $(LDFLAGS) -o $@
