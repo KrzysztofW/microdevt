@@ -10,13 +10,11 @@
 
 #define IF_PKT_POOL_SIZE 4
 
-int if_init(iface_t *ifce, uint8_t type)
+void if_init(iface_t *ifce, uint8_t type)
 {
 	ifce->rx = ring_create(CONFIG_PKT_NB_MAX);
 	ifce->tx = ring_create(CONFIG_PKT_NB_MAX);
 	ifce->pkt_pool = ring_create(IF_PKT_POOL_SIZE);
-	if (ifce->tx == NULL || ifce->rx == NULL || ifce->pkt_pool == NULL)
-		return -1;
 
 	switch (type) {
 #ifdef CONFIG_ETHERNET
@@ -40,10 +38,8 @@ int if_init(iface_t *ifce, uint8_t type)
 		break;
 #endif
 	default:
-		return -1;
+		__abort();
 	}
-
-	return 0;
 }
 
 static void if_schedule_receive_cb(void *arg)

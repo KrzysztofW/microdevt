@@ -59,7 +59,7 @@ struct iface {
 } __attribute__((__packed__));
 typedef struct iface iface_t;
 
-int if_init(iface_t *ifce, uint8_t type);
+void if_init(iface_t *ifce, uint8_t type);
 void if_shutdown(iface_t *ifce);
 
 /* functions supposed to be called from an interrupt handler */

@@ -37,19 +37,9 @@ void bh(void)
 	task.cb(task.arg);
 }
 
-int scheduler_init(void)
+void scheduler_init(void)
 {
-	int size = roundup_pwr2(RING_SIZE);
-
-#ifndef CONFIG_RING_STATIC_ALLOC
-	if ((ring = ring_create(size)) == NULL) {
-		DEBUG_LOG("%s: cannot create BH ring\n", __func__);
-		return -1;
-	}
-#else
-	ring = ring_create(size);
-#endif
-	return 0;
+	ring = ring_create(roundup_pwr2(RING_SIZE));
 }
 
 #if 0

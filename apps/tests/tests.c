@@ -58,12 +58,7 @@ static int ring_check(void)
 	unsigned char c;
 	int j;
 
-	if ((ring = ring_create(ZCHK_RSIZE)) == NULL) {
-		fprintf(stderr, "can't create ring\n");
-		free(ring);
-		return -1;
-	}
-
+	ring = ring_create(ZCHK_RSIZE);
 	if (ring_check_full(ring) < 0) {
 		fprintf(stderr, "check full failed\n");
 		free(ring);
@@ -411,22 +406,12 @@ static int driver_rf_checks(void)
 	memset(&iface, 0, sizeof(iface_t));
 	iface.send = &send;
 	iface.recv = &recv;
-	if (if_init(&iface, IF_TYPE_RF) < 0) {
-		fprintf(stderr, "%s: cannot init interface\n", __func__);
-		return -1;
-	}
+	if_init(&iface, IF_TYPE_RF);
 
-	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "%s: cannot initialize pkt pool\n", __func__);
-		if_shutdown(&iface);
-		return -1;
-	}
-	if (rf_init(&iface, 2) < 0) {
-		fprintf(stderr, "%s: cannot initialize RF\n", __func__);
-		goto end;
-	}
+	pkt_mempool_init();
+	rf_init(&iface, 2);
 	ret = rf_checks(&iface);
- end:
+
 	if_shutdown(&iface);
 	pkt_mempool_shutdown();
 	return ret;

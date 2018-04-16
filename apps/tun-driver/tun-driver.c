@@ -226,14 +226,8 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 #endif
-	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
-		fprintf(stderr, "can't init interface\n");
-		return -1;
-	}
-	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "can't initialize pkt pool\n");
-		return -1;
-	}
+	if_init(&iface, IF_TYPE_ETHERNET);
+	pkt_mempool_init();
 
 	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
 		fprintf(stderr, "can't set non blocking tcp socket (%m)\n");
@@ -245,10 +239,7 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_TIMER_CHECKS
 	timer_checks();
 #endif
-	if (scheduler_init() < 0) {
-		fprintf(stderr, "cannot initilize scheduler\n");
-		return -1;
-	}
+	scheduler_init();
 
 	socket_init();
 	dft_route.iface = &iface;

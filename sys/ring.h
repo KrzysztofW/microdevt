@@ -1,9 +1,6 @@
 #ifndef _RING_H_
 #define _RING_H_
 
-#ifndef CONFIG_RING_STATIC_ALLOCATIONS
-#include <stdlib.h>
-#endif
 #include <sys/chksum.h>
 #include "buf.h"
 #include "utils.h"
@@ -20,29 +17,14 @@
 #define TYPE int
 #endif
 
-#ifdef CONFIG_RING_STATIC_ALLOC
-#ifndef CONFIG_RING_STATIC_ALLOC_DATA_SIZE
-#define CONFIG_RING_STATIC_ALLOC_DATA_SIZE 256
-#endif
-
-#else  /* no static alloc => unset DATA_SIZE */
-#undef CONFIG_RING_STATIC_ALLOC_DATA_SIZE
-#define CONFIG_RING_STATIC_ALLOC_DATA_SIZE
-#endif
-
 struct ring {
 	volatile TYPE head;
 	volatile TYPE tail;
 	TYPE mask;
-	uint8_t data[CONFIG_RING_STATIC_ALLOC_DATA_SIZE];
+	uint8_t data[];
 } __attribute__((__packed__));
 typedef struct ring ring_t;
 #undef TYPE
-
-#ifdef CONFIG_RING_STATIC_ALLOC
-ring_t __ring_pool[CONFIG_RING_STATIC_ALLOC];
-uint8_t __ring_pool_pos;
-#endif
 
 static inline void ring_reset(ring_t *ring)
 {
@@ -60,48 +42,23 @@ static inline ring_t *ring_create(int size)
 	ring_t *ring;
 
 #ifdef CONFIG_AVR_MCU
-	if (size > 256) {
-#ifndef CONFIG_RING_STATIC_ALLOC
+	if (size > 256)
 		__abort();
 #endif
-		return NULL;
-	}
-#endif
-	if (!POWEROF2(size)) {
-#ifndef CONFIG_RING_STATIC_ALLOC
+	if (!POWEROF2(size))
 		__abort();
-#endif
-		return NULL;
-	}
-#ifndef CONFIG_RING_STATIC_ALLOC
+
 	if ((ring = malloc(sizeof(ring_t) + size)) == NULL)
-		return NULL;
+		__abort();
+
 	ring->head = 0;
-#else
-	if (__ring_pool_pos >= CONFIG_RING_STATIC_ALLOC) {
-		DEBUG_LOG("%s: too many allocations\n", __func__);
-		__abort();
-	}
-	if (size > CONFIG_RING_STATIC_ALLOC_DATA_SIZE) {
-		DEBUG_LOG("%s: size (%d) > %d. "
-			  "Increase CONFIG_RING_STATIC_ALLOC_DATA_SIZE\n",
-			  __func__, size, CONFIG_RING_STATIC_ALLOC_DATA_SIZE);
-		__abort();
-	}
-	ring = &__ring_pool[__ring_pool_pos++];
-#endif
 	ring_init(ring, size);
 	return ring;
 }
 
 static inline void ring_free(ring_t *ring)
 {
-#ifndef CONFIG_RING_STATIC_ALLOC
 	free(ring);
-#else
-	assert(__ring_pool_pos);
-	__ring_pool_pos--;
-#endif
 }
 
 static inline int ring_is_full(const ring_t *ring)

@@ -150,16 +150,8 @@ int net_arp_tests(void)
 	const uint8_t *mac = NULL;
 	const iface_t *interface = NULL;
 
-	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
-		fprintf(stderr, "%s: can't init interface\n", __func__);
-		return -1;
-	}
-
-	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
-		if_shutdown(&iface);
-		return -1;
-	}
+	if_init(&iface, IF_TYPE_ETHERNET);
+	pkt_mempool_init();
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		ret = -1;
@@ -259,15 +251,8 @@ int net_icmp_tests(void)
 
 	iface.ip4_addr = (void *)&ip_src;
 	iface.hw_addr = mac_src;
-	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
-		fprintf(stderr, "%s: can't init interface\n", __func__);
-		return -1;
-	}
-	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
-		if_shutdown(&iface);
-		return -1;
-	}
+	if_init(&iface, IF_TYPE_ETHERNET);
+	pkt_mempool_init();
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -380,15 +365,8 @@ int net_udp_tests(void)
 	memset(buf, 0, buf_size);
 	iface.ip4_addr = (void *)&ip_dst;
 	iface.hw_addr = mac_dst;
-	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
-		fprintf(stderr, "%s: can't init interface\n", __func__);
-		return -1;
-	}
-	if (pkt_mempool_init() < 0) {
-		if_shutdown(&iface);
-		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
-		return -1;
-	}
+	if_init(&iface, IF_TYPE_ETHERNET);
+	pkt_mempool_init();
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -641,15 +619,8 @@ int net_tcp_tests(void)
 
 	iface.ip4_addr = (void *)&ip_dst;
 	iface.hw_addr = mac_dst;
-	if (if_init(&iface, IF_TYPE_ETHERNET) < 0) {
-		fprintf(stderr, "%s: can't init interface\n", __func__);
-		return -1;
-	}
-	if (pkt_mempool_init() < 0) {
-		fprintf(stderr, "%s: can't initialize pkt pool\n", __func__);
-		if_shutdown(&iface);
-		return -1;
-	}
+	if_init(&iface, IF_TYPE_ETHERNET);
+	pkt_mempool_init();
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);

@@ -107,14 +107,11 @@ pkt_t *pkt_alloc_emergency(void)
 }
 #endif
 
-int pkt_mempool_init(void)
+void pkt_mempool_init(void)
 {
 	uint8_t i;
 
 	pkt_pool = ring_create(CONFIG_PKT_NB_MAX);
-	if (pkt_pool == NULL)
-		return -1;
-
 	for (i = 0; i < CONFIG_PKT_NB_MAX - 1; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
@@ -129,7 +126,6 @@ int pkt_mempool_init(void)
 		pkt->offset = i;
 		ring_addc(pkt_pool, i);
 	}
-	return 0;
 }
 
 #ifdef TEST

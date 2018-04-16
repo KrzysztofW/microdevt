@@ -213,8 +213,7 @@ int main(void)
 #ifdef CONFIG_TIMER_CHECKS
 	timer_checks();
 #endif
-	if (scheduler_init() < 0)
-		return -1;
+	scheduler_init();
 
 	DDRB = 0xFF; /* LED PIN */
 	timer_init(&timer_led);
@@ -224,14 +223,8 @@ int main(void)
 	timer_init(&timer_wd);
 	timer_add(&timer_wd, 500000UL, tim_cb_wd, &timer_wd);
 
-	if (if_init(&eth0, IF_TYPE_ETHERNET) < 0) {
-		DEBUG_LOG("cannot init interface\n");
-		return -1;
-	}
-	if (pkt_mempool_init() < 0) {
-		DEBUG_LOG("cannot init pkt pool\n");
-		return -1;
-	}
+	if_init(&eth0, IF_TYPE_ETHERNET);
+	pkt_mempool_init();
 
 	dft_route.iface = &eth0;
 	dft_route.ip = 0x0b00a8c0;
@@ -249,10 +242,7 @@ int main(void)
 	watchdog_enable();
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
-	if (rf_init(&eth1, RF_BURST_NUMBER) < 0) {
-		DEBUG_LOG("cannot init RF\n");
-		return -1;
-	}
+	rf_init(&eth1, RF_BURST_NUMBER);
 #endif
 #ifdef CONFIG_RF_RECEIVER
 	swen_ev_set(rf_event_cb);

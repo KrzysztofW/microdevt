@@ -41,11 +41,6 @@ typedef struct rf_ctx {
 #endif
 } rf_ctx_t;
 
-#ifdef CONFIG_RF_STATIC_ALLOC
-static rf_ctx_t __rf_ctx_pool[CONFIG_RF_STATIC_ALLOC];
-static uint8_t __rf_ctx_pool_pos;
-#endif
-
 #ifdef CONFIG_RF_RECEIVER
 #ifndef RF_RCV_PIN_NB
 #error "RF_RCV_PIN_NB not defined"
@@ -361,21 +356,12 @@ static void rf_rcv_tim_cb(void *arg)
 }
 #endif
 
-int rf_init(iface_t *iface, uint8_t burst)
+void rf_init(iface_t *iface, uint8_t burst)
 {
 	rf_ctx_t *ctx;
 
-#ifndef CONFIG_RF_STATIC_ALLOC
-	if ((ctx = calloc(1, sizeof(rf_ctx_t))) == NULL) {
-		DEBUG_LOG("%s: cannot allocate memory\n", __func__);
-		return -1;
-	}
-#else
-	if (__rf_ctx_pool_pos >= CONFIG_RF_STATIC_ALLOC) {
+	if ((ctx = calloc(1, sizeof(rf_ctx_t))) == NULL)
 		__abort();
-	}
-	ctx = &__rf_ctx_pool[__rf_ctx_pool_pos++];
-#endif
 
 #ifdef CONFIG_RF_RECEIVER
 #ifndef X86
@@ -392,7 +378,6 @@ int rf_init(iface_t *iface, uint8_t burst)
 		ctx->burst = burst - 1;
 #endif
 	iface->priv = ctx;
-	return 0;
 }
 
 
@@ -408,12 +393,6 @@ void rf_shutdown(const iface_t *iface)
 #ifdef CONFIG_RF_SENDER
 	timer_del(&ctx->snd_data.timer);
 #endif
-#ifndef CONFIG_RF_STATIC_ALLOC
 	free(ctx);
-#else
-	assert(__rf_ctx_pool_pos);
-	__rf_ctx_pool_pos--;
-	memset(ctx, 0, sizeof(rf_ctx_t));
-#endif
 }
 #endif

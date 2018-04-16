@@ -102,18 +102,9 @@ int main(void)
 	watchdog_enable();
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
-	if (pkt_mempool_init() < 0) {
-		DEBUG_LOG("cannot init pkt pool\n");
-		return -1;
-	}
-	if (if_init(&eth1, IF_TYPE_RF) < 0) {
-		DEBUG_LOG("cannot init RF iface\n");
-		return -1;
-	}
-	if (rf_init(&eth1, RF_BURST_NUMBER) < 0) {
-		DEBUG_LOG("cannot init RF\n");
-		return -1;
-	}
+	pkt_mempool_init();
+	if_init(&eth1, IF_TYPE_RF);
+	rf_init(&eth1, RF_BURST_NUMBER);
 #endif
 #ifdef CONFIG_RF_RECEIVER
 	swen_ev_set(rf_event_cb);
@@ -124,9 +115,8 @@ int main(void)
 
 #ifdef CONFIG_RF_SENDER
 #ifdef CONFIG_RF_CHECKS
-	if (rf_checks(&eth1) < 0) {
+	if (rf_checks(&eth1) < 0)
 		__abort();
-	}
 #endif
 	timer_init(&timer_rf);
 	timer_add(&timer_rf, 0, tim_rf_cb, &timer_rf);

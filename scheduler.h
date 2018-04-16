@@ -7,7 +7,7 @@ typedef struct __attribute__((__packed__)) task {
 } task_t;
 
 void schedule_task(void (*cb)(void *arg), void *arg);
-int scheduler_init(void);
+void scheduler_init(void);
 void scheduler_shutdown(void);
 
 /* run bottom halves */
