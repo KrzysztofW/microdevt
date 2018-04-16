@@ -32,7 +32,7 @@ all: libnet $(SOURCES) $(EXE)
 libnet:
 	make -C ../../../net
 
-$(EXE): $(OBJ) $(STATIC_LIBS)
+$(EXE): $(OBJ) $(STATIC_LIBS) config
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
 
 %.c:
