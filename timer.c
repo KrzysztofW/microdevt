@@ -9,12 +9,6 @@
 #define TIMER_TABLE_SIZE 8
 #define TIMER_TABLE_MASK (TIMER_TABLE_SIZE - 1)
 
-#ifdef TIMER_DEBUG
-#define TIMER_PRINTF(args...) LOG(args)
-#else
-#define TIMER_PRINTF(args...)
-#endif
-
 struct timer_state {
 	unsigned int current_idx;
 	list_t timer_list[TIMER_TABLE_SIZE];
@@ -82,18 +76,14 @@ void timer_process(void)
 	}
 }
 
-int timer_subsystem_init(void)
+void timer_subsystem_init(void)
 {
 	int i;
-
-	TIMER_PRINTF("timer initialization\n");
 
 	for (i = 0; i < TIMER_TABLE_SIZE; i++)
 		INIT_LIST_HEAD(&timer_state.timer_list[i]);
 
 	__timer_subsystem_init();
-
-	return 0;
 }
 
 void timer_init(tim_t *timer)
@@ -108,18 +98,15 @@ void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
 	unsigned long ticks = expiry_us / CONFIG_TIMER_RESOLUTION_US;
 
 	assert(timer->status == TIMER_STOPPED || timer->status == TIMER_RUNNING);
-	assert(timer->cb || cb);
 
-	if (cb != NULL)
-		timer->cb = cb;
-	if (arg != NULL)
-		timer->arg = arg;
+	timer->cb = cb;
+	timer->arg = arg;
 
 	/* don't schedule at current idx */
 	if (ticks == 0)
 		ticks = 1;
 
-	timer->remaining_loops = ticks / TIMER_TABLE_SIZE; /* >> TIMER_TABLE_ORDER */
+	timer->remaining_loops = ticks / TIMER_TABLE_SIZE;
 
 	timer_disable_timer_int(timer);
 	idx = (timer_state.current_idx + ticks) & TIMER_TABLE_MASK;
@@ -133,13 +120,12 @@ void timer_del(tim_t *timer)
 	timer_disable_timer_int(timer);
 	list_del(&timer->list);
 	timer_enable_timer_int(timer);
-
 	timer->status = TIMER_STOPPED;
 }
 
 void timer_reschedule(tim_t *timer, unsigned long expiry_us)
 {
-	timer_add(timer, expiry_us, NULL, NULL);
+	timer_add(timer, expiry_us, timer->cb, timer->arg);
 }
 
 int timer_is_pending(tim_t *timer)

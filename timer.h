@@ -20,7 +20,7 @@ struct timer {
 } __attribute__((__packed__));
 typedef struct timer tim_t;
 
-int timer_subsystem_init(void);
+void timer_subsystem_init(void);
 void timer_init(tim_t *timer);
 void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
 	       void *arg);
