@@ -59,8 +59,7 @@ static void tcp_retrn_wipe(tcp_conn_t *tcp_conn)
 		pkt_free(retrn_pkt->pkt);
 		free(retrn_pkt);
 	}
-	if (timer_is_pending(&tcp_conn->retrn.timer))
-		timer_del(&tcp_conn->retrn.timer);
+	timer_del(&tcp_conn->retrn.timer);
 }
 #endif
 
@@ -387,10 +386,8 @@ static void tcp_retrn_ack_pkts(tcp_conn_t *tcp_conn, uint32_t remote_ack)
 #endif
 	}
 
-	if (list_empty(&tcp_conn->retrn.retrn_pkt_list)
-	    && timer_is_pending(&tcp_conn->retrn.timer)) {
+	if (list_empty(&tcp_conn->retrn.retrn_pkt_list))
 		timer_del(&tcp_conn->retrn.timer);
-	}
 }
 #endif
 

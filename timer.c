@@ -117,10 +117,12 @@ void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
 
 void timer_del(tim_t *timer)
 {
-	timer_disable_timer_int(timer);
-	list_del(&timer->list);
-	timer_enable_timer_int(timer);
-	timer->status = TIMER_STOPPED;
+	if (timer_is_pending(timer)) {
+		timer_disable_timer_int(timer);
+		list_del(&timer->list);
+		timer_enable_timer_int(timer);
+		timer->status = TIMER_STOPPED;
+	}
 }
 
 void timer_reschedule(tim_t *timer, unsigned long expiry_us)

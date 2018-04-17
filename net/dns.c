@@ -63,8 +63,7 @@ static void dns_query_ctx_free(dns_query_ctx_t *ctx)
 {
 	sock_info_close(&ctx->sock_info);
 	list_del(&ctx->list);
-	if (timer_is_pending(&ctx->timer))
-		timer_del(&ctx->timer);
+	timer_del(&ctx->timer);
 	free(ctx);
 }
 
