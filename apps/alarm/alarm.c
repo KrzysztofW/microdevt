@@ -16,9 +16,9 @@
 #include <net/swen_cmds.h>
 #include <crypto/xtea.h>
 #include <drivers/rf.h>
+#include <drivers/gsm_at.h>
 #include <scheduler.h>
 #include "rf_common.h"
-#include "gsm.h"
 
 #define NET
 #define GSM
@@ -40,6 +40,10 @@ static iface_t eth1 = {
 static uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
+#endif
+
+#ifdef GSM
+static FILE *gsm_in, *gsm_out;
 #endif
 
 #ifdef NET
@@ -83,10 +87,21 @@ static void tim_cb_wd(void *arg)
 #endif
 
 #ifdef GSM
-static void gsm_cb(uint8_t status)
+ISR(USART1_RX_vect)
 {
-	DEBUG_LOG("sending sms finished with status: %s\n",
-		  status ? "ERROR" : "OK");
+	gsm_handle_interrupt(UDR1);
+}
+
+static void gsm_cb(uint8_t status, const sbuf_t *from, const sbuf_t *msg)
+{
+	DEBUG_LOG("gsm callback (status:%d)\n", status);
+	if (status == GSM_STATUS_RECV) {
+		DEBUG_LOG("from:");
+		sbuf_print(from);
+		DEBUG_LOG(" msg:<");
+		sbuf_print(msg);
+		DEBUG_LOG(">\n");
+	}
 }
 #endif
 
@@ -175,9 +190,13 @@ static void rf_kerui_cb(int nb)
 static void blink_led(void *arg)
 {
 	tim_t *tim = arg;
+	static uint8_t gsm;
 
 	PORTB ^= (1 << PB7);
 	timer_reschedule(tim, 1000000UL);
+	if ((gsm % 60) == 0)
+		gsm_send_sms("+33687236420", "SMS from KW alarm");
+	gsm++;
 }
 
 #ifdef CONFIG_RF_RECEIVER
@@ -207,6 +226,9 @@ int main(void)
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 0);
 	DEBUG_LOG("KW alarm v0.2\n");
+#endif
+#ifdef GSM
+	init_stream1(&gsm_in, &gsm_out, 1);
 #endif
 	timer_subsystem_init();
 	watchdog_shutdown();
@@ -258,12 +280,10 @@ int main(void)
 	/* port F used by the RF sender */
 	DDRF = (1 << PF1);
 #endif
-
 	if (apps_init() < 0)
 		return -1;
-
 #ifdef GSM
-	gsm_init(gsm_cb);
+	gsm_init(gsm_in, gsm_out, gsm_cb);
 #endif
 
 	/* slow functions */

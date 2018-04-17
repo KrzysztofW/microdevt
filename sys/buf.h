@@ -23,7 +23,7 @@ typedef struct buf buf_t;
 
 #define buf2sbuf(buf) (sbuf_t) { .len = (buf)->len, .data = (buf)->data }
 #define sbuf2buf(sbuf) (buf_t) { .len = (sbuf)->len,	\
-			.data = (sbuf)->data,		\
+			.data = (void *)(sbuf)->data,	\
 			.size = (sbuf)->len }
 
 #define SBUF_INITS(str) (sbuf_t)					\
@@ -34,6 +34,10 @@ typedef struct buf buf_t;
 	{								\
 		.data = (uint8_t *)__data,				\
 		.size = __len						\
+	}
+#define SBUF_INIT_NULL (sbuf_t)						\
+	{								\
+		.data = NULL, .len = 0					\
 	}
 #define BUF(sz)						\
 	(buf_t){					\
@@ -213,6 +217,71 @@ static inline int buf_getc(buf_t *buf, uint8_t *c)
 		return -1;
 	__buf_getc(buf, c);
 	return 0;
+}
+
+static inline void *__memmem(const void *haystack, unsigned haystacklen,
+			     const void *needle, unsigned needlelen)
+{
+	int i, j;
+	const uint8_t *h = haystack;
+	const uint8_t *n = needle;
+
+	for (i = 0; i < haystacklen; i++) {
+		for (j = 0; j < needlelen; j++) {
+			if (h[i + j] != n[j])
+				break;
+		}
+		if (j == needlelen)
+			return (void *)(h + i);
+	}
+	return NULL;
+}
+
+static inline int
+__buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s, int skip)
+{
+	uint8_t *data = buf_data(buf);
+	uint8_t *d;
+	unsigned skipped_len;
+
+	d = __memmem(data, buf->len, s->data, s->len);
+	if (d == NULL)
+		return -1;
+	skipped_len = d - data;
+	sbuf_init(sbuf, data, d - data);
+	buf_adj(buf, skipped_len + skip);
+	return 0;
+}
+
+static inline int
+buf_get_sbuf_upto_sbuf_and_skip(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
+{
+	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s, s->len);
+}
+
+static inline int
+buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
+{
+	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s, 0);
+}
+
+static inline int
+buf_get_sbuf_upto(buf_t *buf, sbuf_t *sbuf, const char *s)
+{
+	sbuf_t sbuf2;
+
+	sbuf_init(&sbuf2, s, strlen(s));
+	return buf_get_sbuf_upto_sbuf(buf, sbuf, &sbuf2);
+}
+
+
+static inline int
+buf_get_sbuf_upto_and_skip(buf_t *buf, sbuf_t *sbuf, const char *s)
+{
+	sbuf_t sbuf2;
+
+	sbuf_init(&sbuf2, s, strlen(s));
+	return buf_get_sbuf_upto_sbuf_and_skip(buf, sbuf, &sbuf2);
 }
 
 static inline int buf_addbuf(buf_t *dst, const buf_t *src)

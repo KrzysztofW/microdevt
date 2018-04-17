@@ -10,6 +10,7 @@
 #include <timer.h>
 #include <net/tests.h>
 #include <drivers/rf.h>
+#include <drivers/gsm_at.h>
 
 static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 {
@@ -452,6 +453,12 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	printf("  ==> driver RF tests succeeded\n");
+
+	if (gsm_tests() < 0) {
+		fprintf(stderr, "  ==> gsm tests failed\n");
+		return -1;
+	}
+	printf("  ==> gsm tests succeeded\n");
 
 	if (net_arp_tests() < 0) {
 		fprintf(stderr, "  ==> net arp tests failed\n");

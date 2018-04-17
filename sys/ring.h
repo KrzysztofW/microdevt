@@ -163,9 +163,37 @@ static inline int ring_getc(ring_t *ring, uint8_t *c)
 	return 0;
 }
 
+static inline int ring_get_last_byte(ring_t *ring, uint8_t *c)
+{
+	int pos;
+
+	if (ring_is_empty(ring))
+		return -1;
+
+	pos = (ring->head - 1) & ring->mask;
+	*c = ring->data[pos];
+	return 0;
+}
+
 static inline void __ring_skip(ring_t *ring, int len)
 {
 	ring->tail = (ring->tail + len) & ring->mask;
+}
+
+static inline int ring_skip_upto(ring_t *ring, uint8_t c)
+{
+	int rlen = ring_len(ring);
+	int i;
+
+	for (i = 0; i < rlen; i++) {
+		int pos = (ring->tail + i) & ring->mask;
+
+		if (ring->data[pos] == c) {
+			__ring_skip(ring, i + 1);
+			return 0;
+		}
+	}
+	return -1;
 }
 
 static inline int __ring_get(ring_t *ring, buf_t *buf, int max_len)
@@ -208,10 +236,12 @@ static inline void ring_skip(ring_t *ring, int len)
 }
 
 #ifdef DEBUG
-static inline void ring_print_limit(const ring_t *ring, int limit)
+static inline void
+ring_print_limit(const ring_t *ring, int limit, uint8_t hex)
 {
 	int i;
 	int len;
+	char *fmt = hex ? "0x%02X " : "%c";
 
 	if (limit)
 		len = MIN(limit, ring_len(ring));
@@ -224,14 +254,20 @@ static inline void ring_print_limit(const ring_t *ring, int limit)
 	for (i = 0; i < len; i++) {
 		int pos = (ring->tail + i) & ring->mask;
 
-		printf("0x%02X ", ring->data[pos]);
+		printf(fmt, ring->data[pos]);
 	}
-	puts("");
+	if (hex)
+		puts("");
 }
 
 static inline void ring_print(const ring_t *ring)
 {
-	ring_print_limit(ring, 0);
+	ring_print_limit(ring, 0, 0);
+}
+
+static inline void ring_print_hex(const ring_t *ring)
+{
+	ring_print_limit(ring, 0, 1);
 }
 
 static inline void ring_print_bits(const ring_t *ring)
@@ -272,6 +308,11 @@ ring_cmp(const ring_t *ring, const uint8_t *data, int len)
 			return -1;
 	}
 	return 0;
+}
+
+static inline int ring_sbuf_cmp(const ring_t *ring, const sbuf_t *sbuf)
+{
+	return ring_cmp(ring, sbuf->data, sbuf->len);
 }
 
 static inline int
