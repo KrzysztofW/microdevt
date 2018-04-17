@@ -331,23 +331,42 @@ static inline int buf_read_file(buf_t *buf, const char *filename)
 #endif
 
 #if defined(TEST) || defined(DEBUG)
-static inline void sbuf_print(const sbuf_t *buf)
+static inline void __sbuf_print(const sbuf_t *buf, uint8_t hex)
 {
 	int i;
+	char *fmt = hex ? "0x%02X " : "%c";
 
-	for (i = 0; i < buf->len; i++) {
-		DEBUG_LOG(" 0x%02X", buf->data[i]);
-	}
-	DEBUG_LOG("\n");
+	for (i = 0; i < buf->len; i++)
+		printf(fmt, buf->data[i]);
+	if (hex)
+		puts("");
+}
+
+static inline void sbuf_print(const sbuf_t *buf)
+{
+	__sbuf_print(buf, 0);
+}
+
+static inline void sbuf_print_hex(const sbuf_t *buf)
+{
+	__sbuf_print(buf, 1);
 }
 
 static inline void buf_print(const buf_t *buf)
 {
 	sbuf_t sb;
+
 	sbuf_init(&sb, buf->data + buf->skip, buf->len);
 	sbuf_print(&sb);
 }
 
+static inline void buf_print_hex(const buf_t *buf)
+{
+	sbuf_t sb;
+
+	sbuf_init(&sb, buf->data + buf->skip, buf->len);
+	sbuf_print_hex(&sb);
+}
 #else
 #define sbuf_print(x)
 #define buf_print(x)

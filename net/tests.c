@@ -161,7 +161,7 @@ int net_arp_tests(void)
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
 	printf("in pkt:\n");
-	buf_print(&pkt->buf);
+	buf_print_hex(&pkt->buf);
 	if (pkt_put(iface.rx, pkt) < 0) {
 		fprintf(stderr , "%s: can't put rx packet\n", __func__);
 		ret = -1;
@@ -180,9 +180,9 @@ int net_arp_tests(void)
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("out pkt:\n");
-		buf_print(&pkt->buf);
+		buf_print_hex(&pkt->buf);
 		printf("expected:\n");
-		buf_print(&out);
+		buf_print_hex(&out);
 		pkt_free(pkt);
 		goto end;
 	}
@@ -280,9 +280,9 @@ int net_icmp_tests(void)
 	}
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("out pkt:\n");
-		buf_print(&pkt->buf);
+		buf_print_hex(&pkt->buf);
 		printf("expected:\n");
-		buf_print(&out);
+		buf_print_hex(&out);
 		pkt_free(pkt);
 		ret = -1;
 		goto end;
@@ -407,9 +407,9 @@ int net_udp_tests(void)
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("out pkt:\n");
-		buf_print(&pkt->buf);
+		buf_print_hex(&pkt->buf);
 		printf("expected:\n");
-		buf_print(&out);
+		buf_print_hex(&out);
 		pkt_free(pkt);
 		ret = -1;
 		goto end;
@@ -493,7 +493,7 @@ int net_udp_tests(void)
 		goto end;
 	}
 
-	buf_print(&pkt->buf);
+	buf_print_hex(&pkt->buf);
 	pkt_free(pkt);
 
 #ifdef CONFIG_BSD_COMPAT
@@ -653,9 +653,9 @@ int net_tcp_tests(void)
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("SYN => RST:\n");
 		printf("out pkt:\n");
-		buf_print(&pkt->buf);
+		buf_print_hex(&pkt->buf);
 		printf("expected:\n");
-		buf_print(&out);
+		buf_print_hex(&out);
 		pkt_free(pkt);
 		ret = -1;
 		goto end;
@@ -707,9 +707,9 @@ int net_tcp_tests(void)
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("SYN => SYN_ACK:\n");
 		printf("out pkt:\n");
-		buf_print(&pkt->buf);
+		buf_print_hex(&pkt->buf);
 		printf("expected:\n");
-		buf_print(&out);
+		buf_print_hex(&out);
 		pkt_free(pkt);
 		ret = -1;
 		goto end;
@@ -757,9 +757,9 @@ int net_tcp_tests(void)
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("DATA => ACK:\n");
 		printf("out pkt:\n");
-		buf_print(&pkt->buf);
+		buf_print_hex(&pkt->buf);
 		printf("expected:\n");
-		buf_print(&out);
+		buf_print_hex(&out);
 		pkt_free(pkt);
 		ret = -1;
 		goto end;
@@ -793,7 +793,7 @@ int net_tcp_tests(void)
 	}
 #endif
 	sb = PKT2SBUF(pkt);
-	sbuf_print(&sb);
+	sbuf_print_hex(&sb);
 	printf("TCP: got: %.*s\n", sb.len, sb.data);
 
 	/* TCP CLIENT CLOSE */
@@ -817,9 +817,9 @@ int net_tcp_tests(void)
 	if (buf_cmp(&pkt->buf, &out) < 0) {
 		printf("TCP CLIENT CLOSE:\n");
 		printf("out pkt:\n");
-		buf_print(&pkt->buf);
+		buf_print_hex(&pkt->buf);
 		printf("expected:\n");
-		buf_print(&out);
+		buf_print_hex(&out);
 		pkt_free(pkt);
 		ret = -1;
 		goto end2;
