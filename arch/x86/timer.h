@@ -17,5 +17,5 @@ static inline void enable_timer_int(void)
 }
 
 void __timer_subsystem_init(void);
-
+void __timer_subsystem_shutdown(void);
 #endif

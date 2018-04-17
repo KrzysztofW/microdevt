@@ -42,3 +42,12 @@ void __timer_subsystem_init(void)
 	if (setitimer(ITIMER_REAL, &timer, NULL) < 0)
 		fprintf(stderr, "\n can'\t set itimer (%m)\n");
 }
+
+void __timer_subsystem_shutdown(void)
+{
+	struct itimerval timer;
+
+	memset(&timer, 0, sizeof(timer));
+	if (setitimer(ITIMER_REAL, &timer, NULL) < 0)
+		fprintf(stderr, "\n can'\t disable itimer (%m)\n");
+}

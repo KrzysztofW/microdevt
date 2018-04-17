@@ -21,6 +21,7 @@ struct timer {
 typedef struct timer tim_t;
 
 void timer_subsystem_init(void);
+void timer_subsystem_shutdown(void);
 void timer_init(tim_t *timer);
 void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
 	       void *arg);

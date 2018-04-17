@@ -86,6 +86,13 @@ void timer_subsystem_init(void)
 	__timer_subsystem_init();
 }
 
+#ifdef X86
+void timer_subsystem_shutdown(void)
+{
+	__timer_subsystem_shutdown();
+}
+#endif
+
 void timer_init(tim_t *timer)
 {
 	memset(timer, 0, sizeof(tim_t));
