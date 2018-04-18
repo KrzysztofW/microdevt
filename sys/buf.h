@@ -21,7 +21,11 @@ struct buf {
 } __attribute__((__packed__));
 typedef struct buf buf_t;
 
-#define buf2sbuf(buf) (sbuf_t) { .len = (buf)->len, .data = (buf)->data }
+#define buf2sbuf(buf) (sbuf_t)					\
+	{							\
+		.len = (buf)->len,				\
+		.data = (buf)->data + (buf)->skip		\
+	}
 #define sbuf2buf(sbuf) (buf_t) { .len = (sbuf)->len,	\
 			.data = (void *)(sbuf)->data,	\
 			.size = (sbuf)->len }
