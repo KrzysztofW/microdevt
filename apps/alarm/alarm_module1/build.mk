@@ -39,3 +39,8 @@ endif
 ifdef CONFIG_TIMER_CHECKS
 CFLAGS += -DCONFIG_TIMER_CHECKS
 endif
+
+ifdef CONFIG_GSM_SIM900
+SOURCES += ../../../drivers/gsm_at.c
+CFLAGS += -DCONFIG_GSM_SIM900
+endif

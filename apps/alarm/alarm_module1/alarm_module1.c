@@ -10,6 +10,7 @@
 #include <timer.h>
 #include <crypto/xtea.h>
 #include <drivers/rf.h>
+#include <drivers/gsm_at.h>
 #include <scheduler.h>
 #include "../rf_common.h"
 
@@ -32,6 +33,26 @@ static uint32_t rf_enc_defkey[4] = {
 };
 #endif
 
+#ifdef CONFIG_GSM_SIM900
+static void gsm_cb(uint8_t status, const sbuf_t *from, const sbuf_t *msg)
+{
+	DEBUG_LOG("gsm callback (status:%d)\n", status);
+	if (status == GSM_STATUS_RECV) {
+		DEBUG_LOG("from:");
+		sbuf_print(from);
+		DEBUG_LOG(" msg:<");
+		sbuf_print(msg);
+		DEBUG_LOG(">\n");
+	}
+}
+
+ISR(USART_RX_vect)
+{
+	gsm_handle_interrupt(UDR0);
+}
+
+#endif
+
 #ifdef CONFIG_RF_SENDER
 static void tim_rf_cb(void *arg)
 {
@@ -52,9 +73,16 @@ static void tim_rf_cb(void *arg)
 void tim_led_cb(void *arg)
 {
 	tim_t *timer = arg;
-
+#ifdef CONFIG_GSM_SIM900
+	static uint8_t gsm;
+#endif
 	PORTD ^= 1 << PD4;
 	timer_reschedule(timer, 1000000UL);
+#ifdef CONFIG_GSM_SIM900
+	if ((gsm % 60) == 0)
+		gsm_send_sms("+33687236420", "SMS from KW alarm");
+	gsm++;
+#endif
 }
 
 #ifdef CONFIG_RF_RECEIVER
@@ -87,7 +115,11 @@ int main(void)
 
 	init_adc();
 #ifdef DEBUG
+#ifdef CONFIG_GSM_SIM900
+	init_stream0(&stdout, &stdin, 1);
+#else
 	init_stream0(&stdout, &stdin, 0);
+#endif
 	DEBUG_LOG("KW alarm module 1\n");
 #endif
 	watchdog_shutdown();
@@ -123,6 +155,9 @@ int main(void)
 
 	/* port D used by the LED and RF sender */
 	DDRD = (1 << PD2);
+#endif
+#ifdef CONFIG_GSM_SIM900
+	gsm_init(stdin, stdout, gsm_cb);
 #endif
 
 	/* slow functions */
