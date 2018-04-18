@@ -20,9 +20,6 @@
 #include <scheduler.h>
 #include "rf_common.h"
 
-#define NET
-#define GSM
-
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint8_t rf_addr = RF_MOD0_HW_ADDR;
 
@@ -42,11 +39,11 @@ static uint32_t rf_enc_defkey[4] = {
 };
 #endif
 
-#ifdef GSM
+#ifdef CONFIG_GSM_SIM900
 static FILE *gsm_in, *gsm_out;
 #endif
 
-#ifdef NET
+#ifdef CONFIG_NETWORKING
 static uint8_t net_wd;
 
 static uint8_t ip[] = { 192, 168, 0, 99 };
@@ -86,7 +83,7 @@ static void tim_cb_wd(void *arg)
 }
 #endif
 
-#ifdef GSM
+#ifdef CONFIG_GSM_SIM900
 ISR(USART1_RX_vect)
 {
 	gsm_handle_interrupt(UDR1);
@@ -125,7 +122,7 @@ static int apps_init(void)
 #ifndef CONFIG_EVENT
 static void apps(void)
 {
-#ifdef NET
+#ifdef CONFIG_NETWORKING
 #if defined(CONFIG_UDP) && !defined(CONFIG_EVENT)
 	udp_app();
 #endif
@@ -136,7 +133,7 @@ static void apps(void)
 }
 #endif
 
-#ifdef NET
+#ifdef CONFIG_NETWORKING
 static void net_task_cb(void *arg)
 {
 	pkt_t *pkt;
@@ -190,13 +187,16 @@ static void rf_kerui_cb(int nb)
 static void blink_led(void *arg)
 {
 	tim_t *tim = arg;
+#ifdef CONFIG_GSM_SIM900
 	static uint8_t gsm;
-
+#endif
 	PORTB ^= (1 << PB7);
 	timer_reschedule(tim, 1000000UL);
+#ifdef CONFIG_GSM_SIM900
 	if ((gsm % 60) == 0)
 		gsm_send_sms("+33687236420", "SMS from KW alarm");
 	gsm++;
+#endif
 }
 
 #ifdef CONFIG_RF_RECEIVER
@@ -216,7 +216,7 @@ rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 int main(void)
 {
 	tim_t timer_led;
-#ifdef NET
+#ifdef CONFIG_NETWORKING
 	tim_t timer_wd;
 #endif
 #ifdef CONFIG_RF_SENDER
@@ -227,7 +227,7 @@ int main(void)
 	init_stream0(&stdout, &stdin, 0);
 	DEBUG_LOG("KW alarm v0.2\n");
 #endif
-#ifdef GSM
+#ifdef CONFIG_GSM_SIM900
 	init_stream1(&gsm_in, &gsm_out, 1);
 #endif
 	timer_subsystem_init();
@@ -241,7 +241,7 @@ int main(void)
 	timer_init(&timer_led);
 	timer_add(&timer_led, 5000000, blink_led, &timer_led);
 
-#ifdef NET
+#ifdef CONFIG_NETWORKING
 	timer_init(&timer_wd);
 	timer_add(&timer_wd, 500000UL, tim_cb_wd, &timer_wd);
 
@@ -282,7 +282,7 @@ int main(void)
 #endif
 	if (apps_init() < 0)
 		return -1;
-#ifdef GSM
+#ifdef CONFIG_GSM_SIM900
 	gsm_init(gsm_in, gsm_out, gsm_cb);
 #endif
 
