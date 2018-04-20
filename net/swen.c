@@ -17,18 +17,18 @@ typedef struct __attribute__((__packed__)) swen_hdr_t {
 } swen_hdr_t;
 
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-void (*generic_cmds_cb)(int nb);
+static void (*generic_cmds_cb)(int nb);
 static const uint8_t *generic_cmds;
 
 void
-swen_generic_cmds_init(void (*generic_cmds_cb)(int nb), const uint8_t *cmds)
+swen_generic_cmds_init(void (*cb)(int nb), const uint8_t *cmds)
 {
-	generic_cmds_cb = generic_cmds_cb;
+	generic_cmds_cb = cb;
 	generic_cmds = cmds;
 }
 #endif
 
-void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
+static void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
 
 #ifdef CONFIG_RF_SENDER
 #ifdef CONFIG_IP_OVER_SWEN
