@@ -4,6 +4,12 @@
 #include <sys/byte.h>
 #include <sys/chksum.h>
 #include <net/swen.h>
+#ifdef CONFIG_RF_CHECKS
+#include <net/event.h>
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+#include <net/swen_cmds.h>
+#endif
+#endif
 #include <scheduler.h>
 #include "rf.h"
 #include "rf_cfg.h"
@@ -98,21 +104,25 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 
 		byte_reset(&ctx->rcv_data.byte);
 		if (ctx->rcv.receiving) {
-			if_schedule_receive(iface, &ctx->rcv_data.pkt);
-			return;
-		}
-		if (ctx->rcv_data.pkt == NULL &&
-		    (ctx->rcv_data.pkt = pkt_get(iface->pkt_pool)) == NULL) {
-			DEBUG_LOG("%s: cannot alloc pkt\n", __func__);
+			if_schedule_receive(iface, ctx->rcv_data.pkt);
+			ctx->rcv_data.pkt = NULL;
 			goto end;
 		}
+		if (ctx->rcv_data.pkt == NULL) {
+			if ((ctx->rcv_data.pkt = pkt_get(iface->pkt_pool))
+			    == NULL) {
+				goto end;
+			}
+		} else
+			buf_reset(&ctx->rcv_data.pkt->buf);
 		ctx->rcv.receiving = 1;
 		return;
 	}
  end:
-	if_schedule_receive(iface, NULL);
 	ctx->rcv.receiving = 0;
 	byte_reset(&ctx->rcv_data.byte);
+	if (ctx->rcv_data.pkt)
+		buf_reset(&ctx->rcv_data.pkt->buf);
 }
 
 static inline void rf_sample(iface_t *iface)
@@ -229,8 +239,8 @@ int rf_output(const iface_t *iface, pkt_t *pkt)
 	return 0;
 }
 #endif
-#ifdef CONFIG_RF_SENDER
 
+#ifdef CONFIG_RF_SENDER
 static void rf_snd_tim_cb(void *arg)
 {
 	iface_t *iface = arg;
@@ -257,8 +267,97 @@ static void rf_snd_tim_cb(void *arg)
 	timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
 #endif
 }
+#endif
 
 #ifdef CONFIG_RF_CHECKS
+#ifdef CONFIG_RF_RECEIVER
+
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+static void rf_checks_kerui_cb(int nb)
+{
+	DEBUG_LOG("received kerui cmd %d\n", nb);
+}
+#endif
+
+static void
+rf_checks_event_cb(uint8_t from, uint8_t events, buf_t *buf)
+{
+	DEBUG_LOG("%s: got events: 0x%X\n", __func__, events);
+	if (events & EV_READ) {
+		DEBUG_LOG("got from 0x%X: %s\n", from, buf_data(buf));
+	}
+}
+
+static void
+rf_checks_send_data(const iface_t *iface, uint8_t cnt, uint8_t bit)
+{
+	rf_ctx_t *ctx = iface->priv;
+
+	ctx->rcv.cnt = cnt;
+	rf_fill_data(iface, bit);
+}
+
+static void rf_simulate_garbage_data(const iface_t *iface)
+{
+	unsigned i;
+
+	for (i = 0; i < 0xFF; i++) {
+		uint8_t cnt = rand();
+		uint8_t bit = rand() & 0x1;
+
+		rf_checks_send_data(iface, cnt, bit);
+	}
+}
+
+static void
+rf_simulate_sending_data(const iface_t *iface, const sbuf_t *sbuf)
+{
+	int i;
+	uint8_t clk = 1, bit;
+
+	rf_simulate_garbage_data(iface);
+
+	/* send frame delimiter */
+	rf_checks_send_data(iface, 60, 0);
+
+	for (i = 0; i < sbuf->len; i++) {
+		int j;
+		uint8_t d = sbuf->data[i];
+
+		for (j = 0; j < 8; j++) {
+			uint8_t cnt;
+
+			bit = (d & 0x80) >> 7;
+			d <<= 1;
+			cnt = bit ? 4 : 2;
+			rf_checks_send_data(iface, cnt, clk);
+			clk ^= 1;
+		}
+	}
+	if (clk == 0)
+		rf_checks_send_data(iface, 2, 1);
+
+	/* send frame delimiter */
+	rf_checks_send_data(iface, 60, 0);
+}
+
+static void rf_receive_checks(const iface_t *iface)
+{
+	sbuf_t sbuf;
+	uint8_t data[] = {
+		0xff, 0x5a, 0x6a, 0x55, 0x69, 0xaa, 0x65
+	};
+
+	swen_ev_set(rf_checks_event_cb);
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	swen_generic_cmds_init(rf_checks_kerui_cb, rf_ke_cmds);
+#endif
+	sbuf_init(&sbuf, data, sizeof(data));
+	rf_simulate_sending_data(iface, &sbuf);
+}
+#endif
+
+#ifdef CONFIG_RF_SENDER
 static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
 {
 	int i;
@@ -297,7 +396,7 @@ static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
 	return 0;
 }
 
-int rf_checks(const iface_t *iface)
+static int rf_send_checks(const iface_t *iface)
 {
 	uint8_t data[] = {
 		0x69, 0x70, 0x00, 0x10, 0xC8, 0xA0, 0x4B, 0xF7,
@@ -344,6 +443,21 @@ int rf_checks(const iface_t *iface)
 	return 0;
 }
 #endif
+
+int rf_checks(const iface_t *iface)
+{
+	rf_ctx_t *ctx = iface->priv;
+
+#ifdef CONFIG_RF_SENDER
+	rf_send_checks(iface);
+#endif
+#ifdef CONFIG_RF_RECEIVER
+	timer_del(&ctx->rcv_data.timer);
+	rf_receive_checks(iface);
+	timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
+#endif
+	return 0;
+}
 #endif
 
 #ifdef CONFIG_RF_RECEIVER
