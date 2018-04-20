@@ -14,8 +14,6 @@ struct icmp {
 
 typedef struct icmp icmp_hdr_t;
 
-#define ALLOWED_ICMP_MAX_DATA_SIZE 586
-/* MAX_ICMP_DATA_SIZE should not exceed ALLOWED_ICMP_MAX_DATA_SIZE bytes */
 #define MAX_ICMP_DATA_SIZE (int)(CONFIG_PKT_SIZE - sizeof(eth_hdr_t) \
 				 - sizeof(ip_hdr_t) - sizeof(icmp_hdr_t))
 

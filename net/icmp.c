@@ -13,7 +13,6 @@ icmp_output(pkt_t *out, const iface_t *iface, int type, int code, uint16_t id,
 {
 	icmp_hdr_t *icmp_hdr;
 
-	STATIC_ASSERT(MAX_ICMP_DATA_SIZE <= ALLOWED_ICMP_MAX_DATA_SIZE);
 	icmp_hdr = btod(out, icmp_hdr_t *);
 	icmp_hdr->type = type;
 	icmp_hdr->code = code;
