@@ -106,7 +106,6 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 		if (ctx->rcv.receiving) {
 			if_schedule_receive(iface, ctx->rcv_data.pkt);
 			ctx->rcv_data.pkt = NULL;
-			goto end;
 		}
 		if (ctx->rcv_data.pkt == NULL) {
 			if ((ctx->rcv_data.pkt = pkt_get(iface->pkt_pool))
