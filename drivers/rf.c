@@ -120,8 +120,6 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
  end:
 	ctx->rcv.receiving = 0;
 	byte_reset(&ctx->rcv_data.byte);
-	if (ctx->rcv_data.pkt)
-		buf_reset(&ctx->rcv_data.pkt->buf);
 }
 
 static inline void rf_sample(iface_t *iface)
