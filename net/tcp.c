@@ -316,7 +316,7 @@ __tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl, uint16_t sport,
 	tcp_hdr->ack = tcp_syn->ack;
 	tcp_hdr->reserved = 0;
 	tcp_hdr->ctrl = ctrl;
-	tcp_hdr->win_size = (ctrl & TH_RST) ? 0 : 1; /* XXX to be checked */
+	tcp_hdr->win_size = (ctrl & TH_RST) ? 0 : htons(pkt->buf.size * 2);
 	tcp_hdr->urg_ptr = 0;
 	if (ctrl & TH_SYN) {
 		int opts_len = tcp_set_options(tcp_hdr + 1, &tcp_syn->opts);
