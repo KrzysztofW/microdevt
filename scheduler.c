@@ -42,7 +42,7 @@ void scheduler_init(void)
 	ring = ring_create(roundup_pwr2(RING_SIZE));
 }
 
-#if 0
+#ifdef TEST
 void scheduler_shutdown(void)
 {
 	ring_free(ring);

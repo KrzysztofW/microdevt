@@ -58,7 +58,8 @@ static inline ring_t *ring_create(int size)
 
 static inline void ring_free(ring_t *ring)
 {
-	free(ring);
+	if (ring)
+		free(ring);
 }
 
 static inline int ring_is_full(const ring_t *ring)

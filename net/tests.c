@@ -101,8 +101,8 @@ static int net_arp_request_test(iface_t *ifa)
 	int i;
 	pkt_t *out, *pkt;
 
-	memcpy(ifa->hw_addr, src_mac, 6);
-	memcpy(ifa->ip4_addr, src_ip, 4);
+	ifa->hw_addr = src_mac;
+	ifa->ip4_addr = src_ip;
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -110,7 +110,10 @@ static int net_arp_request_test(iface_t *ifa)
 	}
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
-	arp_output(ifa, ARPOP_REQUEST, dst_mac, (uint8_t *)&dst_ip);
+	if (arp_output(ifa, ARPOP_REQUEST, dst_mac, (uint8_t *)&dst_ip) < 0) {
+		fprintf(stderr, "%s:%d failed\n", __func__, __LINE__);
+		return -1;
+	}
 	if ((out = pkt_get(ifa->tx)) == NULL) {
 		fprintf(stderr, "%s: can't get tx packet\n", __func__);
 		return -1;
@@ -510,6 +513,7 @@ int net_udp_tests(void)
 	}
 #endif
  end:
+	if_shutdown(&iface);
 	socket_shutdown();
 	pkt_mempool_shutdown();
 	return ret;
@@ -617,12 +621,14 @@ int net_tcp_tests(void)
 #endif
 	sbuf_t sb;
 
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);;
 	iface.ip4_addr = (void *)&ip_dst;
 	iface.hw_addr = mac_dst;
-	if_init(&iface, IF_TYPE_ETHERNET);
-	pkt_mempool_init();
+	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX,
+		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX);
 
 	if ((pkt = pkt_alloc()) == NULL) {
+		if_shutdown(&iface);
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
@@ -666,7 +672,8 @@ int net_tcp_tests(void)
 	if (tcp_server(port) < 0) {
 		fprintf(stderr, "%s: can't start tcp server on port: %d\n",
 			__func__, port);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #else
 	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
@@ -701,7 +708,8 @@ int net_tcp_tests(void)
 	if ((pkt = pkt_get(iface.tx)) == NULL) {
 		fprintf(stderr, "%s: TCP SYN: can't get SYN_ACK packet\n",
 			__func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	if (buf_cmp(&pkt->buf, &out) < 0) {
@@ -735,7 +743,8 @@ int net_tcp_tests(void)
 	/* DATA => ACK */
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	buf_init(&pkt->buf, tcp_data_pkt, sizeof(tcp_data_pkt));
@@ -743,7 +752,8 @@ int net_tcp_tests(void)
 
 	if (pkt_put(iface.rx, pkt) < 0) {
 		fprintf(stderr , "%s: can't put rx packet\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 
 	eth_input(&iface);
@@ -845,24 +855,29 @@ int net_tcp_tests(void)
 #ifdef CONFIG_BSD_COMPAT
 	if (close(client_fd) < 0) {
 		fprintf(stderr, "%s: can't close tcp client fd\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	if (close(tcp_fd) < 0) {
 		fprintf(stderr, "%s: can't close tcp server fd\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #else
 	if (sock_info_unbind(&sock_info_server) < 0) {
 		fprintf(stderr, "%s: can't unbind tcp server socket\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 	if (sock_info_unbind(&sock_info_client) < 0) {
 		fprintf(stderr, "%s: can't unbind tcp client socket\n", __func__);
-		return -1;
+		ret = -1;
+		goto end;
 	}
 #endif
  end:
 	socket_shutdown();
+	if_shutdown(&iface);
 	pkt_mempool_shutdown();
 
 	return ret;

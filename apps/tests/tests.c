@@ -8,6 +8,7 @@
 #include <sys/list.h>
 #include <sys/hash-tables.h>
 #include <timer.h>
+#include <scheduler.h>
 #include <net/tests.h>
 #include <drivers/rf.h>
 #include <drivers/gsm_at.h>
@@ -193,6 +194,7 @@ static int list_check(void)
 	return 0;
 }
 
+#ifdef CONFIG_HT_STORAGE
 static int htable_check(int htable_size)
 {
 	hash_table_t *htable = htable_create(htable_size);
@@ -349,6 +351,7 @@ static int htable_check(int htable_size)
 
 	return 0;
 }
+#endif
 
 typedef struct timer_el {
 	tim_t timer;
@@ -387,6 +390,7 @@ static int timer_check(void)
 		timer_process();
 	}
 
+	timer_subsystem_shutdown();
 	return 0;
 }
 
@@ -420,6 +424,8 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
+
+	scheduler_init();
 	if (ring_check() < 0) {
 		fprintf(stderr, "  ==> ring checks failed\n");
 		return -1;
@@ -431,6 +437,7 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> list checks succeeded\n");
 
+#ifdef CONFIG_HT_STORAGE
 	if (htable_check(1024) < 0) {
 		fprintf(stderr, "  ==> htable checks failed (htable size: 1024)\n");
 		return -1;
@@ -441,7 +448,7 @@ int main(int argc, char **argv)
 	}
 
 	printf("  ==> htable checks succeeded\n");
-
+#endif
 	if (timer_check() < 0) {
 		fprintf(stderr, "  ==> timer checks failed\n");
 		return -1;
@@ -487,5 +494,6 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> net tcp tests succeeded\n");
 #endif
+	scheduler_shutdown();
 	return 0;
 }

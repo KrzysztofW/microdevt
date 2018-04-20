@@ -366,7 +366,7 @@ void rf_init(iface_t *iface, uint8_t burst)
 #ifdef CONFIG_RF_RECEIVER
 #ifndef X86
 	timer_add(&ctx->rcv_data.timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);
-	#else
+#else
 	(void)rf_rcv_tim_cb;
 #endif
 #ifndef RF_ANALOG_SAMPLING
@@ -382,7 +382,7 @@ void rf_init(iface_t *iface, uint8_t burst)
 
 
 /* XXX Will never be used in an infinite loop. Save space, don't compile it */
-#if 0
+#ifdef TEST
 void rf_shutdown(const iface_t *iface)
 {
 	rf_ctx_t *ctx = iface->priv;
