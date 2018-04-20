@@ -8,14 +8,17 @@
 #endif
 #include <scheduler.h>
 
-#define IF_PKT_POOL_SIZE 4
-
-void if_init(iface_t *ifce, uint8_t type)
+static void if_refill_driver_pkt_pool(const iface_t *iface)
 {
-	ifce->rx = ring_create(CONFIG_PKT_NB_MAX);
-	ifce->tx = ring_create(CONFIG_PKT_NB_MAX);
-	ifce->pkt_pool = ring_create(IF_PKT_POOL_SIZE);
+	pkt_t *pkt;
 
+	while (!ring_is_full(iface->pkt_pool) && (pkt = pkt_alloc()))
+		pkt_put(iface->pkt_pool, pkt);
+}
+
+void if_init(iface_t *ifce, uint8_t type,
+	     unsigned nb_pkt_rx, unsigned nb_pkt_tx, unsigned nb_if_pkt_pool)
+{
 	switch (type) {
 #ifdef CONFIG_ETHERNET
 	case IF_TYPE_ETHERNET:
@@ -23,6 +26,9 @@ void if_init(iface_t *ifce, uint8_t type)
 		assert(ifce->send);
 		ifce->if_output = &eth_output;
 		ifce->if_input = &eth_input;
+		ifce->rx = ring_create(nb_pkt_rx);
+		ifce->tx = ring_create(nb_pkt_tx);
+		ifce->pkt_pool = ring_create(nb_if_pkt_pool);
 		break;
 #endif
 #if defined CONFIG_RF_SENDER || defined CONFIG_RF_RECEIVER
@@ -30,37 +36,33 @@ void if_init(iface_t *ifce, uint8_t type)
 #ifdef CONFIG_RF_SENDER
 		assert(ifce->send);
 		ifce->if_output = &swen_output;
+		ifce->tx = ring_create(nb_pkt_tx);
 #endif
 #ifdef CONFIG_RF_RECEIVER
 		assert(ifce->recv);
 		ifce->if_input = &swen_input;
+		ifce->rx = ring_create(nb_pkt_rx);
+		ifce->pkt_pool = ring_create(nb_if_pkt_pool);
 #endif
 		break;
 #endif
 	default:
 		__abort();
 	}
+	if_refill_driver_pkt_pool(ifce);
 }
 
 static void if_schedule_receive_cb(void *arg)
 {
 	iface_t *iface = arg;
-	pkt_t *pkt;
-
-	/* refill driver's pkt pool */
-	while (!ring_is_full(iface->pkt_pool) && (pkt = pkt_alloc()))
-		pkt_put(iface->pkt_pool, pkt);
+	if_refill_driver_pkt_pool(iface);
 	iface->if_input(iface);
 }
 
-void if_schedule_receive(const iface_t *iface, pkt_t **pktp)
+void if_schedule_receive(const iface_t *iface, pkt_t *pkt)
 {
-	if (pktp) {
-		pkt_put(iface->rx, *pktp);
-		*pktp = NULL;
-	}
-	if (ring_len(iface->rx))
-		schedule_task(if_schedule_receive_cb, (iface_t *)iface);
+	pkt_put(iface->rx, pkt);
+	schedule_task(if_schedule_receive_cb, (iface_t *)iface);
 }
 
 static void rf_pkt_free_cb(void *arg)
@@ -79,5 +81,6 @@ void if_shutdown(iface_t *ifce)
 {
 	ring_free(ifce->rx);
 	ring_free(ifce->tx);
+	ring_free(ifce->pkt_pool);
 }
 #endif

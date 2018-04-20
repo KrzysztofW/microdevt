@@ -32,7 +32,7 @@ typedef struct pkt pkt_t;
 #endif
 
 void pkt_mempool_shutdown(void);
-void pkt_mempool_init(void);
+void pkt_mempool_init(unsigned nb_pkts, unsigned pkt_size);
 pkt_t *pkt_get(ring_t *ring);
 int pkt_put(ring_t *ring, pkt_t *pkt);
 

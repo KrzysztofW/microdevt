@@ -241,12 +241,17 @@ int main(void)
 	timer_init(&timer_led);
 	timer_add(&timer_led, 5000000, blink_led, &timer_led);
 
+#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER	\
+	|| defined CONFIG_NETWORKING
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+#endif
+
 #ifdef CONFIG_NETWORKING
 	timer_init(&timer_wd);
 	timer_add(&timer_wd, 500000UL, tim_cb_wd, &timer_wd);
 
-	if_init(&eth0, IF_TYPE_ETHERNET);
-	pkt_mempool_init();
+	if_init(&eth0, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
+		CONFIG_PKT_DRIVER_NB_MAX);
 
 	dft_route.iface = &eth0;
 	dft_route.ip = 0x0b00a8c0;
@@ -261,17 +266,21 @@ int main(void)
 #endif
 	schedule_task(net_task_cb, NULL);
 #endif
+#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
+	if_init(&eth1, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
+		CONFIG_PKT_DRIVER_NB_MAX);
+	rf_init(&eth1, RF_BURST_NUMBER);
+#endif
+
 	watchdog_enable();
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 	rf_init(&eth1, RF_BURST_NUMBER);
-#endif
 #ifdef CONFIG_RF_RECEIVER
 	swen_ev_set(rf_event_cb);
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
-
 #endif
 #ifdef CONFIG_RF_SENDER
 	timer_init(&timer_rf);
@@ -279,6 +288,7 @@ int main(void)
 
 	/* port F used by the RF sender */
 	DDRF = (1 << PF1);
+#endif
 #endif
 	if (apps_init() < 0)
 		return -1;

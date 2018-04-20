@@ -134,8 +134,9 @@ int main(void)
 	watchdog_enable();
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
-	pkt_mempool_init();
-	if_init(&eth1, IF_TYPE_RF);
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+	if_init(&eth1, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
+		CONFIG_PKT_DRIVER_NB_MAX);
 	rf_init(&eth1, RF_BURST_NUMBER);
 #endif
 #ifdef CONFIG_RF_RECEIVER

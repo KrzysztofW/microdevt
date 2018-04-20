@@ -59,10 +59,11 @@ struct iface {
 } __attribute__((__packed__));
 typedef struct iface iface_t;
 
-void if_init(iface_t *ifce, uint8_t type);
+void if_init(iface_t *ifce, uint8_t type,
+	     unsigned nb_pkt_rx, unsigned nb_pkt_tx, unsigned nb_if_pkt_pool);
 void if_shutdown(iface_t *ifce);
 
 /* functions supposed to be called from an interrupt handler */
-void if_schedule_receive(const iface_t *iface, pkt_t **pkt);
+void if_schedule_receive(const iface_t *iface, pkt_t *pkt);
 void if_schedule_tx_pkt_free(pkt_t *pkt);
 #endif

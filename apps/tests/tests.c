@@ -406,12 +406,13 @@ static int driver_rf_checks(void)
 	iface_t iface;
 	int ret = -1;
 
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	memset(&iface, 0, sizeof(iface_t));
 	iface.send = &send;
 	iface.recv = &recv;
-	if_init(&iface, IF_TYPE_RF);
+	if_init(&iface, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
+		CONFIG_PKT_DRIVER_NB_MAX);
 
-	pkt_mempool_init();
 	rf_init(&iface, 2);
 	ret = rf_checks(&iface);
 

@@ -1,15 +1,16 @@
 #include "pkt-mempool.h"
 
-unsigned char buffer_data[CONFIG_PKT_SIZE * CONFIG_PKT_NB_MAX];
-pkt_t buffer_pool[CONFIG_PKT_NB_MAX];
-ring_t *pkt_pool;
+static uint8_t *buffer_data;
+static pkt_t *buffer_pool;
+static ring_t *pkt_pool;
+static unsigned pkt_total_size;
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
-static uint8_t emergency_pkt_used;
+static pkt_t *emergency_pkt;
 
 int pkt_is_emergency(pkt_t *pkt)
 {
-	return (pkt > buffer_pool + CONFIG_PKT_NB_MAX || pkt < buffer_pool);
+	return (pkt > buffer_pool + pkt_pool->mask + 1 || pkt < buffer_pool);
 }
 #endif
 
@@ -20,6 +21,10 @@ pkt_t *pkt_get(ring_t *ring)
 
 	if (ret < 0)
 		return NULL;
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
+	if (offset == (typeof(offset))-1)
+		return emergency_pkt;
+#endif
 	return &buffer_pool[offset];
 }
 
@@ -47,9 +52,9 @@ int __pkt_free(pkt_t *pkt, const char *func, int line)
 	}
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
-		assert(emergency_pkt_used);
+		assert(emergency_pkt);
 		free(pkt);
-		emergency_pkt_used = 0;
+		emergency_pkt = NULL;
 		return 0;
 	}
 #endif
@@ -71,9 +76,9 @@ int pkt_free(pkt_t *pkt)
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
-		assert(emergency_pkt_used);
+		assert(emergency_pkt);
 		free(pkt);
-		emergency_pkt_used = 0;
+		emergency_pkt = NULL;
 		return 0;
 	}
 #endif
@@ -83,18 +88,9 @@ int pkt_free(pkt_t *pkt)
 
 #endif
 
-#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
-pkt_t *pkt_alloc_emergency(void)
+static void pkt_init_pkt(pkt_t *pkt, uint8_t *data)
 {
-	pkt_t *pkt;
-
-	if (emergency_pkt_used)
-		return NULL;
-
-	pkt = malloc(sizeof(pkt_t) + CONFIG_PKT_SIZE);
-	if (pkt == NULL) /* unrecoverable error => reset */
-		return NULL;
-	pkt->buf = BUF_INIT(((uint8_t *)pkt) + sizeof(pkt_t), CONFIG_PKT_SIZE);
+	pkt->buf = BUF_INIT(data, pkt_total_size);
 	pkt->refcnt = 0;
 
 	INIT_LIST_HEAD(&pkt->list);
@@ -102,27 +98,41 @@ pkt_t *pkt_alloc_emergency(void)
 	/* mark pkt list as poisoned */
 	list_del(&pkt->list);
 #endif
-	emergency_pkt_used = 1;
+}
+
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
+pkt_t *pkt_alloc_emergency(void)
+{
+	pkt_t *pkt;
+
+	if (emergency_pkt)
+		return NULL;
+
+	pkt = malloc(sizeof(pkt_t) + pkt_total_size);
+	if (pkt == NULL) /* unrecoverable error => reset */
+		__abort();
+	pkt_init_pkt(pkt, (uint8_t *)pkt + sizeof(pkt_t));
+	pkt->offset = -1;
+	emergency_pkt = pkt;
 	return pkt;
 }
 #endif
 
-void pkt_mempool_init(void)
+void pkt_mempool_init(unsigned nb_pkts, unsigned pkt_size)
 {
-	uint8_t i;
+	unsigned i;
 
-	pkt_pool = ring_create(CONFIG_PKT_NB_MAX);
-	for (i = 0; i < CONFIG_PKT_NB_MAX - 1; i++) {
+	pkt_pool = ring_create(nb_pkts);
+	buffer_pool = malloc(nb_pkts * sizeof(pkt_t));
+	buffer_data = malloc(nb_pkts * pkt_size);
+	if (buffer_pool == NULL || buffer_data == NULL)
+		__abort();
+	pkt_total_size = pkt_size;
+	for (i = 0; i < nb_pkts - 1; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
-		pkt->buf = BUF_INIT(&buffer_data[i * CONFIG_PKT_SIZE],
-				    CONFIG_PKT_SIZE);
-		pkt->refcnt = 0;
-		INIT_LIST_HEAD(&pkt->list);
-#ifdef DEBUG
-		/* mark pkt list as poisoned */
-		list_del(&pkt->list);
-#endif
+		assert(i < (typeof(pkt->offset))(-1));
+		pkt_init_pkt(pkt, &buffer_data[i * pkt_size]);
 		pkt->offset = i;
 		ring_addc(pkt_pool, i);
 	}
@@ -132,5 +142,7 @@ void pkt_mempool_init(void)
 void pkt_mempool_shutdown(void)
 {
 	ring_free(pkt_pool);
+	free(buffer_data);
+	free(buffer_pool);
 }
 #endif
