@@ -70,7 +70,7 @@ static void tun_alloc(char *dev)
 
 	assert(dev != NULL);
 	if ((tun_fds[0].fd = open("/dev/net/tun", O_RDWR)) < 0) {
-		fprintf(stderr , "%s: can't open tun device (%m)\n", __func__);
+		fprintf(stderr, "%s: cannot open tun device (%m)\n", __func__);
 		exit(EXIT_FAILURE);
 	}
 
@@ -78,7 +78,7 @@ static void tun_alloc(char *dev)
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
 	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
 	if (ioctl(tun_fds[0].fd, TUNSETIFF, (void *) &ifr) < 0) {
-		fprintf(stderr , "%s: can't ioctl tun device (%m)\n", __func__);
+		fprintf(stderr, "%s: cannot ioctl tun device (%m)\n", __func__);
 		exit(EXIT_FAILURE);
 	}
 	strncpy(dev, ifr.ifr_name, IFNAMSIZ);
@@ -94,7 +94,7 @@ static int tun_receive_pkt(const iface_t *iface)
 	if (poll(tun_fds, 1, -1) < 0) {
 		if (errno == EINTR)
 			return -1;
-		fprintf(stderr, "can't poll on tun fd (%m (%d))\n", errno);
+		fprintf(stderr, "cannot poll on tun fd (%m (%d))\n", errno);
 		return -1;
 	}
 	if ((tun_fds[0].revents & POLLIN) == 0)
@@ -108,7 +108,7 @@ static int tun_receive_pkt(const iface_t *iface)
 	if (nread < 0) {
 		if (errno == EAGAIN)
 			return -1;
-		fprintf(stderr , "%s: reading tun device failed (%m)\n",
+		fprintf(stderr, "%s: reading tun device failed (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
@@ -126,7 +126,7 @@ static int tun_receive_pkt(const iface_t *iface)
 	 */
 
 	if ((pkt = pkt_alloc()) == NULL) {
-		fprintf(stderr, "can't alloc a packet\n");
+		fprintf(stderr, "cannot alloc packet\n");
 		return -1;
 	}
 
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 
 #ifdef CONFIG_USE_CAPABILITIES
 	if ((caps = cap_get_proc()) == NULL) {
-		fprintf(stderr , "%s: can't get capabilities (%m)\n", __func__);
+		fprintf(stderr, "%s: cannot get capabilities (%m)\n", __func__);
 		exit(EXIT_FAILURE);
 	}
 
@@ -164,18 +164,21 @@ int main(int argc, char *argv[])
 	/* At this point we only require CAP_NET_ADMIN to be permitted, */
 	/* not effective as we will be enabling it later. */
 	if (cap_get_flag(caps, cap, CAP_PERMITTED, &cap_permitted) < 0) {
-		fprintf(stderr , "%s: can't get capabilities PERMITTED flag (%m)\n",
+		fprintf(stderr,
+			"%s: cannot get capabilities PERMITTED flag (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
 
 	if (cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_effective) < 0) {
-		fprintf(stderr , "%s: can't get capabilities EFFECTIVE flag (%m)\n",
+		fprintf(stderr,
+			"%s: cannot get capabilities EFFECTIVE flag (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
 	if (cap_get_flag(caps, cap, CAP_INHERITABLE, &cap_inheritable) < 0) {
-		fprintf(stderr , "%s: can't get capabilities INHERITABLE flag (%m)\n",
+		fprintf(stderr,
+			"%s: cannot get capabilities INHERITABLE flag (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
@@ -186,24 +189,27 @@ int main(int argc, char *argv[])
 
 	/* And retain only what we require */
 	if (cap_clear(caps) < 0) {
-		fprintf(stderr , "%s: can't clear capabilities (%m)\n",
+		fprintf(stderr, "%s: cannot clear capabilities (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
 	/* We must leave it permitted */
 	if (cap_set_flag(caps, CAP_PERMITTED, 1, &cap, CAP_SET) < 0) {
-		fprintf(stderr , "%s: can't set capabilities PERMITTED flag (%m)\n",
+		fprintf(stderr,
+			"%s: cannot set capabilities PERMITTED flag (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
 	/* but also make it effective */
 	if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, CAP_SET) < 0) {
-		fprintf(stderr , "%s: can't set capabilities EFFECTIVE flag (%m)\n",
+		fprintf(stderr,
+			"%s: cannot set capabilities EFFECTIVE flag (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
 	if (cap_set_proc(caps) < 0) {
-		fprintf(stderr , "%s: can't set capabilities (%m)\n",
+		fprintf(stderr,
+			"%s: cannot set capabilities (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
@@ -221,7 +227,7 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_USE_CAPABILITIES
 	/* And before anything else, clear all our capabilities */
 	if (cap_clear(caps) < 0 || cap_set_proc(caps) < 0 || cap_free(caps) < 0) {
-		fprintf(stderr , "%s: can't free capabilities (%m)\n",
+		fprintf(stderr, "%s: cannot free capabilities (%m)\n",
 			__func__);
 		exit(EXIT_FAILURE);
 	}
@@ -231,7 +237,7 @@ int main(int argc, char *argv[])
 		CONFIG_PKT_DRIVER_NB_MAX);
 
 	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
-		fprintf(stderr, "can't set non blocking tcp socket (%m)\n");
+		fprintf(stderr, "cannot set non blocking tcp socket (%m)\n");
 		return -1;
 	}
 
@@ -253,19 +259,19 @@ int main(int argc, char *argv[])
 
 #ifdef CONFIG_UDP
 	if (udp_init() < 0) {
-		fprintf(stderr, "can't init udp sockets\n");
+		fprintf(stderr, "cannot init udp sockets\n");
 		return -1;
 	}
 #endif
 #ifdef CONFIG_TCP
 	if (tcp_init() < 0) {
-		fprintf(stderr, "can't init tcp sockets\n");
+		fprintf(stderr, "cannot init tcp sockets\n");
 		return -1;
 	}
 #endif
 #ifdef CONFIG_DNS
 	if (dns_resolver_init() < 0) {
-		fprintf(stderr, "can't init dns resolver\n");
+		fprintf(stderr, "cannot init dns resolver\n");
 		return -1;
 	}
 #endif
