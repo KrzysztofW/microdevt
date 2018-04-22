@@ -257,7 +257,7 @@ int main(void)
 	dft_route.iface = &eth0;
 	dft_route.ip = 0x0b00a8c0;
 #if defined(CONFIG_UDP) || defined(CONFIG_TCP)
-	socket_init(); /* check return val in case of hash-table storage */
+	socket_init();
 #endif
 	enc28j60Init(eth0.hw_addr);
 

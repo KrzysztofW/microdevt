@@ -152,7 +152,7 @@ void socket_ev_set(sock_info_t *sock_info, uint8_t events,
 
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt);
 #ifdef CONFIG_HT_STORAGE
-int socket_init(void);
+void socket_init(void);
 #else
 #define socket_init()
 #endif

@@ -15,22 +15,22 @@
 #endif
 
 #if defined(CONFIG_HT_STORAGE) && defined(CONFIG_BSD_COMPAT)
-hash_table_t *fd_to_sock;
+static hash_table_t *fd_to_sock;
 #else
-list_t sock_list = LIST_HEAD_INIT(sock_list);
+static list_t sock_list = LIST_HEAD_INIT(sock_list);
 #endif
 
 #ifdef CONFIG_BSD_COMPAT
-uint8_t cur_fd = 3;
-uint8_t max_fds = 100;
+static uint8_t cur_fd = 3;
+static uint8_t max_fds = 100;
 #endif
 
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_UDP
-hash_table_t *udp_binds;
+static chash_table_t *udp_binds;
 #endif
 #ifdef CONFIG_TCP
-hash_table_t *tcp_binds;
+static hash_table_t *tcp_binds;
 extern hash_table_t *tcp_conns;
 #endif
 #else  /* CONFIG_HT_STORAGE */
@@ -922,23 +922,21 @@ void socket_append_pkt(list_t *list_head, pkt_t *pkt)
 }
 
 #ifdef CONFIG_HT_STORAGE
-int socket_init(void)
+void socket_init(void)
 {
 #ifdef CONFIG_BSD_COMPAT
 	if ((fd_to_sock = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		return -1;
+		__abort();
 #endif
 #ifdef CONFIG_UDP
 	if ((udp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		return -1;
+		__abort();
 #endif
 #ifdef CONFIG_TCP
 	if ((tcp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		return -1;
-	if ((tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		return -1;
+		|| ((tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
+			   __abort();
 #endif
-	return 0;
 }
 #endif
 
