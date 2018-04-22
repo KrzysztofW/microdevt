@@ -5,6 +5,7 @@
 #define L3_PROTO_IP       0x0
 #define L3_PROTO_ARP      0x2
 #define L3_PROTO_SWEN     0x3
+#define L3_PROTO_NONE     0x4
 
 /* Ethernet */
 #define ETHER_ADDR_LEN 6

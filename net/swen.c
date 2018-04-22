@@ -51,18 +51,16 @@ swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
 
 #ifdef CONFIG_IP_OVER_SWEN
 	if (type == L3_PROTO_IP) {
-		if (swen_get_route(dst, &hdr->to) < 0) {
+		if (swen_get_route(dst, &hdr->to) < 0)
 			/* no route */
-			pkt_free(pkt);
 			return -1;
-		}
 	} else
 #endif
 		hdr->to = *(uint8_t *)dst;
 	hdr->proto = type;
 	hdr->len = htons(pkt_len(pkt));
 	hdr->chksum = 0;
-	hdr->chksum = cksum(hdr, pkt_len(pkt));
+	hdr->chksum = htons(cksum(hdr, pkt_len(pkt)));
 	iface->send(iface, pkt);
 	return 0;
 }
@@ -75,9 +73,12 @@ int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf)
 		return -1;
 
 	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
-	if (buf_addsbuf(&pkt->buf, sbuf) < 0)
-		return -1;
-	return swen_output(pkt, iface, L3_PROTO_SWEN, NULL);
+	if (buf_addsbuf(&pkt->buf, sbuf) >= 0
+	    && swen_output(pkt, iface, L3_PROTO_NONE, &to) >= 0)
+		return 0;
+
+	pkt_free(pkt);
+	return -1;
 }
 #endif
 
@@ -122,15 +123,11 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 {
 	swen_hdr_t *hdr;
 
-	/* XXX swen_hdr_t size must be <= MIN generic command size */
-	if (pkt_len(pkt) < sizeof(swen_hdr_t))
-		goto end;
-
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	if (swen_parse_generic_cmds(&pkt->buf) >= 0)
 		goto end;
 #endif
-	if (pkt->buf.len < sizeof(swen_hdr_t))
+	if (pkt_len(pkt) < sizeof(swen_hdr_t))
 		goto end;
 
 	hdr = btod(pkt, swen_hdr_t *);
@@ -139,34 +136,28 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 	if (hdr->to != iface->hw_addr[0])
 		goto end;
 
-	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
-	if (hdr->len != pkt->buf.len)
+	if (ntohs(hdr->len) != pkt->buf.len)
 		goto end;
-
 	if (cksum(hdr, pkt->buf.len) != 0)
 		goto end;
+	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
 
 	/* TODO: chained pkts */
 
 	switch (hdr->proto) {
-	case RF_TYPE_SWEN:
+	case L3_PROTO_NONE:
 		if (swen_event_cb)
 			swen_event_cb(hdr->from, EV_READ, &pkt->buf);
 		break;
-#ifdef CONFIG_SWEN_L4
-	case RF_TYPE_SWEN4:
-		swen_l4_input(hdr->from, pkt, iface);
+#ifdef CONFIG_SWEN_L3
+	case L3_PROTO_SWEN:
+		swen_l3_input(hdr->from, pkt, iface);
 		return;
 #endif
 #ifdef CONFIG_IP_OVER_SWEN
 #ifdef CONFIG_IP
-	case RF_TYPE_IP:
+	case L3_PROTO_IP:
 		ip_input(pkt, iface);
-		return;
-#endif
-#ifdef CONFIG_ICMP
-	case RF_TYPE_ICMP:
-		ip_icmp(pkt, iface);
 		return;
 #endif
 #endif

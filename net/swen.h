@@ -4,10 +4,6 @@
 #include "pkt-mempool.h"
 #include "if.h"
 
-#define RF_TYPE_SWEN  0
-#define RF_TYPE_SWEN4 1
-#define RF_TYPE_IP    2
-
 void swen_input(const iface_t *iface);
 int
 swen_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst);
