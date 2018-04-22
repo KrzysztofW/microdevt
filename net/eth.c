@@ -47,7 +47,8 @@ void eth_input(const iface_t *iface)
 		__eth_input(pkt, iface);
 }
 
-int eth_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst)
+int
+eth_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst)
 {
 	eth_hdr_t *eh;
 	int i;

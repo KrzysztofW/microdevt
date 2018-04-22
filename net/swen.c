@@ -122,11 +122,14 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 {
 	swen_hdr_t *hdr;
 
+	/* XXX swen_hdr_t size must be <= MIN generic command size */
+	if (pkt_len(pkt) < sizeof(swen_hdr_t))
+		goto end;
+
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	if (swen_parse_generic_cmds(&pkt->buf) >= 0)
 		goto end;
 #endif
-
 	if (pkt->buf.len < sizeof(swen_hdr_t))
 		goto end;
 
@@ -180,10 +183,7 @@ void swen_input(const iface_t *iface)
 {
 	pkt_t *pkt;
 
-	while ((pkt = pkt_get(iface->rx))) {
-		/* XXX swen_hdr_t size must be <= MIN generic command size */
-		if (pkt_len(pkt) > sizeof(swen_hdr_t))
-			__swen_input(pkt, iface);
-	}
+	while ((pkt = pkt_get(iface->rx)))
+		__swen_input(pkt, iface);
 }
 #endif

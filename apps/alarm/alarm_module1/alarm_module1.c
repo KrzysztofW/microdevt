@@ -58,13 +58,14 @@ static void tim_rf_cb(void *arg)
 {
 	tim_t *timer = arg;
 	buf_t buf = BUF(32);
-	sbuf_t sbuf = buf2sbuf(&buf);
+	sbuf_t sbuf;
 	const char *s = "Hello world!";
 
 	__buf_adds(&buf, s, strlen(s));
 
 	if (xtea_encode(&buf, rf_enc_defkey) < 0)
 		DEBUG_LOG("can't encode buf\n");
+	sbuf = buf2sbuf(&buf);
 	if (swen_sendto(&eth1, RF_MOD0_HW_ADDR, &sbuf) < 0)
 		DEBUG_LOG("failed sending RF msg\n");
 	timer_reschedule(timer, 5000000UL);

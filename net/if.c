@@ -55,24 +55,26 @@ void if_init(iface_t *ifce, uint8_t type,
 static void if_schedule_receive_cb(void *arg)
 {
 	iface_t *iface = arg;
+
 	if_refill_driver_pkt_pool(iface);
 	iface->if_input(iface);
 }
 
 void if_schedule_receive(const iface_t *iface, pkt_t *pkt)
 {
+	if (ring_is_empty(iface->rx))
+		schedule_task(if_schedule_receive_cb, (iface_t *)iface);
 	pkt_put(iface->rx, pkt);
-	schedule_task(if_schedule_receive_cb, (iface_t *)iface);
 }
 
-static void rf_pkt_free_cb(void *arg)
+static void if_pkt_free_cb(void *arg)
 {
 	pkt_free(arg);
 }
 
 void if_schedule_tx_pkt_free(pkt_t *pkt)
 {
-	schedule_task(rf_pkt_free_cb, pkt);
+	schedule_task(if_pkt_free_cb, pkt);
 }
 
 
