@@ -117,6 +117,10 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 		ctx->rcv.receiving = 1;
 		return;
 	}
+	if (ctx->rcv.receiving && ctx->rcv_data.pkt && pkt_len(ctx->rcv_data.pkt)) {
+		if_schedule_receive(iface, ctx->rcv_data.pkt);
+		ctx->rcv_data.pkt = NULL;
+	}
  end:
 	ctx->rcv.receiving = 0;
 	byte_reset(&ctx->rcv_data.byte);
@@ -249,8 +253,8 @@ static void rf_snd_tim_cb(void *arg)
 		return;
 	}
 
-	memset(&ctx->snd, 0, sizeof(ctx->snd));
 	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
+	memset(&ctx->snd, 0, sizeof(ctx->snd));
 	if_schedule_tx_pkt_free(ctx->snd_data.pkt);
 
 	/* send next packet */
