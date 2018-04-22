@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <sys/chksum.h>
 #include "ip.h"
-#include "chksum.h"
 
 static void ip_chksum(void)
 {

@@ -36,7 +36,7 @@ libnet-$(ARCH).a: $(OBJ)
 libnet-$(ARCH).so: $(OBJ)
 	$(CC) $(LDFLAGS) $(LIBS) -o $(LIBNAME).so $(OBJ)
 
-CHKSUM_TEST_OBJ = chksum_test.o chksum.o
+CHKSUM_TEST_OBJ = chksum_test.o ../sys/chksum.o
 chksum_test: $(CHKSUM_TEST_OBJ)
 	$(CC) $(CHKSUM_TEST_OBJ) -o $@
 
