@@ -182,12 +182,13 @@ static int rf_snd(rf_ctx_t *ctx)
 		uint8_t c;
 
 		if (pkt_len(ctx->snd_data.pkt) == 0) {
-			if (ctx->snd.burst_cnt == ctx->burst) {
-				if (RF_SND_PORT & (1 << RF_SND_PIN_NB))
-					return -1;
+			if ((RF_SND_PORT & (1 << RF_SND_PIN_NB)) == 0) {
 				RF_SND_PORT |= 1 << RF_SND_PIN_NB;
 				return 0;
 			}
+
+			if (ctx->snd.burst_cnt == ctx->burst)
+				return -1;
 			ctx->snd.burst_cnt++;
 			__buf_reset_keep(&ctx->snd_data.pkt->buf);
 			ctx->snd.frame_pos = START_FRAME_LENGTH;
