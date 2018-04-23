@@ -17,7 +17,7 @@ int xtea_encode(buf_t *buf, uint32_t const key[4])
 		return -1;
 
 	n = buf_len(buf) / 4;
-	v = (uint32_t *)buf->data;
+	v = (uint32_t *)buf_data(buf);
 
 	rounds = 6 + 52 / n;
 	sum = 0;
@@ -45,7 +45,7 @@ int xtea_decode(buf_t *buf, uint32_t const key[4])
 		return -1;
 
 	n = buf_len(buf) / 4;
-	v = (uint32_t *)buf->data;
+	v = (uint32_t *)buf_data(buf);
 
 	rounds = 6 + 52 / n;
 	sum = rounds * DELTA;
