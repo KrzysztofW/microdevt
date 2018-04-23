@@ -237,16 +237,14 @@ int main(void)
 	timer_checks();
 #endif
 	scheduler_init();
-
 	DDRB = 0xFF; /* LED PIN */
 	timer_init(&timer_led);
-	timer_add(&timer_led, 5000000, blink_led, &timer_led);
+	timer_add(&timer_led, 0, blink_led, &timer_led);
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER	\
 	|| defined CONFIG_NETWORKING
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 #endif
-
 #ifdef CONFIG_NETWORKING
 	timer_init(&timer_wd);
 	timer_add(&timer_wd, 500000UL, tim_cb_wd, &timer_wd);
@@ -271,28 +269,24 @@ int main(void)
 	if_init(&eth1, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
 		CONFIG_PKT_DRIVER_NB_MAX);
 	rf_init(&eth1, RF_BURST_NUMBER);
-#endif
-
-	watchdog_enable();
-
-#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
-	rf_init(&eth1, RF_BURST_NUMBER);
 #ifdef CONFIG_RF_RECEIVER
 	swen_ev_set(rf_event_cb);
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
 #endif
+
 #ifdef CONFIG_RF_SENDER
 	timer_init(&timer_rf);
-	timer_add(&timer_rf, 0, tim_rf_cb, &timer_rf);
-
+	timer_add(&timer_rf, 3000000, tim_rf_cb, &timer_rf);
 	/* port F used by the RF sender */
 	DDRF = (1 << PF1);
 #endif
 #endif
+	watchdog_enable();
+
 	if (apps_init() < 0)
-		return -1;
+		__abort();
 #ifdef CONFIG_GSM_SIM900
 	gsm_init(gsm_in, gsm_out, gsm_cb);
 #endif

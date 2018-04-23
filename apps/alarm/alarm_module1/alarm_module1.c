@@ -131,7 +131,7 @@ int main(void)
 	timer_checks();
 #endif
 	timer_init(&timer_led);
-	timer_add(&timer_led, 0, tim_led_cb, &timer_led);
+	timer_add(&timer_led, 3000000, tim_led_cb, &timer_led);
 	watchdog_enable();
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
