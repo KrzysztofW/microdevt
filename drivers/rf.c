@@ -54,7 +54,7 @@ typedef struct rf_ctx {
 #endif
 
 #ifdef CONFIG_RF_SENDER
-#define FRAME_DELIMITER_LENGTH 30 /* loops */
+#define FRAME_DELIMITER_LENGTH 29 /* loops */
 #define START_FRAME_LENGTH 30	  /* loops */
 
 #if !defined(RF_SND_PIN_NB) || !defined(RF_SND_PORT)
