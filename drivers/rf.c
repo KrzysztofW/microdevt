@@ -117,7 +117,8 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 		ctx->rcv.receiving = 1;
 		return;
 	}
-	if (ctx->rcv.receiving && ctx->rcv_data.pkt && pkt_len(ctx->rcv_data.pkt)) {
+	if (ctx->rcv.receiving && ctx->rcv_data.pkt
+	    && pkt_len(ctx->rcv_data.pkt)) {
 		if_schedule_receive(iface, ctx->rcv_data.pkt);
 		ctx->rcv_data.pkt = NULL;
 	}
@@ -222,8 +223,6 @@ static void rf_start_sending(const iface_t *iface)
 
 	if (timer_is_pending(&ctx->snd_data.timer))
 		return;
-	if ((ctx->snd_data.pkt = pkt_get(iface->tx)) == NULL)
-		return;
 
 #ifdef CONFIG_RF_RECEIVER
 	/* disable receiving while sending */
@@ -231,6 +230,7 @@ static void rf_start_sending(const iface_t *iface)
 #endif
 	timer_add(&ctx->snd_data.timer, RF_SAMPLING_US * 2, rf_snd_tim_cb,
 		  (void *)iface);
+	ctx->snd.frame_pos = 0;
 }
 
 int rf_output(const iface_t *iface, pkt_t *pkt)
@@ -248,20 +248,18 @@ static void rf_snd_tim_cb(void *arg)
 	iface_t *iface = arg;
 	rf_ctx_t *ctx = iface->priv;
 
- again:
-	if (rf_snd(ctx) >= 0) {
-		timer_reschedule(&ctx->snd_data.timer, RF_SAMPLING_US * 2);
-		return;
-	}
+	while (ctx->snd_data.pkt ||
+	       (ctx->snd_data.pkt = pkt_get(iface->tx))) {
 
-	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
-	memset(&ctx->snd, 0, sizeof(ctx->snd));
-	if_schedule_tx_pkt_free(ctx->snd_data.pkt);
-
-	/* send next packet */
-	if ((ctx->snd_data.pkt = pkt_get(iface->tx)) != NULL) {
+		if (rf_snd(ctx) >= 0) {
+			timer_reschedule(&ctx->snd_data.timer, RF_SAMPLING_US * 2);
+			return;
+		}
+		RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
+		if_schedule_tx_pkt_free(ctx->snd_data.pkt);
+		memset(&ctx->snd, 0, sizeof(ctx->snd));
+		ctx->snd_data.pkt = NULL;
 		ctx->snd.frame_pos = START_FRAME_LENGTH;
-		goto again;
 	}
 
 #ifdef CONFIG_RF_RECEIVER
