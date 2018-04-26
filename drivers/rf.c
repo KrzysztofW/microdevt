@@ -23,16 +23,16 @@
 typedef struct rf_data {
 	byte_t  byte;
 	pkt_t  *pkt;
-	tim_t   timer;
 } rf_data_t;
 
 typedef struct rf_ctx {
+	tim_t timer;
 #ifdef CONFIG_RF_RECEIVER
 	rf_data_t rcv_data;
 	struct {
 		uint8_t cnt;
 		uint8_t prev_val;
-		uint8_t receiving;
+		volatile uint8_t receiving;
 	} rcv;
 #endif
 #ifdef CONFIG_RF_SENDER
@@ -80,6 +80,8 @@ static int rf_add_bit(rf_ctx_t *ctx, uint8_t bit)
 	return buf_addc(&ctx->rcv_data.pkt->buf, byte);
 }
 
+static void rf_snd_tim_cb(void *arg);
+
 static void rf_fill_data(const iface_t *iface, uint8_t bit)
 {
 	rf_ctx_t *ctx = iface->priv;
@@ -125,14 +127,25 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
  end:
 	ctx->rcv.receiving = 0;
 	byte_reset(&ctx->rcv_data.byte);
+#ifdef CONFIG_RF_SENDER
+	if (ring_len(iface->tx)) {
+		timer_del(&ctx->timer);
+		rf_snd_tim_cb((iface_t *)iface);
+	}
+#endif
 }
 
-static inline void rf_sample(iface_t *iface)
+static void rf_rcv_tim_cb(void *arg)
 {
+	iface_t *iface = arg;
 	rf_ctx_t *ctx = iface->priv;
 	uint8_t v, not_v;
 #ifdef RF_ANALOG_SAMPLING
-	uint16_t v_analog = analog_read(RF_RCV_PIN_NB);
+	uint16_t v_analog;
+#endif
+	timer_reschedule(&ctx->timer, RF_SAMPLING_US);
+#ifdef RF_ANALOG_SAMPLING
+	v_analog = analog_read(RF_RCV_PIN_NB);
 
 	if (v_analog < ANALOG_LOW_VAL)
 		v = 0;
@@ -215,30 +228,28 @@ static int rf_snd(rf_ctx_t *ctx)
 	return 0;
 }
 
-static void rf_snd_tim_cb(void *arg);
-
+#ifndef CONFIG_RF_RECEIVER
 static void rf_start_sending(const iface_t *iface)
 {
 	rf_ctx_t *ctx = iface->priv;
 
-	if (timer_is_pending(&ctx->snd_data.timer))
+	if (timer_is_pending(&ctx->timer))
 		return;
-
-#ifdef CONFIG_RF_RECEIVER
-	/* disable receiving while sending */
-	timer_del(&ctx->rcv_data.timer);
-#endif
-	timer_add(&ctx->snd_data.timer, RF_SAMPLING_US * 2, rf_snd_tim_cb,
+	timer_add(&ctx->timer, RF_SAMPLING_US * 2, rf_snd_tim_cb,
 		  (void *)iface);
-	ctx->snd.frame_pos = 0;
 }
+#endif
 
 int rf_output(const iface_t *iface, pkt_t *pkt)
 {
+#ifndef CONFIG_RF_RECEIVER
 	if (pkt_put(iface->tx, pkt) < 0)
 		return -1;
 	rf_start_sending(iface);
 	return 0;
+#else
+	return pkt_put(iface->tx, pkt);
+#endif
 }
 #endif
 
@@ -252,7 +263,8 @@ static void rf_snd_tim_cb(void *arg)
 	       (ctx->snd_data.pkt = pkt_get(iface->tx))) {
 
 		if (rf_snd(ctx) >= 0) {
-			timer_reschedule(&ctx->snd_data.timer, RF_SAMPLING_US * 2);
+			timer_add(&ctx->timer, RF_SAMPLING_US * 2,
+				  rf_snd_tim_cb, arg);
 			return;
 		}
 		RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
@@ -261,10 +273,9 @@ static void rf_snd_tim_cb(void *arg)
 		ctx->snd_data.pkt = NULL;
 		ctx->snd.frame_pos = START_FRAME_LENGTH;
 	}
-
+	ctx->snd.frame_pos = 0;
 #ifdef CONFIG_RF_RECEIVER
-	/* enable receiving */
-	timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
+	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, arg);
 #endif
 }
 #endif
@@ -452,21 +463,11 @@ int rf_checks(const iface_t *iface)
 	rf_send_checks(iface);
 #endif
 #ifdef CONFIG_RF_RECEIVER
-	timer_del(&ctx->rcv_data.timer);
+	timer_del(&ctx->timer);
 	rf_receive_checks(iface);
-	timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
+	timer_reschedule(&ctx->timer, RF_SAMPLING_US);
 #endif
 	return 0;
-}
-#endif
-
-#ifdef CONFIG_RF_RECEIVER
-static void rf_rcv_tim_cb(void *arg)
-{
-	rf_ctx_t *ctx = ((iface_t *)(arg))->priv;
-
-	timer_reschedule(&ctx->rcv_data.timer, RF_SAMPLING_US);
-	rf_sample(arg);
 }
 #endif
 
@@ -479,7 +480,7 @@ void rf_init(iface_t *iface, uint8_t burst)
 
 #ifdef CONFIG_RF_RECEIVER
 #ifndef X86
-	timer_add(&ctx->rcv_data.timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);
+	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);
 #else
 	(void)rf_rcv_tim_cb;
 #endif
@@ -501,12 +502,7 @@ void rf_shutdown(const iface_t *iface)
 {
 	rf_ctx_t *ctx = iface->priv;
 
-#ifdef CONFIG_RF_RECEIVER
-	timer_del(&ctx->rcv_data.timer);
-#endif
-#ifdef CONFIG_RF_SENDER
-	timer_del(&ctx->snd_data.timer);
-#endif
+	timer_del(&ctx->timer);
 	free(ctx);
 }
 #endif
