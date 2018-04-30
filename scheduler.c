@@ -2,11 +2,19 @@
 #include <interrupts.h>
 #include "scheduler.h"
 
-#define MAX_TASKS 16
-#define HI_WATER_MARK 14
+typedef struct __attribute__((__packed__)) task {
+	void (*cb)(void *arg);
+	void *arg;
+} task_t;
 
-/* must a power of 2 */
-#define RING_SIZE (MAX_TASKS * sizeof(task_t))
+#ifndef CONFIG_SCHEDULER_MAX_TASKS
+#define CONFIG_SCHEDULER_MAX_TASKS 16
+#endif
+#ifndef CONFIG_SCHEDULER_TASK_WATER_MARK
+#define CONFIG_SCHEDULER_TASK_WATER_MARK 14
+#endif
+
+#define RING_SIZE (CONFIG_SCHEDULER_MAX_TASKS * sizeof(task_t))
 
 static ring_t *ring;
 static ring_t *ring_irq;
@@ -31,7 +39,7 @@ void scheduler_run_tasks(void)
 	if (irq_rlen < sizeof(task_t))
 		irq_enable();
 	else {
-		if (irq_rlen / sizeof(task_t) >= HI_WATER_MARK)
+		if (irq_rlen / sizeof(task_t) >= CONFIG_SCHEDULER_TASK_WATER_MARK)
 			irq_disable();
 		__ring_get_buf(ring_irq, &buf);
 		task.cb(task.arg);
@@ -45,8 +53,10 @@ void scheduler_run_tasks(void)
 
 void scheduler_init(void)
 {
-	ring_irq = ring_create(RING_SIZE);
-	ring = ring_create(RING_SIZE);
+	int size = roundup_pwr2(RING_SIZE);
+
+	ring_irq = ring_create(size);
+	ring = ring_create(size);
 }
 
 #ifdef TEST
