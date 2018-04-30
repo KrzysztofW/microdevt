@@ -14,7 +14,7 @@
 /* only arithmetics on uint8_t are atomic */
 #define TYPE uint8_t
 #else
-#define TYPE int
+#define TYPE unsigned int
 #endif
 
 struct ring {
