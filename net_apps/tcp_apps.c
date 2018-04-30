@@ -104,6 +104,7 @@ static void ev_connect_cb(sock_info_t *sock_info, uint8_t events)
  error:
 	DEBUG_LOG("tcp client: closing connection\n");
 	sock_info_close(sock_info);
+	timer_del(&tcp_client_timer);
 	timer_add(&tcp_client_timer, TCP_TIMER_RECONNECT,
 		  tcp_client_connect_cb, sock_info);
 }
@@ -236,19 +237,16 @@ static void ev_client_cb(sock_info_t *sock_info, uint8_t events)
 	if ((events & EV_READ) == 0)
 		return;
 
-	if (ctx->sb.len == 0) {
-		if (__socket_get_pkt(&ctx->sock_info, &ctx->pkt,
-				     &src_addr, &src_port) >= 0) {
-			ctx->sb = PKT2SBUF(ctx->pkt);
-			DEBUG_LOG("[conn:%p]: got (len:%d):%.*s (pkt:%p)\n", ctx,
-				  ctx->sb.len, ctx->sb.len,
-				  ctx->sb.data, ctx->pkt);
-		}
+	if (ctx->sb.len == 0 && __socket_get_pkt(&ctx->sock_info, &ctx->pkt,
+						 &src_addr, &src_port) >= 0) {
+		ctx->sb = PKT2SBUF(ctx->pkt);
+		DEBUG_LOG("[conn:%p]: got (len:%d):%.*s (pkt:%p)\n", ctx,
+			  ctx->sb.len, ctx->sb.len,
+			  ctx->sb.data, ctx->pkt);
 	}
 	if (__socket_put_sbuf(&ctx->sock_info, &ctx->sb, 0, 0) < 0) {
 		DEBUG_LOG("can't put sbuf to socket (len:%d) (from pkt:%p)\n",
 			  ctx->sb.len, ctx->pkt);
-		return;
 	}
 
  reset_sb:
@@ -274,7 +272,8 @@ static void ev_accept_cb(sock_info_t *sock_info, uint8_t events)
 				     &src_addr, &src_port) >= 0) {
 			DEBUG_LOG("accepted connection from:0x%lX on port %u\n",
 				  ntohl(src_addr), (uint16_t)ntohs(src_port));
-			socket_ev_set(&ctx[i].sock_info, EV_READ, ev_client_cb);
+			socket_ev_set(&ctx[i].sock_info, EV_READ,
+				      ev_client_cb);
 		}
 	}
 }
