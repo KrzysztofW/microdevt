@@ -8,4 +8,6 @@
 #define disable_spi_irq()
 #define enable_spi_irq()
 
+#define IRQ_CHECK() (!!(SREG & 0x80))
+
 #endif

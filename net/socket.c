@@ -65,16 +65,28 @@ void socket_schedule_ev(sock_info_t *sock_info, uint8_t events)
 void socket_ev_set(sock_info_t *sock_info, uint8_t events,
 		   void (*ev_cb)(struct sock_info *sock_info, uint8_t events))
 {
+	uint8_t ev = 0;
+
 	sock_info->events_wanted = events;
 	sock_info->ev_cb = ev_cb;
 
-	/* a task should be scheduled here immediately if data to read
-	 * is available. */
-	if ((sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn &&
-	     !list_empty(&sock_info->trq.tcp_conn->pkt_list_head))
-	    || !list_empty(&sock_info->trq.pkt_list)) {
-		socket_schedule_ev(sock_info, EV_READ);
+	if (sock_info->type == SOCK_STREAM) {
+#ifdef CONFIG_TCP
+		if (sock_info->trq.tcp_conn) {
+			ev |= EV_WRITE;
+			if ((!list_empty(&sock_info->trq.tcp_conn->pkt_list_head)))
+				ev |= EV_READ;
+		}
+#endif
+	} else {
+#ifdef CONFIG_UDP
+		ev |= EV_WRITE;
+		if (!list_empty(&sock_info->trq.pkt_list))
+			ev |= EV_READ;
+#endif
 	}
+	if (ev)
+		socket_schedule_ev(sock_info, ev);
 }
 #endif
 
