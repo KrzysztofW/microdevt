@@ -80,7 +80,19 @@ static int rf_add_bit(rf_ctx_t *ctx, uint8_t bit)
 	return buf_addc(&ctx->rcv_data.pkt->buf, byte);
 }
 
+#ifdef CONFIG_RF_SENDER
 static void rf_snd_tim_cb(void *arg);
+
+static void __rf_start_sending(iface_t *iface)
+{
+	if (ring_len(iface->tx)) {
+		rf_ctx_t *ctx = iface->priv;
+
+		timer_del(&ctx->timer);
+		rf_snd_tim_cb(iface);
+	}
+}
+#endif
 
 static void rf_fill_data(const iface_t *iface, uint8_t bit)
 {
@@ -128,10 +140,7 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 	ctx->rcv.receiving = 0;
 	byte_reset(&ctx->rcv_data.byte);
 #ifdef CONFIG_RF_SENDER
-	if (ring_len(iface->tx)) {
-		timer_del(&ctx->timer);
-		rf_snd_tim_cb((iface_t *)iface);
-	}
+	__rf_start_sending((iface_t *)iface);
 #endif
 }
 
@@ -151,8 +160,12 @@ static void rf_rcv_tim_cb(void *arg)
 		v = 0;
 	else if (v_analog > ANALOG_HI_VAL)
 		v = 1;
-	else
+	else {
+#ifdef CONFIG_RF_SENDER
+		__rf_start_sending((iface_t *)iface);
+#endif
 		return;
+	}
 #else
 	v = RF_RCV_PIN & (1 << RF_RCV_PIN_NB);
 #endif
