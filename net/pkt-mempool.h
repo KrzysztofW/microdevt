@@ -6,11 +6,16 @@
 #include "../sys/ring.h"
 #include "../sys/list.h"
 
+/* #define PKT_DEBUG */
 struct pkt {
 	buf_t buf;
 	list_t list;
 	uint8_t offset;
 	uint8_t refcnt;
+#ifdef PKT_DEBUG
+	const char *last_get_func;
+	const char *last_put_func;
+#endif
 } __attribute__((__packed__));
 typedef struct pkt pkt_t;
 
@@ -33,16 +38,20 @@ typedef struct pkt pkt_t;
 
 void pkt_mempool_shutdown(void);
 void pkt_mempool_init(unsigned nb_pkts, unsigned pkt_size);
-pkt_t *pkt_get(ring_t *ring);
-int pkt_put(ring_t *ring, pkt_t *pkt);
 
-/* #define PKT_DEBUG */
 #ifdef PKT_DEBUG
+pkt_t *__pkt_get(ring_t *ring, const char *func, int line);
+int __pkt_put(ring_t *ring, pkt_t *pkt, const char *func, int line);
+#define pkt_get(ring) __pkt_get(ring, __func__, __LINE__)
+#define pkt_put(ring, pkt) __pkt_put(ring, pkt, __func__, __LINE__)
+
 pkt_t *__pkt_alloc(const char *func, int line);
 int __pkt_free(pkt_t *pkt, const char *func, int line);
 #define pkt_alloc() __pkt_alloc(__func__, __LINE__)
 #define pkt_free(pkt) __pkt_free(pkt, __func__, __LINE__)
 #else
+pkt_t *pkt_get(ring_t *ring);
+int pkt_put(ring_t *ring, pkt_t *pkt);
 pkt_t *pkt_alloc(void);
 int pkt_free(pkt_t *pkt);
 #endif
@@ -64,5 +73,8 @@ static inline void pkt_retain(pkt_t *pkt)
 {
 	pkt->refcnt++;
 }
+
+unsigned int pkt_get_nb_free(void);
+void pkt_get_traced_pkts(void);
 
 #endif
