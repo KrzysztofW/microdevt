@@ -293,8 +293,7 @@ int main(void)
 
 	/* slow functions */
 	while (1) {
-		bh(); /* bottom halves */
-
+		scheduler_run_tasks();
 #ifndef CONFIG_EVENT
 		apps();
 #endif

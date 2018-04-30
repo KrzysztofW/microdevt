@@ -23,7 +23,7 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 	ring_add(r, &task, sizeof(task_t));
 }
 
-void bh(void)
+void scheduler_run_tasks(void)
 {
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));

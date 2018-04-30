@@ -164,8 +164,7 @@ int main(void)
 
 	/* slow functions */
 	while (1) {
-		bh(); /* bottom halves */
-
+		scheduler_run_tasks();
 		watchdog_reset();
 	}
 #ifdef CONFIG_RF_SENDER

@@ -11,6 +11,6 @@ void scheduler_init(void);
 void scheduler_shutdown(void);
 
 /* run bottom halves */
-void bh(void);
+void scheduler_run_tasks(void);
 
 #endif

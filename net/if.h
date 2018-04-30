@@ -37,7 +37,7 @@ struct iface {
 	/* private interface handle */
 	void *priv;
 
-	/* level 2 functions used in bh() */
+	/* level 2 functions used in bottom halves */
 	/* points to eth_output() or swen_output() */
 	int (*if_output)(pkt_t *out, const struct iface *iface, uint8_t type,
 			 const void *dst);

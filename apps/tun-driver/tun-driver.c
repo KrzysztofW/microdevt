@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
 		if (tun_receive_pkt(&iface) >= 0)
 			eth_input(&iface);
 
-		bh();
+		scheduler_run_tasks();
 #if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 		udp_app();
 #endif
