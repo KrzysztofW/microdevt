@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <alloca.h>
+#include <stdarg.h>
 #include "log.h"
 #include "utils.h"
 
@@ -176,6 +177,21 @@ static inline int buf_adds(buf_t *buf, const char *data)
 	if (buf_has_room(buf, len + 1) < 0)
 		return -1;
 	__buf_adds(buf, data, len);
+	return 0;
+}
+
+static inline int buf_addf(buf_t *buf, const char *fmt, ...)
+{
+	va_list ap;
+	int len;
+	int buf_room = buf->size - buf->skip - buf->len;
+
+	va_start(ap, fmt);
+	len = vsnprintf((char *)buf_data(buf), buf_room, fmt, ap);
+	va_end(ap);
+	if (len < 0 || len >= buf_room)
+		return -1;
+	buf->len += len + 1;
 	return 0;
 }
 
