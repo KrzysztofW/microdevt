@@ -119,6 +119,12 @@ static inline void buf_reset(buf_t *buf)
 	buf->skip = 0;
 }
 
+static inline void buf_clear(buf_t *buf)
+{
+	buf_reset(buf);
+	memset(buf->data, 0, buf->size);
+}
+
 static inline void __buf_reset_keep(buf_t *buf)
 {
 	buf->len = buf->skip;
