@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/buf.h>
 #include "xtea.h"
 
 #define DELTA 0x9e3779b9
@@ -74,26 +73,39 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	len = strlen(argv[1]) + 1;
+	if (len <= 4) {
+		fprintf(stderr, "string length must be longer than "
+			"3 characters\n");
+		return -1;
+	}
+
+	/* align the buffer to a multiple of 4 */
 	while (len & 3)
 		len++;
+
 	buf = BUF(len);
-	__buf_adds(&buf, argv[1]);
-	printf("plaintext buf (len:%d):\n", buf_len(&buf));
-	buf_print(&buf);
+	if (buf_adds(&buf, argv[1]) < 0) {
+		fprintf(stderr, "string too big\n");
+		return -1;
+	}
+	printf("\nplaintext buf (len:%d): %s\n", buf_len(&buf), buf.data);
+	printf("plaintext buf hex (len:%d):\n", buf_len(&buf));
+	buf_print_hex(&buf);
+
 	if (xtea_encode(&buf, key) < 0) {
 		fprintf(stderr, "failed to encode\n");
 		return -1;
 	}
-	printf("encoded buf (len:%d):\n", buf_len(&buf));
-	buf_print(&buf);
+	printf("\nencoded buf (len:%d):\n", buf_len(&buf));
+	buf_print_hex(&buf);
 
 	if (xtea_decode(&buf, key) < 0) {
 		fprintf(stderr, "failed to decode\n");
 		return -1;
 	}
-	printf("decoded buf (len:%d):\n", buf_len(&buf));
-	buf_print(&buf);
-	printf("ascii: %s\n", buf.data);
+	printf("decoded buf hex (len:%d):\n", buf_len(&buf));
+	buf_print_hex(&buf);
+	printf("plaintext buf (len:%d): %s\n", buf_len(&buf), buf.data);
 	return 0;
 }
 #endif

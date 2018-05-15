@@ -242,7 +242,7 @@ static inline int buf_getc(buf_t *buf, uint8_t *c)
 static inline void *__memmem(const void *haystack, unsigned haystacklen,
 			     const void *needle, unsigned needlelen)
 {
-	int i, j;
+	unsigned i, j;
 	const uint8_t *h = haystack;
 	const uint8_t *n = needle;
 
