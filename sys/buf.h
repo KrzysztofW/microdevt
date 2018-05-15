@@ -145,9 +145,10 @@ static inline void buf_adj(buf_t *buf, int len)
 	else
 		assert(buf->skip + len <= buf->size);
 #endif
-	buf->len -= len;
-	if (buf->len < 0)
+	if (buf->len < len)
 		buf->len = 0;
+	else
+		buf->len -= len;
 	buf->skip += len;
 }
 
