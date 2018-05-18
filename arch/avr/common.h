@@ -10,4 +10,17 @@
 #include <avr/wdt.h>
 #include "avr_utils.h"
 
+#define __abort() do {							\
+		DEBUG_LOG("%s:%d aborted\n", __func__, __LINE__);	\
+		while (1) {}						\
+	} while (0)
+
+#define assert(cond) do {			\
+		if (!(cond)) {			\
+			DEBUG_LOG("%s:%d assert failed\n",		\
+				  __func__, __LINE__);			\
+			while (1) {}					\
+		}							\
+	} while (0)
+
 #endif

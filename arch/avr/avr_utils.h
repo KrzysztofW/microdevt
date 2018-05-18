@@ -1,3 +1,5 @@
+#ifndef _AVR_UTILS_H_
+#define _AVR_UTILS_H_
 #include <util/delay.h>
 
 static inline void delay_us(int us)
@@ -13,3 +15,5 @@ static inline void delay_ms(int ms)
 		_delay_ms(1);
 	}
 }
+
+#endif

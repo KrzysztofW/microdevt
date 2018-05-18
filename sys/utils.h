@@ -1,6 +1,7 @@
 #ifndef _UTILS_H_
 #define _UTILS_H_
 #include <stdint.h>
+#include <common.h>
 
 #define POWEROF2(x) ((((x) - 1) & (x)) == 0)
 
@@ -33,18 +34,5 @@ static inline uint32_t roundup_pwr2(uint32_t v)
 	v++;
 	return v;
 }
-
-#define __abort() do {							\
-		DEBUG_LOG("%s:%d aborted\n", __func__, __LINE__);	\
-		while (1) {}						\
-	} while (0)
-
-#define assert(cond) do {			\
-		if (!(cond)) {			\
-			DEBUG_LOG("%s:%d assert failed\n",		\
-				  __func__, __LINE__);			\
-			while (1) {}					\
-		}							\
-	} while (0)
 
 #endif
