@@ -98,7 +98,8 @@ static int swen_parse_generic_cmds(const buf_t *buf)
 		uint8_t len = cmds[0];
 		sbuf_t cmd;
 
-		/* ring len is the same throughout the loop */
+		/* the commands should be sorted from the shortest
+		 * one to the longest one */
 		if (buf->len < len)
 			return -1;
 		cmds++;
