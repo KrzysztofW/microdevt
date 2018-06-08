@@ -11,6 +11,12 @@ int xtea_encode(buf_t *buf, uint32_t const key[4])
 	uint32_t y, z, sum, *v;
 	unsigned p, rounds, e, n;
 
+	/* the buffer must be at least 8 bytes long */
+	while (buf_len(buf) < 8) {
+		if (buf_addc(buf, 0) < 0)
+			return -1;
+	}
+
 	/* the buffer must be a multiple of 4 */
 	if (buf_pad(buf, 2) < 0)
 		return -1;
@@ -73,15 +79,11 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	len = strlen(argv[1]) + 1;
-	if (len <= 4) {
-		fprintf(stderr, "string length must be longer than "
-			"3 characters\n");
-		return -1;
-	}
-
-	/* align the buffer to a multiple of 4 */
-	while (len & 3)
-		len++;
+	if (len <= 4)
+		len = 8;
+	else
+		while (len & 3)
+			len++;
 
 	buf = BUF(len);
 	if (buf_adds(&buf, argv[1]) < 0) {
