@@ -51,7 +51,7 @@ pkt_t *__pkt_get(ring_t *ring, const char *func, int line)
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (offset == (typeof(offset))-1) {
 		DEBUG_LOG("%s() in %s:%d (pkt:%p emergency pkt) failed\n",
-			  __func__, func, line, pkt);
+			  __func__, func, line, emergency_pkt);
 		return emergency_pkt;
 	}
 #endif
