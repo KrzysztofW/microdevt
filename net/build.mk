@@ -117,6 +117,10 @@ endif
 ifdef CONFIG_RF_SENDER
 CFLAGS += -DCONFIG_RF_SENDER
 endif
+ifdef CONFIG_SWEN_L3
+SOURCES += swen-l3.c
+CFLAGS += -DCONFIG_SWEN_L3
+endif
 endif
 
 ifdef TEST

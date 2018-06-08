@@ -411,7 +411,7 @@ static int driver_rf_checks(void)
 	iface.send = &send;
 	iface.recv = &recv;
 	if_init(&iface, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX);
+		CONFIG_PKT_DRIVER_NB_MAX, 1);
 
 	rf_init(&iface, 2);
 	ret = rf_checks(&iface);
@@ -462,6 +462,13 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> driver RF tests succeeded\n");
 
+#ifdef CONFIG_SWEN_L3
+	if (net_swen_l3_tests() < 0) {
+		fprintf(stderr, "  ==> net swen-l3 tests failed\n");
+		return -1;
+	}
+	printf("  ==> net swen-l3 tests succeeded\n");
+#endif
 	if (gsm_tests() < 0) {
 		fprintf(stderr, "  ==> gsm tests failed\n");
 		return -1;

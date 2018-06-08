@@ -35,6 +35,14 @@ typedef struct buf buf_t;
 	{								\
 		.data = (uint8_t *)str, .len = sizeof(str) - 1		\
 	}
+#define SBUF_INIT_BIN(str) (sbuf_t)					\
+	{								\
+		.data = (uint8_t *)str, .len = sizeof(str)		\
+	}
+#define SBUF_INIT(data, len) (sbuf_t)					\
+	{								\
+		.data = (uint8_t *)data, .len = len			\
+	}
 #define BUF_INIT(__data, __len) (buf_t)					\
 	{								\
 		.data = (uint8_t *)__data,				\
@@ -131,6 +139,13 @@ static inline void __buf_reset_keep(buf_t *buf)
 	buf->skip = 0;
 }
 
+static inline void buf_shrink(buf_t *buf, int len)
+{
+	if (buf->len < len)
+		return;
+	buf->len -= len;
+}
+
 static inline void sbuf_reset(sbuf_t *sbuf)
 {
 	sbuf->len = 0;
@@ -218,6 +233,11 @@ static inline int buf_addc(buf_t *buf, uint8_t c)
 static inline void __buf_addc(buf_t *buf, uint8_t c)
 {
 	__buf_add(buf, &c, 1);
+}
+
+static inline void __buf_addsbuf(buf_t *buf, const sbuf_t *sbuf)
+{
+	__buf_add(buf, sbuf->data, sbuf->len);
 }
 
 static inline int buf_get_lastc(buf_t *buf, uint8_t *c)

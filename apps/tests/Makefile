@@ -25,7 +25,7 @@ CFLAGS += -I../.. -I.
 
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
-SOURCES += ../../sys/errno.c ../../drivers/gsm_at.c
+SOURCES += ../../sys/errno.c ../../drivers/gsm_at.c ../../crypto/xtea.c
 OBJ = $(SOURCES:.c=.o)
 
 all: libnet $(SOURCES) $(EXE)

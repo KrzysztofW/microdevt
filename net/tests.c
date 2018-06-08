@@ -1,3 +1,4 @@
+#include <crypto/xtea.h>
 #include "config.h"
 #include "tests.h"
 #include "arp.h"
@@ -6,6 +7,7 @@
 #include "route.h"
 #include "socket.h"
 #include "pkt-mempool.h"
+#include "swen-l3.h"
 
 void recv(const iface_t *iface) {}
 
@@ -887,4 +889,308 @@ int net_tcp_tests(void)
 	return ret;
 }
 
+#endif
+
+#ifdef CONFIG_SWEN_L3
+
+static iface_t iface_swen_l3_remote;
+static iface_t iface_swen_l3_local;
+
+static uint8_t swen_l3_assoc_syn[] = {
+	0x70, 0x6F, 0x03, 0x90, 0x6C, 0x00, 0x20, 0x00,
+};
+static uint8_t swen_l3_assoc_syn_ack[] = {
+	0x6F, 0x70, 0x03, 0x6D, 0x99, 0x01, 0xF4, 0x20,
+};
+static uint8_t swen_l3_assoc_complete[] = {
+	0x70, 0x6F, 0x03, 0x9A, 0x6A, 0x02, 0x21, 0xF4,
+};
+static uint8_t swen_l3_assoc_complete_ack[] = {
+	0x6F, 0x70, 0x03, 0x68, 0x99, 0x05, 0xF4, 0x21,
+};
+static uint8_t swen_l3_disass[] = {
+	0x70, 0x6F, 0x03, 0x98, 0x66, 0x03, 0x25, 0xF5,
+};
+static uint8_t swen_l3_disass_ack[] = {
+	0x6F, 0x70, 0x03, 0x66, 0x98, 0x05, 0xF5, 0x23,
+};
+
+typedef enum swen_l3_pkt {
+	SWEN_L3_PKT_SYN,
+	SWEN_L3_PKT_SYN_ACK,
+	SWEN_L3_PKT_COMPLETE,
+	SWEN_L3_PKT_COMPLETE_ACK,
+	SWEN_L3_PKT_DISASSOCIATE,
+	SWEN_L3_PKT_DISASSOCIATE_ACK,
+} swen_l3_pkt_t;
+static sbuf_t swen_l3_pkts[] = {
+	SBUF_INIT_BIN(swen_l3_assoc_syn),
+	SBUF_INIT_BIN(swen_l3_assoc_syn_ack),
+	SBUF_INIT_BIN(swen_l3_assoc_complete),
+	SBUF_INIT_BIN(swen_l3_assoc_complete_ack),
+	SBUF_INIT_BIN(swen_l3_disass),
+	SBUF_INIT_BIN(swen_l3_disass_ack),
+};
+static uint8_t swen_l3_test_failed;
+
+static uint32_t rf_enc_defkey[4] = {
+	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
+};
+static uint32_t *rf_enc_key;
+
+static uint8_t net_swen_l3_events;
+static void net_swen_ev_cb(uint8_t from, uint8_t events, buf_t *buf)
+{
+	printf("%s: got events: 0x%X from:0x%X\n", __func__, events, from);
+	if (buf) {
+		buf_print(buf);
+		puts("");
+	}
+	net_swen_l3_events = events;
+}
+
+static int net_swen_send(const struct iface *iface, pkt_t *pkt)
+{
+	pkt_t *pkt_dst;
+
+	if (swen_l3_test_failed)
+		return -1;
+	if ((pkt_dst = pkt_alloc()) == NULL)
+		return -1;
+	if (buf_addbuf(&pkt_dst->buf, &pkt->buf) < 0)
+		return -1;
+	pkt_free(pkt);
+
+	if (pkt_put(iface_swen_l3_remote.rx, pkt_dst) < 0) {
+		swen_l3_test_failed = 1;
+		return -1;
+	}
+
+	return 0;
+}
+
+static void net_swen_recv(const struct iface *iface) {}
+
+static int net_swen_remote_send(const struct iface *iface, pkt_t *pkt)
+{
+	pkt_t *pkt_dst;
+
+	if (swen_l3_test_failed)
+		return -1;
+	if ((pkt_dst = pkt_alloc()) == NULL)
+		return -1;
+	if (buf_addbuf(&pkt_dst->buf, &pkt->buf) < 0)
+		return -1;
+	pkt_free(pkt);
+
+	if (pkt_put(iface_swen_l3_local.rx, pkt_dst) < 0) {
+		swen_l3_test_failed = 1;
+		return -1;
+	}
+	return 0;
+}
+
+static void net_swen_remote_recv(const struct iface *iface) {}
+
+static int net_swen_l3_pkt_cmp(const sbuf_t *sbuf, iface_t *iface)
+{
+	pkt_t *pkt;
+	sbuf_t sbuf2;
+
+	if (rf_enc_key)
+		return 0;
+
+	if ((pkt = pkt_get(iface->rx)) == NULL)
+		return -1;
+
+	sbuf2 = buf2sbuf(&pkt->buf);
+	if (sbuf_cmp(sbuf, &sbuf2) < 0) {
+		printf("%s: expected: ", __func__);
+		sbuf_print_hex(sbuf);
+		printf("%s: got:      ", __func__);
+		sbuf_print_hex(&sbuf2);
+		return -1;
+	}
+
+	if (pkt_put(iface->rx, pkt) < 0)
+		return -1;
+	return 0;
+}
+
+#define net_swen_l3_check_events(events)				\
+	if (net_swen_l3_events != (events)) {				\
+		printf("%s: expected 0x%X, got 0x%X\n",			\
+		       __func__, events, net_swen_l3_events);		\
+		__abort();						\
+	}								\
+	net_swen_l3_events = 0						\
+
+static void
+net_swen_l3_test(swen_l3_assoc_t *assoc, swen_l3_assoc_t *assoc_remote,
+		 iface_t *local, iface_t *remote)
+{
+	pkt_t *pkt;
+	sbuf_t data = SBUF_INITS("<test data>");
+
+	net_swen_l3_events = 0;
+	if (swen_l3_associate(assoc) < 0)
+		__abort();
+
+	/* handle SYN */
+	if (net_swen_l3_pkt_cmp(&swen_l3_pkts[SWEN_L3_PKT_SYN], remote) < 0)
+		__abort();
+	remote->if_input(remote);
+	net_swen_l3_check_events(0);
+
+	/* handle SYN_ACK */
+	if (net_swen_l3_pkt_cmp(&swen_l3_pkts[SWEN_L3_PKT_SYN_ACK], local) < 0)
+		__abort();
+	local->if_input(local);
+	net_swen_l3_check_events(0);
+
+	/* handle COMPLETE */
+	if (net_swen_l3_pkt_cmp(&swen_l3_pkts[SWEN_L3_PKT_COMPLETE],
+				remote) < 0)
+		__abort();
+	remote->if_input(remote);
+	net_swen_l3_check_events(EV_WRITE);
+
+	/* drop ack */
+	if ((pkt = pkt_get(local->rx)) == NULL)
+		__abort();
+	pkt_free(pkt);
+
+	/* retransmit COMPLETE */
+	swen_l3_retransmit_pkts(assoc);
+	if (net_swen_l3_pkt_cmp(&swen_l3_pkts[SWEN_L3_PKT_COMPLETE],
+				remote) < 0)
+		__abort();
+	remote->if_input(remote);
+	/* handle ACK */
+	if (net_swen_l3_pkt_cmp(&swen_l3_pkts[SWEN_L3_PKT_COMPLETE_ACK],
+				local) < 0)
+		__abort();
+	local->if_input(local);
+	net_swen_l3_check_events(EV_WRITE);
+
+	/* -- handshake completed -- */
+
+	/* send data local->remote */
+	if (swen_l3_send(assoc, &data) < 0)
+		__abort();
+	remote->if_input(remote);
+	if (net_swen_l3_events != (EV_WRITE|EV_READ))
+		__abort();
+
+	/* handle data-ACK */
+	local->if_input(local);
+
+	/* send data remote->local */
+	if (swen_l3_send(assoc_remote, &data) < 0)
+		__abort();
+	local->if_input(local);
+	net_swen_l3_check_events(EV_WRITE|EV_READ);
+
+	/* drop data-ACK */
+	if ((pkt = pkt_get(remote->rx)) == NULL)
+		__abort();
+	pkt_free(pkt);
+
+	/* retransmit data */
+	swen_l3_retransmit_pkts(assoc_remote);
+
+	local->if_input(local);
+
+	/* handle data-ACK */
+	remote->if_input(remote);
+
+	/* send data local->remote x2 */
+	if (swen_l3_send(assoc, &data) < 0)
+		__abort();
+	if (swen_l3_send(assoc, &data) < 0)
+		__abort();
+	remote->if_input(remote);
+	remote->if_input(remote);
+
+	/* disassociate */
+	swen_l3_disassociate(assoc);
+	if (net_swen_l3_pkt_cmp(&swen_l3_pkts[SWEN_L3_PKT_DISASSOCIATE],
+				remote) < 0)
+		__abort();
+	remote->if_input(remote);
+	/* handle disassociate ack */
+	if (net_swen_l3_pkt_cmp(&swen_l3_pkts[SWEN_L3_PKT_DISASSOCIATE_ACK],
+				local) < 0)
+		__abort();
+	local->if_input(local);
+
+	/* send data on a disassociated socket */
+	if (swen_l3_send(assoc, &data) >= 0)
+		__abort();
+
+	if (!ring_is_empty(local->rx)
+	    || !ring_is_empty(local->tx)
+	    || !ring_is_empty(remote->rx)
+	    || !ring_is_empty(remote->tx)) {
+		fprintf(stderr, "%s: tx/rx rings are not empty\n", __func__);
+		__abort();
+	}
+}
+
+int net_swen_l3_tests(void)
+{
+	swen_l3_assoc_t assoc, assoc_remote;
+	uint8_t hw_addr = 0x6F;
+	uint8_t hw_remote_addr = 0x70;
+	int ret = 0;
+
+	(void)rf_enc_defkey;
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+
+	iface_swen_l3_local.hw_addr = &hw_addr;
+	iface_swen_l3_local.send = &net_swen_send;
+	iface_swen_l3_local.recv = &net_swen_recv;
+	if_init(&iface_swen_l3_local, IF_TYPE_RF, CONFIG_PKT_NB_MAX,
+		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX, 0);
+
+	iface_swen_l3_remote.hw_addr = &hw_remote_addr;
+	iface_swen_l3_remote.send = &net_swen_remote_send;
+	iface_swen_l3_remote.recv = &net_swen_remote_recv;
+	if_init(&iface_swen_l3_remote, IF_TYPE_RF, CONFIG_PKT_NB_MAX,
+		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX, 0);
+
+	swen_ev_set(net_swen_ev_cb);
+	swen_l3_assoc_init(&assoc_remote);
+	swen_l3_assoc_bind(&assoc_remote, hw_addr, &iface_swen_l3_remote,
+			   rf_enc_key);
+
+	swen_l3_assoc_init(&assoc);
+	swen_l3_assoc_bind(&assoc, hw_remote_addr, &iface_swen_l3_local,
+			   rf_enc_key);
+
+	/* unencrypted */
+	net_swen_l3_test(&assoc, &assoc_remote, &iface_swen_l3_local,
+			 &iface_swen_l3_remote);
+	if (swen_l3_test_failed) {
+		fprintf(stderr, "%s: association failed\n", __func__);
+		ret = -1;
+		goto end;
+	}
+
+	/* encrypted */
+	rf_enc_key = rf_enc_defkey;
+	net_swen_l3_test(&assoc, &assoc_remote, &iface_swen_l3_local,
+			 &iface_swen_l3_remote);
+	if (swen_l3_test_failed) {
+		fprintf(stderr, "%s: association failed\n", __func__);
+		ret = -1;
+		goto end;
+	}
+
+ end:
+	if_shutdown(&iface);
+	pkt_mempool_shutdown();
+
+	return ret;
+}
 #endif

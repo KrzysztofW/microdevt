@@ -3,18 +3,9 @@
 #include <sys/buf.h>
 #include <sys/ring.h>
 #include <drivers/rf.h>
+#include <net/swen-l3.h>
 #include "event.h"
 #include "swen.h"
-
-/* XXX the size of this structure has to be even (in order to use
- * cksum_partial() on it). */
-typedef struct __attribute__((__packed__)) swen_hdr_t {
-	uint8_t to;
-	uint8_t from;
-	uint16_t proto :  2;
-	uint16_t len   : 14;
-	uint16_t chksum;
-} swen_hdr_t;
 
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 static void (*generic_cmds_cb)(int nb);
@@ -28,7 +19,7 @@ swen_generic_cmds_init(void (*cb)(int nb), const uint8_t *cmds)
 }
 #endif
 
-static void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
+void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
 
 #ifdef CONFIG_RF_SENDER
 #ifdef CONFIG_IP_OVER_SWEN
@@ -58,7 +49,6 @@ swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
 #endif
 		hdr->to = *(uint8_t *)dst;
 	hdr->proto = type;
-	hdr->len = htons(pkt_len(pkt));
 	hdr->chksum = 0;
 	hdr->chksum = htons(cksum(hdr, pkt_len(pkt)));
 	iface->send(iface, pkt);
@@ -137,8 +127,6 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 	if (hdr->to != iface->hw_addr[0])
 		goto end;
 
-	if (ntohs(hdr->len) != pkt->buf.len)
-		goto end;
 	if (cksum(hdr, pkt->buf.len) != 0)
 		goto end;
 	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
