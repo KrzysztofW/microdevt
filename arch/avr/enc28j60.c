@@ -369,6 +369,7 @@ void enc28j60_init(uint8_t *macaddr)
 
 	enc28j60_write_op(ENC28J60_SOFT_RESET, 0, ENC28J60_SOFT_RESET);
 	delay_us(50);
+
 	while (!(enc28j60_read(ESTAT) & ESTAT_CLKRDY));
 
 	next_pkt_ptr = RXSTART_INIT;
@@ -401,60 +402,131 @@ void enc28j60_init(uint8_t *macaddr)
 	enc28j60_phy_write(PHCON2, PHCON2_HDLDIS);
 
 	enc28j60_set_bank(ECON1);
-	enc28j60_write_op(ENC28J60_BIT_FIELD_SET, EIE, EIE_INTIE | EIE_PKTIE);
+	/* enc28j60_write_op(ENC28J60_BIT_FIELD_SET, EIE, EIE_INTIE | EIE_PKTIE); */
+	enc28j60_write_op(ENC28J60_BIT_FIELD_SET, EIE, EIE_INTIE | EIE_LINKIE);
 	enc28j60_write_op(ENC28J60_BIT_FIELD_SET, ECON1, ECON1_RXEN);
 }
 
 int enc28j60_pkt_send(const iface_t *iface, pkt_t *pkt)
 {
-	enc28j60Write(EWRPTL, TXSTART_INIT);
-	enc28j60Write(EWRPTH, TXSTART_INIT>>8);
-	enc28j60Write(ETXNDL, (TXSTART_INIT + pkt->buf.len));
-	enc28j60Write(ETXNDH, (TXSTART_INIT + pkt->buf.len) >> 8);
+	enc28j60_write(EWRPTL, TXSTART_INIT);
+	enc28j60_write(EWRPTH, TXSTART_INIT>>8);
+	enc28j60_write(ETXNDL, (TXSTART_INIT + pkt->buf.len));
+	enc28j60_write(ETXNDH, (TXSTART_INIT + pkt->buf.len) >> 8);
 
-	enc28j60WriteOp(ENC28J60_WRITE_BUF_MEM, 0, 0x00);
+	enc28j60_write_op(ENC28J60_WRITE_BUF_MEM, 0, 0x00);
 
-	enc28j60WriteBuffer(pkt->buf.len,  buf_data(&pkt->buf));
+	enc28j60_write_buffer(pkt->buf.len,  buf_data(&pkt->buf));
 
-	enc28j60WriteOp(ENC28J60_BIT_FIELD_SET, ECON1, ECON1_TXRTS);
+	enc28j60_write_op(ENC28J60_BIT_FIELD_SET, ECON1, ECON1_TXRTS);
 	pkt_free(pkt);
 
 	return 0;
 }
 
+uint8_t enc28j60_get_interrupts(void)
+{
+	return enc28j60_read(EIR);
+}
+
+#ifdef INTERRUPT_DRIVEN
 void enc28j60_pkt_recv(const iface_t *iface)
 {
 	pkt_t *pkt;
 	uint16_t rxstat;
 	uint16_t len;
+	uint8_t interrupts = enc28j60_read(EIR);
 
-	if (!enc28j60_read(EPKTCNT))
-		return NULL;
+	if (interrupts & EIE_RXERIE)
+		enc28j60_write_op(ENC28J60_BIT_FIELD_CLR, EIR, EIE_RXERIE);
 
-	enc28j60_write(ERDPTL, (next_pkt_ptr));
-	enc28j60_write(ERDPTH, (next_pkt_ptr) >> 8);
+	if (interrupts & EIE_TXERIE)
+		enc28j60_write_op(ENC28J60_BIT_FIELD_CLR, EIR, EIE_TXERIE);
+
+	while (enc28j60_read(EIR) & EIR_PKTIF) {
+		enc28j60_write(ERDPTL, next_pkt_ptr);
+		enc28j60_write(ERDPTH, next_pkt_ptr >> 8);
+
+		next_pkt_ptr  = enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0);
+		next_pkt_ptr |= enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0) << 8;
+
+		len  = enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0);
+		len |= enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0) << 8;
+
+		if (len > 1518)
+			goto end;
+
+		rxstat  = enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0);
+		rxstat |= enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0) << 8;
+
+		len = MIN(len, CONFIG_PKT_SIZE);
+		if (len == 0)
+			goto end;
+
+		if ((pkt = pkt_get(iface->pkt_pool)) == NULL) {
+			DEBUG_LOG("out of packets\n");
+			break;
+		}
+		enc28j60_read_buffer(len, &pkt->buf);
+		if_schedule_receive(iface, pkt);
+
+	end:
+		enc28j60_write(ERXRDPTL, next_pkt_ptr);
+		enc28j60_write(ERXRDPTH, next_pkt_ptr >> 8);
+		enc28j60_write_op(ENC28J60_BIT_FIELD_SET, ECON2, ECON2_PKTDEC);
+	}
+}
+#else
+void enc28j60_handle_interrupts(const iface_t *iface)
+{
+	uint8_t interrupts = enc28j60_read(EIR);
+
+	if (interrupts & EIE_RXERIE)
+		enc28j60_write_op(ENC28J60_BIT_FIELD_CLR, EIR, EIE_RXERIE);
+
+	if (interrupts & EIE_TXERIE)
+		enc28j60_write_op(ENC28J60_BIT_FIELD_CLR, EIR, EIE_TXERIE);
+
+	/* while (enc28j60_read(EIR) & EIR_PKTIF) { */
+	/* } */
+}
+
+void enc28j60_pkt_recv(const iface_t *iface)
+{
+	pkt_t *pkt;
+	uint16_t len, rxstat;
+
+	if (enc28j60_read(EPKTCNT) == 0)
+		return;
+
+	enc28j60_write(ERDPTL, next_pkt_ptr);
+	enc28j60_write(ERDPTH, next_pkt_ptr >> 8);
+
 	next_pkt_ptr  = enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0);
 	next_pkt_ptr |= enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0) << 8;
 	len  = enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0);
 	len |= enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0) << 8;
+
+	/* discard packet with incorrect length */
+	if (len == 0 || len > 1518)
+		goto end;
+
 	rxstat  = enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0);
 	rxstat |= enc28j60_read_op(ENC28J60_READ_BUF_MEM, 0) << 8;
 
 	len = MIN(len, CONFIG_PKT_SIZE);
-	if (len == 0)
-		return;
 
-	if ((pkt = pkt_get(iface->pkt_pool)) == NULL) {
+	if ((pkt = pkt_alloc()) == NULL) {
 		DEBUG_LOG("out of packets\n");
 		return;
 	}
-
 	enc28j60_read_buffer(len, &pkt->buf);
+	pkt_put(iface->rx, pkt);
 
-	enc28j60_write(ERXRDPTL, nextpkt_ptr);
-	enc28j60_write(ERXRDPTH, (next_pkt_ptr) >> 8);
-
+ end:
+	enc28j60_write(ERXRDPTL, next_pkt_ptr);
+	enc28j60_write(ERXRDPTH, next_pkt_ptr >> 8);
 	enc28j60_write_op(ENC28J60_BIT_FIELD_SET, ECON2, ECON2_PKTDEC);
-
-	if_schedule_receive(iface, pkt);
+	iface->if_input(iface);
 }
+#endif

@@ -60,7 +60,8 @@ struct iface {
 typedef struct iface iface_t;
 
 void if_init(iface_t *ifce, uint8_t type,
-	     unsigned nb_pkt_rx, unsigned nb_pkt_tx, unsigned nb_if_pkt_pool);
+	     unsigned nb_pkt_rx, unsigned nb_pkt_tx, unsigned nb_if_pkt_pool,
+	     uint8_t interrupt_driven);
 void if_shutdown(iface_t *ifce);
 
 /* functions supposed to be called from an interrupt handler */

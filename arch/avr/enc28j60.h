@@ -43,4 +43,7 @@ int enc28j60_pkt_send(const iface_t *iface, pkt_t *pkt);
 /* \param iface		Pointer to the interface. */
 void enc28j60_pkt_recv(const iface_t *iface);
 
+uint8_t enc28j60_get_interrupts(void);
+void enc28j60_handle_interrupts(const iface_t *iface);
+
 #endif

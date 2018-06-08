@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
 #endif
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX);
+		CONFIG_PKT_DRIVER_NB_MAX, 0);
 
 	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
 		fprintf(stderr, "cannot set non blocking tcp socket (%m)\n");
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
 
 	while (1) {
 		if (tun_receive_pkt(&iface) >= 0)
-			eth_input(&iface);
+			iface.if_input(&iface);
 
 		scheduler_run_tasks();
 #if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)

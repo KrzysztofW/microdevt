@@ -17,7 +17,8 @@ static void if_refill_driver_pkt_pool(const iface_t *iface)
 }
 
 void if_init(iface_t *ifce, uint8_t type,
-	     unsigned nb_pkt_rx, unsigned nb_pkt_tx, unsigned nb_if_pkt_pool)
+	     unsigned nb_pkt_rx, unsigned nb_pkt_tx, unsigned nb_if_pkt_pool,
+	     uint8_t interrupt_driven)
 {
 	switch (type) {
 #ifdef CONFIG_ETHERNET
@@ -42,14 +43,17 @@ void if_init(iface_t *ifce, uint8_t type,
 		assert(ifce->recv);
 		ifce->if_input = &swen_input;
 		ifce->rx = ring_create(nb_pkt_rx);
-		ifce->pkt_pool = ring_create(nb_if_pkt_pool);
 #endif
 		break;
 #endif
 	default:
 		__abort();
 	}
-	if_refill_driver_pkt_pool(ifce);
+
+	if (interrupt_driven) {
+		ifce->pkt_pool = ring_create(nb_if_pkt_pool);
+		if_refill_driver_pkt_pool(ifce);
+	}
 }
 
 static void if_schedule_receive_cb(void *arg)

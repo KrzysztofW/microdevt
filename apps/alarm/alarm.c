@@ -43,8 +43,9 @@ static uint32_t rf_enc_defkey[4] = {
 static FILE *gsm_in, *gsm_out;
 #endif
 
+#define ENC28J60_INT
 #ifdef CONFIG_NETWORKING
-static uint8_t net_wd;
+//static uint8_t net_wd;
 
 static uint8_t ip[] = { 192, 168, 0, 99 };
 static uint8_t ip_mask[] = { 255, 255, 255, 0 };
@@ -59,20 +60,14 @@ static iface_t eth0 = {
 	.recv = &enc28j60_pkt_recv,
 };
 
-#ifdef ENC28J60_INT
-ISR(PCINT0_vect)
-{
-	enc28j60_get_pkts(&eth0);
-}
-#endif
-
+#if 0
 static void tim_cb_wd(void *arg)
 {
 	tim_t *timer = arg;
 
 	DEBUG_LOG("bip\n");
 
-	if (net_wd > 0) {
+	if (net_wd > 1) {
 		DEBUG_LOG("resetting net device\n");
 #ifndef CONFIG_AVR_SIMU
 		enc28j60_init(eth0.mac_addr);
@@ -81,6 +76,20 @@ static void tim_cb_wd(void *arg)
 	net_wd++;
 	timer_reschedule(timer, 10000000UL);
 }
+#else
+extern ring_t *pkt_pool;
+
+static void tim_cb_wd(void *arg)
+{
+	tim_t *timer = arg;
+
+	timer_reschedule(timer, 10000000UL);
+	printf("eth1: pool:%d tx:%d rx:%d if_pool:%d\n",
+	       ring_len(pkt_pool),
+	       ring_len(eth1.tx), ring_len(eth1.rx), ring_len(eth1.pkt_pool));
+	printf("temp:%u\n", analog_read(3));
+}
+#endif
 #endif
 
 #ifdef CONFIG_GSM_SIM900
@@ -134,27 +143,29 @@ static void apps(void)
 #endif
 
 #ifdef CONFIG_NETWORKING
+#if 0
 static void net_task_cb(void *arg)
 {
 	pkt_t *pkt;
 
-	/* this should go the the interrupt handler that should schedule
-	 * net_task_cb() */
 	eth0.recv(&eth0);
-
-	/* this should be executed in the net_task_cb() */
 	eth0.if_input(&eth0);
-
-	net_wd = 0;
-
 	while ((pkt = pkt_get(eth0.tx)) != NULL) {
+		net_wd = 0;
 		eth0.send(&eth0, pkt);
-		pkt_free(pkt);
 	}
-
-	/* this should be moved to the interrupt handler */
 	schedule_task(net_task_cb, NULL);
 }
+#endif
+#ifdef ENC28J60_INT
+ISR(PCINT0_vect)
+{
+	/* if (ring_is_empty(eth0.tx)) */
+	/* 	schedule_task(net_task_cb, NULL); */
+	//eth0.recv(&eth0);
+	enc28j60_handle_interrupts(&eth0);
+}
+#endif
 #endif
 
 #ifdef CONFIG_RF_SENDER
@@ -250,25 +261,24 @@ int main(void)
 	timer_add(&timer_wd, 500000UL, tim_cb_wd, &timer_wd);
 
 	if_init(&eth0, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX);
+		CONFIG_PKT_DRIVER_NB_MAX, 0);
 
 	dft_route.iface = &eth0;
 	dft_route.ip = 0x0b00a8c0;
 #if defined(CONFIG_UDP) || defined(CONFIG_TCP)
 	socket_init();
 #endif
-	enc28j60Init(eth0.hw_addr);
 
 #ifdef ENC28J60_INT
 	PCICR |= _BV(PCIE0);
-	PCMSK0 |= _BV(PCINT0);
+	PCMSK0 |= _BV(PCINT5);
 #endif
-	schedule_task(net_task_cb, NULL);
+	enc28j60_init(eth0.hw_addr);
 #endif
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 	if_init(&eth1, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX);
-	rf_init(&eth1, RF_BURST_NUMBER);
+		CONFIG_PKT_DRIVER_NB_MAX, 1);
+	rf_init(&eth1, 1);
 #ifdef CONFIG_RF_RECEIVER
 	swen_ev_set(rf_event_cb);
 #ifdef CONFIG_RF_GENERIC_COMMANDS
@@ -294,11 +304,16 @@ int main(void)
 	/* slow functions */
 	while (1) {
 		scheduler_run_tasks();
+#ifdef CONFIG_NETWORKING
+		eth0.recv(&eth0);
+#ifdef ENC28J60_INT
+		/* We must sleep if EIE_PKTIE is set and pkts are received here
+		 * (not in the interrupt handler). */
+		/* delay_us(10); */
+#endif
+#endif
 #ifndef CONFIG_EVENT
 		apps();
-#endif
-#ifdef ENC28J60_INT
-		delay_us(10);
 #endif
 		watchdog_reset();
 	}

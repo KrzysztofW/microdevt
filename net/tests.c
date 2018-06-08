@@ -155,7 +155,7 @@ int net_arp_tests(void)
 
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX);
+		CONFIG_PKT_DRIVER_NB_MAX, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -254,11 +254,11 @@ int net_icmp_tests(void)
 	uint8_t mac_src[] = { 0xe8, 0x39, 0x35, 0x10, 0xfc, 0xed };
 	uint8_t mac_dst[] = { 0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65 };
 
-	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);;
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	iface.ip4_addr = (void *)&ip_src;
 	iface.hw_addr = mac_src;
 	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX);
+		CONFIG_PKT_DRIVER_NB_MAX, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -369,11 +369,11 @@ int net_udp_tests(void)
 	char buf[buf_size];
 
 	memset(buf, 0, buf_size);
-	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);;
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	iface.ip4_addr = (void *)&ip_dst;
 	iface.hw_addr = mac_dst;
 	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX);
+		CONFIG_PKT_DRIVER_NB_MAX, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -625,11 +625,11 @@ int net_tcp_tests(void)
 #endif
 	sbuf_t sb;
 
-	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);;
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	iface.ip4_addr = (void *)&ip_dst;
 	iface.hw_addr = mac_dst;
 	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX);
+		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		if_shutdown(&iface);
