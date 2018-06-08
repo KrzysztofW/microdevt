@@ -13,7 +13,7 @@ icmp_output(pkt_t *out, const iface_t *iface, int type, int code, uint16_t id,
 {
 	icmp_hdr_t *icmp_hdr;
 
-	icmp_hdr = btod(out, icmp_hdr_t *);
+	icmp_hdr = btod(out);
 	icmp_hdr->type = type;
 	icmp_hdr->code = code;
 	icmp_hdr->cksum = 0;
@@ -31,7 +31,7 @@ icmp_output(pkt_t *out, const iface_t *iface, int type, int code, uint16_t id,
 void icmp_input(pkt_t *pkt, const iface_t *iface)
 {
 	icmp_hdr_t *icmp_hdr;
-	ip_hdr_t *ip = btod(pkt, ip_hdr_t *);
+	ip_hdr_t *ip = btod(pkt);
 	ip_hdr_t *ip2;
 	buf_t id_data;
 	pkt_t *out;
@@ -39,7 +39,7 @@ void icmp_input(pkt_t *pkt, const iface_t *iface)
 	/* XXX make sure pkt_adj is the same in all *_output() functions */
 	pkt_adj(pkt, ip->hl * 4);
 
-	icmp_hdr = btod(pkt, icmp_hdr_t *);
+	icmp_hdr = btod(pkt);
 	pkt_adj(pkt, sizeof(icmp_hdr_t));
 	buf_init(&id_data, icmp_hdr->id_data, pkt_len(pkt));
 
@@ -51,7 +51,7 @@ void icmp_input(pkt_t *pkt, const iface_t *iface)
 			return;
 		}
 		pkt_adj(out, (int)sizeof(eth_hdr_t));
-		ip2 = btod(out, ip_hdr_t *);
+		ip2 = btod(out);
 		ip2->dst = ip->src;
 		ip2->src = ip->dst;
 		ip2->p = IPPROTO_ICMP;

@@ -168,10 +168,10 @@ static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
 	pkt_adj(pkt, -((int8_t)hdr_len));
 
 	if (assoc->enc_key) {
-		hdr_encr = btod(pkt, swen_l3_hdr_encr_t *);
+		hdr_encr = btod(pkt);
 		hdr = &hdr_encr->l3_hdr;
 	} else
-		hdr = btod(pkt, swen_l3_hdr_t *);
+		hdr = btod(pkt);
 
 	hdr->op = op;
 	hdr->ack = assoc->ack;
@@ -336,7 +336,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 
 	assert(assoc->iface == iface);
 	if (assoc->enc_key) {
-		swen_l3_hdr_encr_t *hdr_encr = btod(pkt, swen_l3_hdr_encr_t *);
+		swen_l3_hdr_encr_t *hdr_encr = btod(pkt);
 
 		if (xtea_decode(&pkt->buf, assoc->enc_key) < 0 ||
 		    pkt->buf.len < hdr_encr->len)
@@ -347,7 +347,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		hdr = &hdr_encr->l3_hdr;
 		hdr_len = sizeof(swen_l3_hdr_encr_t);
 	} else {
-		hdr = btod(pkt, swen_l3_hdr_t *);
+		hdr = btod(pkt);
 		hdr_len = sizeof(swen_l3_hdr_t);
 	}
 	pkt_adj(pkt, hdr_len);

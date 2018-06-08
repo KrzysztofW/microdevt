@@ -301,12 +301,12 @@ static int
 __tcp_output(pkt_t *pkt, uint32_t ip_dst, uint8_t ctrl, uint16_t sport,
 	     uint16_t dport, tcp_syn_t *tcp_syn)
 {
-	tcp_hdr_t *tcp_hdr = btod(pkt, tcp_hdr_t *);
+	tcp_hdr_t *tcp_hdr = btod(pkt);
 	ip_hdr_t *ip_hdr;
 	uint8_t tcp_hdr_len = sizeof(tcp_hdr_t);
 
 	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
-	ip_hdr = btod(pkt, ip_hdr_t *);
+	ip_hdr = btod(pkt);
 	ip_hdr->dst = ip_dst;
 	ip_hdr->p = IPPROTO_TCP;
 
@@ -371,7 +371,7 @@ static void tcp_retrn_ack_pkts(tcp_conn_t *tcp_conn, uint32_t remote_ack)
 		/* get tcp payload size */
 		__tcp_pkt_adj_reset(pkt, (int)sizeof(eth_hdr_t) +
 				    (int)sizeof(ip_hdr_t));
-		tcp_hdr = btod(pkt, tcp_hdr_t *);
+		tcp_hdr = btod(pkt);
 		seqid = ntohl(tcp_hdr->seq);
 		payload_len = pkt->buf.len - tcp_hdr->hdr_len * 4;
 
@@ -477,7 +477,7 @@ int tcp_connect(uint32_t dst_addr, uint16_t dst_port, void *si)
 void tcp_input(pkt_t *pkt)
 {
 	tcp_hdr_t *tcp_hdr;
-	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+	ip_hdr_t *ip_hdr = btod(pkt);
 	uint16_t ip_hdr_len = ip_hdr->hl * 4;
 	uint16_t ip_plen = ntohs(ip_hdr->len) - ip_hdr_len;
 	uint16_t tcp_hdr_len;
@@ -494,7 +494,7 @@ void tcp_input(pkt_t *pkt)
 	STATIC_ASSERT(POWEROF2(CONFIG_TCP_SYN_TABLE_SIZE));
 
 	pkt_adj(pkt, ip_hdr_len);
-	tcp_hdr = btod(pkt, tcp_hdr_t *);
+	tcp_hdr = btod(pkt);
 	if (tcp_hdr->hdr_len < 4 || tcp_hdr->hdr_len > 15)
 		goto end;
 

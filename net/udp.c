@@ -8,13 +8,13 @@
 
 int udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
 {
-	udp_hdr_t *udp_hdr = btod(pkt, udp_hdr_t *);
+	udp_hdr_t *udp_hdr = btod(pkt);
 	ip_hdr_t *ip_hdr;
 
 	udp_hdr->length = htons(pkt_len(pkt));
 
 	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
-	ip_hdr = btod(pkt, ip_hdr_t *);
+	ip_hdr = btod(pkt);
 	ip_hdr->dst = ip_dst;
 	ip_hdr->p = IPPROTO_UDP;
 	udp_hdr->src_port = sport;
@@ -26,13 +26,13 @@ int udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
 void udp_input(pkt_t *pkt, const iface_t *iface)
 {
 	udp_hdr_t *udp_hdr;
-	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+	ip_hdr_t *ip_hdr = btod(pkt);
 	uint16_t length;
 	sock_info_t *sock_info;
 
 	(void)iface;
 	pkt_adj(pkt, ip_hdr->hl * 4);
-	udp_hdr = btod(pkt, udp_hdr_t *);
+	udp_hdr = btod(pkt);
 	length = ntohs(udp_hdr->length);
 	if (length < sizeof(udp_hdr_t) ||
 	    length > pkt_len(pkt) + sizeof(udp_hdr_t))
@@ -50,7 +50,7 @@ void udp_input(pkt_t *pkt, const iface_t *iface)
 		buf_init(&data, ip_hdr, MIN(MAX_ICMP_DATA_SIZE,
 					    (uint16_t)ntohs(ip_hdr->len)));
 		pkt_adj(out, (int)sizeof(eth_hdr_t));
-		ip_hdr_out = btod(out, ip_hdr_t *);
+		ip_hdr_out = btod(out);
 		ip_hdr_out->dst = ip_hdr->src;
 		ip_hdr_out->src = ip_hdr->dst;
 		ip_hdr_out->p = IPPROTO_ICMP;

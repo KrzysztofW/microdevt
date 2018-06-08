@@ -110,7 +110,7 @@ arp_output(const iface_t *iface, int op, const uint8_t *tha, const uint8_t *tpa)
 	arp_hdr_len = ETHER_ADDR_LEN * 2 + IP_ADDR_LEN * 2;
 
 	pkt_adj(out, (int)sizeof(eth_hdr_t));
-	ah = btod(out, arp_hdr_t *);
+	ah = btod(out);
 	pkt_adj(out, (int)sizeof(arp_hdr_t));
 	ah->hrd = ARPHRD_ETHER;
 	ah->proto = ETHERTYPE_IP;
@@ -138,7 +138,7 @@ arp_output(const iface_t *iface, int op, const uint8_t *tha, const uint8_t *tpa)
 static uint32_t *arp_res_get_ip(arp_res_t *arp_res)
 {
 	pkt_t *pkt = list_first_entry(&arp_res->pkt_list, pkt_t, list);
-	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+	ip_hdr_t *ip_hdr = btod(pkt);
 
 	return &ip_hdr->dst;
 }
@@ -165,7 +165,7 @@ static void __arp_process_wait_list(arp_res_t *arp_res, uint8_t delete)
 		if (delete)
 			pkt_free(pkt);
 		else {
-			ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+			ip_hdr_t *ip_hdr = btod(pkt);
 
 			eth_output(pkt, arp_res->iface, ETHERTYPE_IP,
 				   &ip_hdr->dst);
@@ -188,7 +188,7 @@ static void arp_process_wait_list(uint32_t *ip, uint8_t delete)
 void arp_input(pkt_t *pkt, const iface_t *iface)
 {
 	uint8_t *sha, *spa, *tha, *tpa;
-	arp_hdr_t *ah = btod(pkt, arp_hdr_t *);
+	arp_hdr_t *ah = btod(pkt);
 	int i;
 
 	if (ah->hrd != ARPHRD_ETHER) {
@@ -271,7 +271,7 @@ void arp_resolve(pkt_t *pkt, const uint32_t *ip_dst, const iface_t *iface)
 {
 	arp_res_t *arp_res;
 #ifdef CONFIG_TCP_RETRANSMIT
-	ip_hdr_t *ip_hdr = btod(pkt, ip_hdr_t *);
+	ip_hdr_t *ip_hdr = btod(pkt);
 #endif
 
 	arp_output(iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)ip_dst);

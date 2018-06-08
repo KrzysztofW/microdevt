@@ -166,7 +166,7 @@ static void ev_dns_cb(sock_info_t *sock_info, uint8_t events)
 	if (data_len <= 0)
 		goto error;
 
-	dns_answer = btod(pkt, dns_query_t *);
+	dns_answer = btod(pkt);
 	if (ctx->tr_id != dns_answer->tr_id)
 		goto error;
 

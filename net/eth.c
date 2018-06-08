@@ -10,14 +10,13 @@ static inline void __eth_input(pkt_t *pkt, const iface_t *iface)
 	if ((iface->flags & IF_UP) == 0)
 		goto unsupported;
 
-	eh = btod(pkt, eth_hdr_t *);
+	eh = btod(pkt);
 #ifdef CONFIG_PROMISC
 	if (iface->flags & IFF_PROMISC) {
 		/* check mac address */
 	}
 #endif
 	pkt_adj(pkt, sizeof(eth_hdr_t));
-
 	switch (eh->type) {
 	case ETHERTYPE_ARP:
 		arp_input(pkt, iface);
@@ -76,7 +75,7 @@ eth_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst)
 	}
 
 	pkt_adj(out, -(int)sizeof(eth_hdr_t));
-	eh = btod(out, eth_hdr_t *);
+	eh = btod(out);
 	for (i = 0; i < ETHER_ADDR_LEN; i++) {
 		eh->dst[i] = mac_dst[i];
 		eh->src[i] = iface->hw_addr[i];

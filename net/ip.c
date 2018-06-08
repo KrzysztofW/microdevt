@@ -11,7 +11,7 @@
 
 int ip_output(pkt_t *out, const iface_t *iface, uint16_t flags)
 {
-	ip_hdr_t *ip = btod(out, ip_hdr_t *);
+	ip_hdr_t *ip = btod(out);
 	uint32_t ip_dst;
 	uint32_t *mask;
 	uint32_t *ip_addr;
@@ -54,10 +54,10 @@ int ip_output(pkt_t *out, const iface_t *iface, uint16_t flags)
 
 	pkt_adj(out, (int)sizeof(ip_hdr_t));
 	if (ip->p == IPPROTO_UDP) {
-		udp_hdr_t *udp_hdr = btod(out, udp_hdr_t *);
+		udp_hdr_t *udp_hdr = btod(out);
 		set_transport_cksum(ip, udp_hdr, udp_hdr->length);
 	} else if (ip->p == IPPROTO_TCP) {
-		tcp_hdr_t *tcp_hdr = btod(out, tcp_hdr_t *);
+		tcp_hdr_t *tcp_hdr = btod(out);
 		set_transport_cksum(ip, tcp_hdr,
 				    htons(payload_len - sizeof(ip_hdr_t)));
 	}
@@ -72,7 +72,7 @@ void ip_input(pkt_t *pkt, const iface_t *iface)
 	uint32_t *ip_addr = (uint32_t *)iface->ip4_addr;
 	int ip_len;
 
-	ip = btod(pkt, ip_hdr_t *);
+	ip = btod(pkt);
 
 	if (ip->v != 4 || ip->dst != *ip_addr || ip->ttl == 0)
 		goto error;

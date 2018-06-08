@@ -37,7 +37,7 @@ swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
 	swen_hdr_t *hdr;
 
 	pkt_adj(pkt, -(int)sizeof(swen_hdr_t));
-	hdr = btod(pkt, swen_hdr_t *);
+	hdr = btod(pkt);
 	hdr->from = *(iface->hw_addr);
 
 #ifdef CONFIG_IP_OVER_SWEN
@@ -121,7 +121,7 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 	if (pkt_len(pkt) < sizeof(swen_hdr_t))
 		goto end;
 
-	hdr = btod(pkt, swen_hdr_t *);
+	hdr = btod(pkt);
 
 	/* check if data is for us */
 	if (hdr->to != iface->hw_addr[0])
