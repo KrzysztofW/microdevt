@@ -188,8 +188,9 @@ void tcp_app(void)
 		if (ctx[i].sock_info.trq.tcp_conn == NULL) {
 			if (sock_info_accept(&sock_info_server, &ctx[i].sock_info,
 					     &src_addr, &src_port) >= 0) {
-				DEBUG_LOG("accepted connection from:0x%lX on port %u\n",
-				       ntohl(src_addr), (uint16_t)ntohs(src_port));
+				DEBUG_LOG("accepted connection from:0x%X on port %u\n",
+					  (uint32_t)ntohl(src_addr),
+					  (uint16_t)ntohs(src_port));
 			}
 			continue;
 		}

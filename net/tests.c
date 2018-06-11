@@ -433,18 +433,18 @@ int net_udp_tests(void)
 		goto end;
 	}
 #else
-	if (sock_info_init(&sock_info, 0, SOCK_DGRAM, htons(port)) < 0) {
+	if (sock_info_init(&sock_info, SOCK_DGRAM) < 0) {
 		fprintf(stderr, "%s: can't init udp sock_info\n", __func__);
 		return -1;
 	}
 
-	__sock_info_add(&sock_info);
-	if (sock_info_bind(&sock_info) < 0) {
+	if (sock_info_bind(&sock_info, htons(port)) < 0) {
 		fprintf(stderr, "%s: can't start udp server\n", __func__);
 		pkt_free(pkt);
 		ret = -1;
 		goto end;
 	}
+
 #endif
 
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
@@ -512,7 +512,7 @@ int net_udp_tests(void)
 		goto end;
 	}
 #else
-	if (sock_info_unbind(&sock_info) < 0) {
+	if (sock_info_close(&sock_info) < 0) {
 		fprintf(stderr, "%s: can't close udp socket\n", __func__);
 		ret = -1;
 		goto end;
@@ -682,19 +682,19 @@ int net_tcp_tests(void)
 		goto end;
 	}
 #else
-	if (sock_info_init(&sock_info_server, 0, SOCK_STREAM, htons(port)) < 0) {
+	if (sock_info_init(&sock_info_server, SOCK_STREAM) < 0) {
 		fprintf(stderr, "%s: can't init tcp sock_info\n", __func__);
 		ret = -1;
 		goto end;
 	}
-	__sock_info_add(&sock_info_server);
+
 	if (sock_info_listen(&sock_info_server, 5) < 0) {
 		fprintf(stderr, "%s: can't listen on tcp sock_info\n", __func__);
 		ret = -1;
 		goto end;
 	}
 
-	if (sock_info_bind(&sock_info_server) < 0) {
+	if (sock_info_bind(&sock_info_server, htons(port)) < 0) {
 		fprintf(stderr, "%s: can't start tcp server\n", __func__);
 		ret = -1;
 		goto end;
@@ -870,12 +870,12 @@ int net_tcp_tests(void)
 		goto end;
 	}
 #else
-	if (sock_info_unbind(&sock_info_server) < 0) {
+	if (sock_info_close(&sock_info_server) < 0) {
 		fprintf(stderr, "%s: can't unbind tcp server socket\n", __func__);
 		ret = -1;
 		goto end;
 	}
-	if (sock_info_unbind(&sock_info_client) < 0) {
+	if (sock_info_close(&sock_info_client) < 0) {
 		fprintf(stderr, "%s: can't unbind tcp client socket\n", __func__);
 		ret = -1;
 		goto end;
