@@ -811,7 +811,6 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 		     uint32_t *src_addr, uint16_t *src_port)
 {
-	int transport_hdr_len = -1;
 	pkt_t *pkt;
 	ip_hdr_t *ip_hdr;
 #ifdef CONFIG_UDP
@@ -821,6 +820,7 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 	tcp_hdr_t *tcp_hdr;
 	tcp_conn_t *tcp_conn;
 #endif
+
 	switch (sock_info->type) {
 #ifdef CONFIG_UDP
 	case SOCK_DGRAM:
@@ -833,11 +833,16 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 
 		pkt = list_first_entry(&sock_info->trq.pkt_list, pkt_t, list);
 		list_del(&pkt->list);
-		pkt_adj(pkt, -(int)sizeof(udp_hdr_t));
+
+		ip_hdr = btod(pkt);
+		if (src_addr)
+			*src_addr = ip_hdr->src;
+		pkt_adj(pkt, ip_hdr->hl * 4);
+
 		udp_hdr = btod(pkt);
 		if (src_port)
 			*src_port = udp_hdr->src_port;
-		transport_hdr_len = (int)sizeof(udp_hdr_t);
+		pkt_adj(pkt, (int)sizeof(udp_hdr_t));
 		break;
 #endif
 #ifdef CONFIG_TCP
@@ -854,9 +859,12 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 
 		pkt = list_first_entry(&tcp_conn->pkt_list_head, pkt_t, list);
 		list_del(&pkt->list);
-		pkt_adj(pkt, -(int)sizeof(tcp_hdr_t));
+
+		ip_hdr = btod(pkt);
+		pkt_adj(pkt, ip_hdr->hl * 4);
+
 		tcp_hdr = btod(pkt);
-		transport_hdr_len = tcp_hdr->hdr_len * 4;
+		pkt_adj(pkt, tcp_hdr->hdr_len * 4);
 		break;
 #endif
 	default:
@@ -865,13 +873,6 @@ int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
 #endif
 		return -1;
 	}
-	pkt_adj(pkt, -(int)sizeof(ip_hdr_t));
-	ip_hdr = btod(pkt);
-	if (src_addr)
-		*src_addr = ip_hdr->src;
-	pkt_adj(pkt, sizeof(ip_hdr_t));
-	pkt_adj(pkt, transport_hdr_len);
-
 	*pktp = pkt;
 	return 0;
 }

@@ -29,9 +29,10 @@ void udp_input(pkt_t *pkt, const iface_t *iface)
 	ip_hdr_t *ip_hdr = btod(pkt);
 	uint16_t length;
 	sock_info_t *sock_info;
+	uint16_t ip_hdr_len = ip_hdr->hl * 4;
 
 	(void)iface;
-	pkt_adj(pkt, ip_hdr->hl * 4);
+	pkt_adj(pkt, ip_hdr_len);
 	udp_hdr = btod(pkt);
 	length = ntohs(udp_hdr->length);
 	if (length < sizeof(udp_hdr_t) ||
@@ -70,6 +71,7 @@ void udp_input(pkt_t *pkt, const iface_t *iface)
 	/* truncate pkt to the udp payload length */
 	pkt->buf.len = length - sizeof(udp_hdr_t);
 
+	pkt_adj(pkt, -(sizeof(udp_hdr_t) + ip_hdr_len));
 	socket_append_pkt(&sock_info->trq.pkt_list, pkt);
 #ifdef CONFIG_EVENT
 	socket_schedule_ev(sock_info, EV_READ);

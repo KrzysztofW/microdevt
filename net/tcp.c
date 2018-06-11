@@ -572,6 +572,7 @@ void tcp_input(pkt_t *pkt)
 		if (pkt->buf.len == 0)
 			goto end;
 
+		pkt_adj(pkt, -(tcp_hdr_len + ip_hdr_len));
 		socket_append_pkt(&tcp_conn->pkt_list_head, pkt);
 #ifdef CONFIG_EVENT
 		socket_schedule_ev(tcp_conn->sock_info, EV_READ);
