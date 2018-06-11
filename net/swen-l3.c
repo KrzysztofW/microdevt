@@ -147,7 +147,7 @@ static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
 			    const sbuf_t *sbuf)
 {
 	swen_l3_hdr_t *hdr;
-	swen_l3_hdr_encr_t *hdr_encr;
+	swen_l3_hdr_encr_t *hdr_encr = NULL;
 	uint8_t one_shot = 1;
 	uint8_t len = 0;
 	uint8_t hdr_len;
