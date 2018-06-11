@@ -135,7 +135,7 @@ void tcp_app(void)
 
 	if (client_fd < 0) {
 		if ((client_fd = accept(tcp_fd, (struct sockaddr *)&addr, &addr_len)) >= 0)
-			DEBUG_LOG("accepted connection from:0x%lX on port %u\n",
+			DEBUG_LOG("accepted connection from:0x%X on port %u\n",
 			       ntohl(addr.sin_addr.s_addr),
 			       (uint16_t)ntohs(addr.sin_port));
 	}

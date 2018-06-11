@@ -6,7 +6,7 @@
 
 static void dns_cb(uint32_t ip)
 {
-	DEBUG_LOG("%s: ip=0x%lX\n", __func__, ip);
+	DEBUG_LOG("%s: ip=0x%X\n", __func__, ip);
 }
 
 int dns_resolver_init(void)

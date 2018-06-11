@@ -271,8 +271,9 @@ static void ev_accept_cb(sock_info_t *sock_info, uint8_t events)
 			continue;
 		if (sock_info_accept(sock_info, &ctx[i].sock_info,
 				     &src_addr, &src_port) >= 0) {
-			DEBUG_LOG("accepted connection from:0x%lX on port %u\n",
-				  ntohl(src_addr), (uint16_t)ntohs(src_port));
+			DEBUG_LOG("accepted connection from:0x%X on port %u\n",
+				  (uint32_t)ntohl(src_addr),
+				  (uint16_t)ntohs(src_port));
 			socket_ev_set(&ctx[i].sock_info, EV_READ,
 				      ev_client_cb);
 		}
