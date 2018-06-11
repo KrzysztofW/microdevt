@@ -50,7 +50,7 @@ clean:
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec
 	@rm -f $(ARCH_DIR)/$(ARCH)/*.o $(EXE).a
 
-run_simu: all
+run: all
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
 
 upload: all
