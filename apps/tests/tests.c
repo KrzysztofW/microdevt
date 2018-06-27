@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdint.h>
 
+#include <sys/array.h>
 #include <sys/ring.h>
 #include <sys/list.h>
 #include <sys/hash-tables.h>
@@ -427,6 +428,12 @@ int main(int argc, char **argv)
 	(void)argv;
 
 	scheduler_init();
+
+	if (array_tests() < 0) {
+		fprintf(stderr, "  ==> array checks failed\n");
+		return -1;
+	}
+	printf("  ==> array checks succeeded\n");
 	if (ring_check() < 0) {
 		fprintf(stderr, "  ==> ring checks failed\n");
 		return -1;
