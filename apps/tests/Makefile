@@ -35,10 +35,10 @@ static: libnet $(EXE)_static
 libnet:
 	make -C ../../net
 
-$(EXE): $(OBJ) $(STATIC_LIBS)
+$(EXE)_dynamic: $(OBJ) $(STATIC_LIBS)
 	$(CC) $(OBJ) $(LIBS) $(LDFLAGS) -o $@
 
-$(EXE)_static: $(OBJ) $(STATIC_LIBS)
+$(EXE): $(OBJ) $(STATIC_LIBS)
 	$(CC) $(OBJ) $(STATIC_LIBS) -o $@
 
 %.c:
@@ -50,6 +50,7 @@ clean:
 	@rm -f $(EXE)_static
 
 run: all
-	LD_LIBRARY_PATH=../../net ./tests
+#	LD_LIBRARY_PATH=../../net ./tests_dynamic
+	./tests
 
 .PHONY: all static
