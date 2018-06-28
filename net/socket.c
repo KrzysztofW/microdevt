@@ -27,7 +27,7 @@ static uint8_t max_fds = 100;
 
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_UDP
-static chash_table_t *udp_binds;
+static hash_table_t *udp_binds;
 #endif
 #ifdef CONFIG_TCP
 static hash_table_t *tcp_binds;
@@ -946,9 +946,9 @@ void socket_init(void)
 		__abort();
 #endif
 #ifdef CONFIG_TCP
-	if ((tcp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		|| ((tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-			   __abort();
+	if ((tcp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL
+	    || (tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
+		__abort();
 #endif
 }
 #endif

@@ -386,14 +386,8 @@ int net_udp_tests(void)
 	buf_init(&pkt->buf, udp_pkt, sizeof(udp_pkt));
 
 #ifdef CONFIG_HT_STORAGE
-	if (socket_init() < 0) {
-		fprintf(stderr, "%s: can't init socket hash tables\n", __func__);
-		ret = -1;
-		pkt_free(pkt);
-		goto end;
-	}
+	socket_init();
 #endif
-
 	arp_add_entry(mac_src, (uint8_t *)&ip_src, &iface);
 
 	(void)out;
