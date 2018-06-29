@@ -12,7 +12,7 @@
 #include <scheduler.h>
 #include <net/tests.h>
 #include <drivers/rf.h>
-#include <drivers/gsm_at.h>
+#include <drivers/gsm-at.h>
 
 static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 {

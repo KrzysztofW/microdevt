@@ -22,7 +22,8 @@ else
 	CFLAGS += -DNDEBUG
 endif
 
-NET_APPS_DIR=../../net_apps
+
+NET_APPS_DIR=../../net-apps
 
 include $(NET_APPS_DIR)/build.mk
 

@@ -17,7 +17,7 @@ else
 	CFLAGS += -DNDEBUG
 endif
 
-NET_APPS_DIR=../../net_apps
+NET_APPS_DIR=../../net-apps
 ARCH_DIR=../../arch
 include $(NET_APPS_DIR)/build.mk
 
@@ -26,7 +26,7 @@ CFLAGS += -I../.. -I. -DTEST
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
 SOURCES += ../../sys/errno.c ../../sys/array.c
-SOURCES += ../../drivers/gsm_at.c ../../crypto/xtea.c
+SOURCES += ../../drivers/gsm-at.c ../../crypto/xtea.c
 OBJ = $(SOURCES:.c=.o)
 
 all: libnet $(SOURCES) $(EXE)

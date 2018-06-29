@@ -8,7 +8,7 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>
-#include "avr_utils.h"
+#include "avr-utils.h"
 
 #define __abort() do {							\
 		DEBUG_LOG("%s:%d aborted\n", __func__, __LINE__);	\

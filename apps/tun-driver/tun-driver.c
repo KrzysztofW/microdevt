@@ -25,7 +25,7 @@
 #define SOCKLEN_DEFINED
 #include <net/socket.h>
 #undef SOCKLEN_DEFINED
-#include <net_apps/net_apps.h>
+#include <net-apps/net-apps.h>
 #include <net/pkt-mempool.h>
 
 #include <linux/if.h>

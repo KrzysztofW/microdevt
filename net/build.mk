@@ -20,7 +20,7 @@ CFLAGS += -DCONFIG_IP_TTL=$(CONFIG_IP_TTL)
 endif
 endif
 
-SOURCES += tr_chksum.c ../sys/chksum.c route.c
+SOURCES += tr-chksum.c ../sys/chksum.c route.c
 
 ifdef CONFIG_PKT_NB_MAX
 CFLAGS += -DCONFIG_PKT_NB_MAX=$(CONFIG_PKT_NB_MAX)
@@ -110,7 +110,7 @@ CFLAGS += -DCONFIG_SWEN
 ifdef CONFIG_RF_RECEIVER
 CFLAGS += -DCONFIG_RF_RECEIVER
 ifdef CONFIG_RF_GENERIC_COMMANDS
-SOURCES += swen_cmds.c
+SOURCES += swen-cmds.c
 CFLAGS += -DCONFIG_RF_GENERIC_COMMANDS
 endif
 endif

@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "swen_cmds.h"
+#include "swen-cmds.h"
 
 uint8_t rf_ke_cmds[] = {
 	/*  remote 1 bnt 1 */

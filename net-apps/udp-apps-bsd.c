@@ -1,6 +1,6 @@
 #include <log.h>
 
-#include "net_apps.h"
+#include "net-apps.h"
 #include "../timer.h"
 #include "../sys/errno.h"
 

@@ -5,14 +5,14 @@
 #include <adc.h>
 #include <sys/buf.h>
 #include <net/swen.h>
-#include <net/swen_cmds.h>
+#include <net/swen-cmds.h>
 #include <net/event.h>
 #include <timer.h>
 #include <crypto/xtea.h>
 #include <drivers/rf.h>
-#include <drivers/gsm_at.h>
+#include <drivers/gsm-at.h>
 #include <scheduler.h>
-#include "../rf_common.h"
+#include "../rf-common.h"
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint8_t rf_addr = RF_MOD1_HW_ADDR;

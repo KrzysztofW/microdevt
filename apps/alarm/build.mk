@@ -85,7 +85,7 @@ CFLAGS += -DCONFIG_EVENT
 endif
 
 ifdef CONFIG_GSM_SIM900
-SOURCES += ../../drivers/gsm_at.c
+SOURCES += ../../drivers/gsm-at.c
 CFLAGS += -DCONFIG_GSM_SIM900
 endif
 

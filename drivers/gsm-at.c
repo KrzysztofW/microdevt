@@ -4,7 +4,7 @@
 #include <sys/ring.h>
 #include <timer.h>
 #include <scheduler.h>
-#include "gsm_at.h"
+#include "gsm-at.h"
 
 typedef enum state {
 	GSM_STATE_NONE,

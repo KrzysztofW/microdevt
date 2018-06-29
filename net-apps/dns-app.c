@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <log.h>
-#include "dns_app.h"
+#include "dns-app.h"
 #include "../net/dns.h"
 #include "../sys/buf.h"
 

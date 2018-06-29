@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "tr_chksum.h"
+#include "tr-chksum.h"
 
 /* len is in network byte order */
 uint16_t

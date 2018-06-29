@@ -11,14 +11,14 @@
 #include <net/route.h>
 #include <net/udp.h>
 #include <net/socket.h>
-#include <net_apps/net_apps.h>
+#include <net-apps/net-apps.h>
 #include <net/swen.h>
-#include <net/swen_cmds.h>
+#include <net/swen-cmds.h>
 #include <crypto/xtea.h>
 #include <drivers/rf.h>
-#include <drivers/gsm_at.h>
+#include <drivers/gsm-at.h>
 #include <scheduler.h>
-#include "rf_common.h"
+#include "rf-common.h"
 
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER
 static uint8_t rf_addr = RF_MOD0_HW_ADDR;

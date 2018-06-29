@@ -1,7 +1,7 @@
 #ifndef _ROUTE_H_
 #define _ROUTE_H_
 
-#include "proto_defs.h"
+#include "proto-defs.h"
 #include "config.h"
 
 struct route {

@@ -1,9 +1,9 @@
-# ../../simulavr/src/simulavr  -f alarm_module1 -d atmega328 -F 16000000
+# ../../simulavr/src/simulavr  -f alarm-module1 -d atmega328 -F 16000000
 
-EXE = alarm_module1
+EXE = alarm-module1
 CFLAGS = -Wall -Werror -Os -g -c
 
-SOURCES = alarm_module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../../scheduler.c
+SOURCES = alarm-module1.c $(ARCH_DIR)/$(ARCH)/adc.c ../../../scheduler.c
 SOURCES += ../../../crypto/xtea.c
 
 include config

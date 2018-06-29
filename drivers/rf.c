@@ -7,12 +7,12 @@
 #ifdef CONFIG_RF_CHECKS
 #include <net/event.h>
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-#include <net/swen_cmds.h>
+#include <net/swen-cmds.h>
 #endif
 #endif
 #include <scheduler.h>
 #include "rf.h"
-#include "rf_cfg.h"
+#include "rf-cfg.h"
 #ifndef X86
 #include "adc.h"
 #endif

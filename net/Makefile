@@ -1,6 +1,6 @@
 ifeq ($(CFG_FILE),)
 CFLAGS = -Wall -Werror -Os -g
-include default_config
+include default-config
 else
 include $(CFG_FILE)
 endif
@@ -36,7 +36,7 @@ libnet-$(ARCH).a: $(OBJ)
 libnet-$(ARCH).so: $(OBJ)
 	$(CC) $(LDFLAGS) $(LIBS) -o $(LIBNAME).so $(OBJ)
 
-CHKSUM_TEST_OBJ = chksum_test.o ../sys/chksum.o
+CHKSUM_TEST_OBJ = chksum-test.o ../sys/chksum.o
 chksum_test: $(CHKSUM_TEST_OBJ)
 	$(CC) $(CHKSUM_TEST_OBJ) -o $@
 

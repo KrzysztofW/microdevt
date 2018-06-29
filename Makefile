@@ -1,4 +1,4 @@
-SUBDIRS =  apps/alarm apps/alarm_simu apps/alarm/alarm_module1 apps/tun-driver
+SUBDIRS =  apps/alarm apps/alarm-simu apps/alarm/alarm-module1 apps/tun-driver
 SUBDIRS += apps/tests crypto
 
 all:

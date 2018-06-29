@@ -1,6 +1,6 @@
 #include <sys/utils.h>
 #include <sys/chksum.h>
-#include "tr_chksum.h"
+#include "tr-chksum.h"
 #include "ip.h"
 #include "icmp.h"
 #include "arp.h"
