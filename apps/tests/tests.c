@@ -469,6 +469,12 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> driver RF tests succeeded\n");
 
+	if (gsm_tests() < 0) {
+		fprintf(stderr, "  ==> driver gsm-at tests failed\n");
+		return -1;
+	}
+	printf("  ==> driver gsm-at tests succeeded\n");
+
 #ifdef CONFIG_SWEN_L3
 	if (net_swen_l3_tests() < 0) {
 		fprintf(stderr, "  ==> net swen-l3 tests failed\n");
@@ -476,12 +482,6 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> net swen-l3 tests succeeded\n");
 #endif
-	if (gsm_tests() < 0) {
-		fprintf(stderr, "  ==> gsm tests failed\n");
-		return -1;
-	}
-	printf("  ==> gsm tests succeeded\n");
-
 	if (net_arp_tests() < 0) {
 		fprintf(stderr, "  ==> net arp tests failed\n");
 		return -1;

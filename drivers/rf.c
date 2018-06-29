@@ -124,6 +124,7 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 		if (ctx->rcv_data.pkt == NULL) {
 			if ((ctx->rcv_data.pkt = pkt_get(iface->pkt_pool))
 			    == NULL) {
+				DEBUG_LOG("%s: cannot alloc pkt\n", __func__);
 				goto end;
 			}
 		} else
@@ -435,8 +436,6 @@ static int rf_send_checks(const iface_t *iface)
 	rf_ctx_t *ctx = iface->priv;
 	pkt_t *pkt;
 
-	DEBUG_LOG("starting RF checks\n");
-
 	pkt = pkt_alloc();
 	pkt_recv = pkt_alloc();
 
@@ -463,7 +462,6 @@ static int rf_send_checks(const iface_t *iface)
 	pkt_free(pkt_recv);
 	pkt_free(pkt);
 
-	DEBUG_LOG("=== RF checks passed ===\n");
 	return 0;
 }
 #endif

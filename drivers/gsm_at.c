@@ -61,12 +61,16 @@ static void gsm_init_terminal(void *arg)
 		if (ring_sbuf_cmp(ring, &ok) == 0) {
 			ring_reset(ring);
 			state = GSM_STATE_READY;
+#ifdef DEBUG_GSM
 			DEBUG_LOG("gsm terminal ready\n");
+#endif
 			return;
 		}
 		/* recover from error */
 		if (ring_sbuf_cmp(ring, &wait) == 0) {
+#ifndef TEST
 			fprintf(gsm_out, "%c", 0x1A);
+#endif
 			ring_reset(ring);
 			goto end;
 		}
@@ -74,7 +78,9 @@ static void gsm_init_terminal(void *arg)
 	}
 
  end:
+#ifndef TEST
 	fprintf(gsm_out, "%s", init_seq[seq_pos]);
+#endif
 	seq_pos++;
 	timer_add(&timer, GSM_CMD_DELAY, gsm_init_terminal, NULL);
 }
@@ -183,7 +189,9 @@ static void gsm_send_sms_cb(void *arg)
 
 	timer_add(&timer, GSM_SENDING_DELAY, gsm_send_sms_cb_ack, (void *)sms);
 	ring_reset(ring);
+#ifndef TEST
 	fprintf(gsm_out, "%s\r%c", sms, 0x1A);
+#endif
 }
 
 int gsm_send_sms(const char *number, const char *sms)
@@ -196,7 +204,9 @@ int gsm_send_sms(const char *number, const char *sms)
 	state = GSM_STATE_SENDING;
 	timer_add(&timer, GSM_CMD_DELAY, gsm_send_sms_cb, (void *)sms);
 	ring_reset(ring);
+#ifndef TEST
 	fprintf(gsm_out, "AT+CMGS=\"%s\"\r", number);
+#endif
 	return 0;
 }
 
@@ -214,7 +224,7 @@ gsm_init(FILE *in, FILE *out, void (*cb)(uint8_t status, const sbuf_t *from,
 	gsm_init_terminal(NULL);
 }
 
-#ifdef X86
+#ifdef TEST
 static int test_data_pos;
 static sbuf_t receive_sms[] = {
 	SBUF_INITS(
@@ -307,7 +317,6 @@ static int gsm_tests_send_sms(void)
 		return -1;
 	}
 	timer_del(&timer);
-	puts("");
 	if (state != GSM_STATE_SENDING) {
 		fprintf(stderr, "%s:%d not sending (state:%d)\n", __func__,
 			__LINE__, state);
@@ -315,15 +324,14 @@ static int gsm_tests_send_sms(void)
 	}
 	gsm_tests_send_str(&wait);
 	gsm_send_sms_cb((char *)sms);
-	puts("");
 	timer_del(&timer);
 
 	gsm_tests_send_str(&ok);
 	gsm_send_sms_cb_ack(NULL);
 
 	if (test_cb_status != GSM_STATUS_OK) {
-		fprintf(stderr, "%s:%d returned with status :%d\n", __func__, __LINE__,
-			test_cb_status);
+		fprintf(stderr, "%s:%d returned with status :%d\n",
+			__func__, __LINE__, test_cb_status);
 		return -1;
 	}
 	return 0;
@@ -331,7 +339,8 @@ static int gsm_tests_send_sms(void)
 
 static int gsm_tests_receive_sms(void)
 {
-	for (test_data_pos = 0; test_data_pos < sizeof(receive_sms) / sizeof(sbuf_t);
+	for (test_data_pos = 0;
+	     test_data_pos < sizeof(receive_sms) / sizeof(sbuf_t);
 	     test_data_pos++) {
 		gsm_tests_send_str(&receive_sms[test_data_pos]);
 		if (state != GSM_STATE_RECEIVING) {

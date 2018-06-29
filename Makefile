@@ -1,5 +1,5 @@
 SUBDIRS =  apps/alarm apps/alarm_simu apps/alarm/alarm_module1 apps/tun-driver
-SUBDIRS += apps/tests
+SUBDIRS += apps/tests crypto
 
 all:
 	@echo "This Makefile is only used to clean up the sources"

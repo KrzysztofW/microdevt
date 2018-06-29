@@ -167,8 +167,6 @@ int net_arp_tests(void)
 	memset(pkt->buf.data, 0, pkt->buf.size);
 	buf_init(&pkt->buf, arp_request_pkt, sizeof(arp_request_pkt));
 
-	printf("in pkt:\n");
-	buf_print_hex(&pkt->buf);
 	if (pkt_put(iface.rx, pkt) < 0) {
 		fprintf(stderr , "%s: can't put rx packet\n", __func__);
 		ret = -1;
@@ -462,7 +460,6 @@ int net_udp_tests(void)
 		ret = -1;
 		goto end;
 	}
-	printf("udp data: %.*s\n", len, buf);
 #else
 	if (__socket_get_pkt(&sock_info, &pkt, &src_addr, &src_port) < 0) {
 		fprintf(stderr, "%s: can't get udp pkt 2\n", __func__);
@@ -470,7 +467,6 @@ int net_udp_tests(void)
 		goto end;
 	}
 	len = pkt->buf.len;
-	printf("udp data: %.*s\n", pkt->buf.len, buf_data(&pkt->buf));
 #endif
 
 	sbuf_init(&sb, buf, len);
@@ -495,8 +491,6 @@ int net_udp_tests(void)
 		ret = -1;
 		goto end;
 	}
-
-	buf_print_hex(&pkt->buf);
 	pkt_free(pkt);
 
 #ifdef CONFIG_BSD_COMPAT
@@ -619,7 +613,6 @@ int net_tcp_tests(void)
 	uint32_t src_addr;
 	uint16_t src_port;
 #endif
-	sbuf_t sb;
 
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	iface.ip4_addr = (void *)&ip_dst;
@@ -802,9 +795,12 @@ int net_tcp_tests(void)
 		goto end;
 	}
 #endif
-	sb = PKT2SBUF(pkt);
-	sbuf_print_hex(&sb);
-	printf("TCP: got: %.*s\n", sb.len, sb.data);
+	if (strcmp((const char *)buf_data(&pkt->buf), "blabla\n") != 0) {
+		fprintf(stderr, "expected \"blabla\", got \"%s\"\n",
+			buf_data(&pkt->buf));
+		ret = -1;
+		goto end;
+	}
 
 	/* TCP CLIENT CLOSE */
 	buf_init(&pkt->buf, tcp_fin_ack_client_pkt, sizeof(tcp_fin_ack_client_pkt));
@@ -935,11 +931,13 @@ static uint32_t *rf_enc_key;
 static uint8_t net_swen_l3_events;
 static void net_swen_ev_cb(uint8_t from, uint8_t events, buf_t *buf)
 {
+#if 0
 	printf("%s: got events: 0x%X from:0x%X\n", __func__, events, from);
 	if (buf) {
 		buf_print(buf);
 		puts("");
 	}
+#endif
 	net_swen_l3_events = events;
 }
 
