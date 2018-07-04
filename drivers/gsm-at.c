@@ -64,6 +64,7 @@ static void gsm_init_terminal(void *arg)
 #ifdef DEBUG_GSM
 			DEBUG_LOG("gsm terminal ready\n");
 #endif
+			gsm_cb(GSM_STATUS_READY, NULL, NULL);
 			return;
 		}
 		/* recover from error */
