@@ -8,8 +8,8 @@
 #define RF_ANALOG_SAMPLING
 #ifdef RF_ANALOG_SAMPLING
 #define RF_RCV_PIN_NB 0
-#define ANALOG_LOW_VAL 160
-#define ANALOG_HI_VAL  630
+#define ANALOG_LOW_VAL 200
+#define ANALOG_HI_VAL  600
 #endif
 
 #define RF_RCV_PIN_NB 0

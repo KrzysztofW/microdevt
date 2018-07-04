@@ -24,7 +24,7 @@ endif
 endif
 
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
-SOURCES += ../../drivers/rf.c
+SOURCES += ../../drivers/rf.c rf.c
 endif
 ifdef CONFIG_RF_RECEIVER
 CFLAGS += -DCONFIG_RF_RECEIVER
@@ -85,12 +85,13 @@ CFLAGS += -DCONFIG_EVENT
 endif
 
 ifdef CONFIG_GSM_SIM900
-SOURCES += ../../drivers/gsm-at.c
+SOURCES += ../../drivers/gsm-at.c gsm.c
 CFLAGS += -DCONFIG_GSM_SIM900
 endif
 
 ifdef CONFIG_NETWORKING
 CFLAGS += -DCONFIG_NETWORKING
+SOURCES += network.c
 endif
 ifdef CONFIG_PKT_NB_MAX
 CFLAGS += -DCONFIG_PKT_NB_MAX=$(CONFIG_PKT_NB_MAX)
