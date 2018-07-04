@@ -1,6 +1,7 @@
 #include <avr/io.h>
 #include "adc.h"
 
+#if 0
 void init_adc(void)
 {
 	/* Select Vref=AVcc */
@@ -18,7 +19,7 @@ void init_adc(void)
 	DDRC &= 0xFE; // pin 0 b1111 1110
 	PORTC = 0xFF; // pullup resistors
 }
-
+#endif
 uint16_t analog_read(uint8_t adc_channel)
 {
 	/* enable ADC */

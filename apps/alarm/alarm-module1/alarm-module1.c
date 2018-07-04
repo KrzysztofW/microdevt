@@ -106,6 +106,7 @@ static void rf_kerui_cb(int nb)
 }
 #endif
 #endif
+INIT_ADC_DECL(c, DDRC, PORTC)
 
 int main(void)
 {
@@ -114,7 +115,7 @@ int main(void)
 #endif
 	tim_t timer_led;
 
-	init_adc();
+	init_adc_c();
 #ifdef DEBUG
 #ifdef CONFIG_GSM_SIM900
 	init_stream0(&stdout, &stdin, 1);

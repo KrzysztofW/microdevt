@@ -195,6 +195,7 @@ static void rf_kerui_cb(int nb)
 }
 #endif
 #endif
+INIT_ADC_DECL(f, DDRF, PORTF)
 
 static void blink_led(void *arg)
 {
@@ -234,7 +235,6 @@ int main(void)
 #ifdef CONFIG_RF_SENDER
 	tim_t timer_rf;
 #endif
-	init_adc();
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 0);
 	DEBUG_LOG("KW alarm v0.2\n");
@@ -242,6 +242,7 @@ int main(void)
 #ifdef CONFIG_GSM_SIM900
 	init_stream1(&gsm_in, &gsm_out, 1);
 #endif
+	init_adc_f();
 	timer_subsystem_init();
 	watchdog_shutdown();
 #ifdef CONFIG_TIMER_CHECKS
