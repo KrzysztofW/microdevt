@@ -23,6 +23,7 @@
 typedef struct rf_data {
 	byte_t  byte;
 	pkt_t  *pkt;
+	buf_t   buf;
 } rf_data_t;
 
 typedef struct rf_ctx {
@@ -209,7 +210,7 @@ static int rf_snd(rf_ctx_t *ctx)
 	if (byte_is_empty(&ctx->snd_data.byte)) {
 		uint8_t c;
 
-		if (pkt_len(ctx->snd_data.pkt) == 0) {
+		if (buf_len(&ctx->snd_data.buf) == 0) {
 			if ((RF_SND_PORT & (1 << RF_SND_PIN_NB)) == 0) {
 				RF_SND_PORT |= 1 << RF_SND_PIN_NB;
 				return 0;
@@ -218,11 +219,11 @@ static int rf_snd(rf_ctx_t *ctx)
 			if (ctx->snd.burst_cnt == ctx->burst)
 				return -1;
 			ctx->snd.burst_cnt++;
-			__buf_reset_keep(&ctx->snd_data.pkt->buf);
+			__buf_reset_keep(&ctx->snd_data.buf);
 			ctx->snd.frame_pos = START_FRAME_LENGTH;
 			return 0;
 		}
-		__buf_getc(&ctx->snd_data.pkt->buf, &c);
+		__buf_getc(&ctx->snd_data.buf, &c);
 		byte_init(&ctx->snd_data.byte, c);
 	}
 
@@ -273,9 +274,13 @@ static void rf_snd_tim_cb(void *arg)
 	iface_t *iface = arg;
 	rf_ctx_t *ctx = iface->priv;
 
-	while (ctx->snd_data.pkt ||
-	       (ctx->snd_data.pkt = pkt_get(iface->tx))) {
+	while (1) {
+		if (ctx->snd_data.pkt == NULL &&
+		    (ctx->snd_data.pkt = pkt_get(iface->tx)))
+			ctx->snd_data.buf = ctx->snd_data.pkt->buf;
 
+		if (ctx->snd_data.pkt == NULL)
+			break;
 		if (rf_snd(ctx) >= 0) {
 			timer_add(&ctx->timer, RF_SAMPLING_US * 2,
 				  rf_snd_tim_cb, arg);
@@ -389,6 +394,7 @@ static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
 	int data_len = pkt->buf.len;
 
 	ctx->snd_data.pkt = pkt;
+	ctx->snd_data.buf = pkt->buf;
 	rf_check_recv_ctx.rcv_data.pkt = pkt_recv;
 
 	/* send bytes */
@@ -471,7 +477,8 @@ int rf_checks(const iface_t *iface)
 	rf_ctx_t *ctx = iface->priv;
 
 #ifdef CONFIG_RF_SENDER
-	rf_send_checks(iface);
+	if (rf_send_checks(iface) < 0)
+		return -1;
 #endif
 #ifdef CONFIG_RF_RECEIVER
 	timer_del(&ctx->timer);
