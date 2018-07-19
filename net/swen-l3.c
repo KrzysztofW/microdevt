@@ -22,7 +22,7 @@ typedef enum swen_l3_state {
 	S_STATE_CONNECTED,
 } swen_l3_state_t;
 
-#define SWEN_L3_RETRANSMIT_DELAY 300000 /* ms */
+#define SWEN_L3_RETRANSMIT_DELAY 2000000 /* 2s */
 #define SWEN_L3_MAX_RETRIES 255
 
 typedef struct __attribute__((__packed__)) swen_l3_hdr {
@@ -229,7 +229,7 @@ swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc, const sbuf_t *sbuf)
 	return 0;
 }
 
-static void __swend_l3_disassociate(swen_l3_assoc_t *assoc)
+static void __swen_l3_disassociate(swen_l3_assoc_t *assoc)
 {
 	assoc->state = S_STATE_CLOSED;
 }
@@ -237,7 +237,7 @@ static void __swend_l3_disassociate(swen_l3_assoc_t *assoc)
 void swen_l3_disassociate(swen_l3_assoc_t *assoc)
 {
 	swen_l3_output(S_OP_DISASSOC, assoc, NULL);
-	__swend_l3_disassociate(assoc);
+	__swen_l3_disassociate(assoc);
 }
 
 void swen_l3_assoc_init(swen_l3_assoc_t *assoc)
@@ -425,8 +425,9 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		assoc->ack = hdr->seq_id;
 
 		if (assoc->state == S_STATE_CONNECTED)
-			__swend_l3_disassociate(assoc);
+			__swen_l3_disassociate(assoc);
 		assoc->state = S_STATE_CLOSED;
+		swen_event_cb(from, EV_ERROR, NULL);
 		return __swen_l3_output2(assoc, pkt, S_OP_ACK, 1);
 
 	case S_OP_KEY_EXCHANGE:

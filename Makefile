@@ -1,5 +1,5 @@
-SUBDIRS =  apps/alarm apps/alarm-simu apps/alarm/alarm-module1 apps/tun-driver
-SUBDIRS += apps/tests crypto
+SUBDIRS = $(shell find apps/* -type d)
+SUBDIRS+= crypto
 
 all:
 	@echo "This Makefile is only used to clean up the sources"
