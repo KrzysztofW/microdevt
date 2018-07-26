@@ -15,7 +15,7 @@ struct timer {
 	struct list_head list;
 	void (*cb)(void *);
 	void *arg;
-	unsigned int remaining_loops;
+	uint32_t remaining_loops;
 	uint8_t status;
 } __attribute__((__packed__));
 typedef struct timer tim_t;
