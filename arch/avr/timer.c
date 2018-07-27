@@ -4,14 +4,14 @@
 /* 8-bit timer 300us resolution
  * 255-0.0003/(1/(16000000/64.)) = 180
  * where 255 is the 8-bit counter max value
- *       0.0003 = 300us (RF HI/LOW duration)
+ *       0.0003 = 300us
  *       1/(16000000) = 1/CONFIG_AVR_F_CPU
  *       64 = prescaler value
  *
  * 16-bit timer 150us resolution
  * 65535-0.00015/(1/(16000000/8.)) = 65235
  * where 65535 is the 16-bit counter max value
- *       0.00015 = 150us (RF HI/LOW duration)
+ *       0.00015 = 150us
  *       1/(16000000) = 1/CONFIG_AVR_F_CPU
  *       8 = prescaler value
  *       <=> (65535 - (150*(16000000/8))/1000000)

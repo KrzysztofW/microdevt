@@ -328,8 +328,6 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 
 	deb_buf.len += deb_buf.skip;
 	deb_buf.skip = 0;
-	DEBUG_LOG("%s: ", __func__);
-	buf_print_hex(&deb_buf);
 #endif
 	/* check if the address is bound locally */
 	if ((assoc = swen_l3_assoc_lookup(from)) == NULL)

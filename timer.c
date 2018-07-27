@@ -33,8 +33,8 @@ void timer_process(void)
 	list_t *pos, *n, *last_timer = NULL;
 	uint8_t process_again = 0;
 
-	timer_state.current_idx = idx = (timer_state.current_idx + 1)
-		& TIMER_TABLE_MASK;
+	idx = (timer_state.current_idx + 1) & TIMER_TABLE_MASK;
+	timer_state.current_idx = idx;
 
  again:
 	list_for_each_safe(pos, n, &timer_state.timer_list[idx]) {
@@ -143,7 +143,7 @@ int timer_is_pending(tim_t *timer)
 }
 
 #ifdef CONFIG_TIMER_CHECKS
-#define TIM_CNT 64UL
+#define TIM_CNT 64
 tim_t timers[TIM_CNT];
 unsigned long timer_iters;
 uint8_t is_random;
