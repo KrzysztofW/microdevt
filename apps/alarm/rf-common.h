@@ -4,16 +4,16 @@
 #define RF_BURST_NUMBER 2
 
 /* Modules' addresses */
-#define RF_MOD0_HW_ADDR 0x6F
-#define RF_MOD1_HW_ADDR 0x70
-#define RF_MOD2_HW_ADDR 0x71
-#define RF_MOD3_HW_ADDR 0x72
-#define RF_MOD4_HW_ADDR 0x73
-#define RF_MOD5_HW_ADDR 0x74
-#define RF_MOD6_HW_ADDR 0x75
-#define RF_MOD7_HW_ADDR 0x76
-#define RF_MOD8_HW_ADDR 0x77
-#define RF_MOD9_HW_ADDR 0x78
+#define RF_MOD0_HW_ADDR 0x70
+#define RF_MOD1_HW_ADDR 0x71
+#define RF_MOD2_HW_ADDR 0x72
+#define RF_MOD3_HW_ADDR 0x73
+#define RF_MOD4_HW_ADDR 0x74
+#define RF_MOD5_HW_ADDR 0x75
+#define RF_MOD6_HW_ADDR 0x76
+#define RF_MOD7_HW_ADDR 0x77
+#define RF_MOD8_HW_ADDR 0x78
+#define RF_MOD9_HW_ADDR 0x79
 
 /* Command types */
 #define RF_CMD_PIR         0 /* move detector triggered */

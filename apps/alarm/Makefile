@@ -3,8 +3,8 @@
 EXE = alarm
 CFLAGS = -Wall -Werror -Os -g -c
 
-SOURCES = alarm.c $(ARCH_DIR)/$(ARCH)/enc28j60.c $(ARCH_DIR)/$(ARCH)/adc.c
-SOURCES += ../../crypto/xtea.c ../../scheduler.c
+SOURCES = main.c $(ARCH_DIR)/$(ARCH)/enc28j60.c $(ARCH_DIR)/$(ARCH)/adc.c
+SOURCES += ../../crypto/xtea.c ../../scheduler.c features.c
 
 include config
 include build.mk

@@ -24,7 +24,7 @@ endif
 endif
 
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
-SOURCES += ../../drivers/rf.c rf.c
+SOURCES += ../../drivers/rf.c rf.c module.c
 endif
 ifdef CONFIG_RF_RECEIVER
 CFLAGS += -DCONFIG_RF_RECEIVER

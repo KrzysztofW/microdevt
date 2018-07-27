@@ -6,8 +6,8 @@ CFLAGS = -Wall -Werror -Os -g -c
 # definition to fake the simulator
 CFLAGS += -DUSART0_RX_vect=USART_RX_vect -DDDRF=DDRD -DPORTF=PORTD -DPF1=PD1
 
-SOURCES = alarm.c $(ARCH_DIR)/$(ARCH)/enc28j60.c $(ARCH_DIR)/$(ARCH)/adc.c
-SOURCES += ../../crypto/xtea.c ../../scheduler.c fsm.c
+SOURCES = main.c $(ARCH_DIR)/$(ARCH)/enc28j60.c $(ARCH_DIR)/$(ARCH)/adc.c
+SOURCES += ../../scheduler.c features.c
 
 include config
 include build.mk
