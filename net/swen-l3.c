@@ -67,22 +67,22 @@ static int swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc,
 
 static inline uint8_t swen_l3_get_pkt_retries(pkt_t *pkt)
 {
-	return pkt->buf.data[pkt->buf.skip + pkt->buf.len];
+	return pkt->buf.data[pkt->buf.len];
 }
 
 static inline void swen_l3_set_pkt_retries(pkt_t *pkt, uint8_t retries)
 {
-	pkt->buf.data[pkt->buf.skip + pkt->buf.len] = retries;
+	pkt->buf.data[pkt->buf.len] = retries;
 }
 
 static inline uint8_t swen_l3_get_pkt_seqid(pkt_t *pkt)
 {
-	return pkt->buf.data[pkt->buf.skip + pkt->buf.len + 1];
+	return pkt->buf.data[pkt->buf.len + 1];
 }
 
 static inline void swen_l3_set_pkt_seqid(pkt_t *pkt, uint8_t seqid)
 {
-	pkt->buf.data[pkt->buf.skip + pkt->buf.len + 1] = seqid;
+	pkt->buf.data[pkt->buf.len + 1] = seqid;
 }
 
 static void swen_l3_free_assoc_pkts(swen_l3_assoc_t *assoc)
@@ -114,8 +114,9 @@ static void swen_l3_task_cb(void *arg)
 	}
 
 	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->pkt_list, list) {
-		uint8_t retries = swen_l3_get_pkt_retries(pkt);
+		uint8_t retries;
 
+		retries = swen_l3_get_pkt_retries(pkt);
 		if (retries == 0) {
 			swen_l3_free_assoc_pkts(assoc);
 			swen_l3_associate(assoc);

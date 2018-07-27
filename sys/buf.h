@@ -25,7 +25,7 @@ typedef struct buf buf_t;
 #define buf2sbuf(buf) (sbuf_t)					\
 	{							\
 		.len = (buf)->len,				\
-		.data = (buf)->data + (buf)->skip		\
+		.data = (buf)->data				\
 	}
 #define sbuf2buf(sbuf) (buf_t) { .len = (sbuf)->len,	\
 			.data = (void *)(sbuf)->data,	\
@@ -124,18 +124,14 @@ static inline void buf_free(buf_t *buf)
 static inline void buf_reset(buf_t *buf)
 {
 	buf->len = 0;
+	buf->data -= buf->skip;
 	buf->skip = 0;
-}
-
-static inline void buf_clear(buf_t *buf)
-{
-	buf_reset(buf);
-	memset(buf->data, 0, buf->size);
 }
 
 static inline void __buf_reset_keep(buf_t *buf)
 {
-	buf->len = buf->skip;
+	buf->len += buf->skip;
+	buf->data -= buf->skip;
 	buf->skip = 0;
 }
 
@@ -171,16 +167,17 @@ static inline void buf_adj(buf_t *buf, int len)
 	else
 		buf->len -= len;
 	buf->skip += len;
+	buf->data += len;
 }
 
 static inline unsigned char *buf_data(const buf_t *buf)
 {
-	return buf->data + buf->skip;
+	return buf->data;
 }
 
 static inline void __buf_add(buf_t *buf, const void *data, int len)
 {
-	memcpy(buf->data + buf->len + buf->skip, data, len);
+	memcpy(buf->data + buf->len, data, len);
 	buf->len += len;
 }
 
@@ -244,7 +241,7 @@ static inline int buf_get_lastc(buf_t *buf, uint8_t *c)
 {
 	if (buf_len(buf) < 1)
 		return -1;
-	*c = buf->data[buf->skip + buf->len - 1];
+	*c = buf->data[buf->len - 1];
 	buf->len--;
 	return 0;
 }
@@ -256,6 +253,7 @@ static inline void __buf_getc(buf_t *buf, uint8_t *c)
 	*c = data[0];
 	buf->len--;
 	buf->skip++;
+	buf->data++;
 }
 
 static inline int buf_getc(buf_t *buf, uint8_t *c)
@@ -263,6 +261,20 @@ static inline int buf_getc(buf_t *buf, uint8_t *c)
 	if (buf_len(buf) < 1)
 		return -1;
 	__buf_getc(buf, c);
+	return 0;
+}
+
+static inline void __buf_skip(buf_t *buf, unsigned len)
+{
+	buf->skip += len;
+	buf->data += len;
+}
+
+static inline int buf_skip(buf_t *buf, unsigned len)
+{
+	if (buf_len(buf) < len)
+		return -1;
+	__buf_skip(buf, len);
 	return 0;
 }
 
@@ -295,7 +307,7 @@ __buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s, int skip)
 	if (d == NULL)
 		return -1;
 	skipped_len = d - data;
-	sbuf_init(sbuf, data, d - data);
+	sbuf_init(sbuf, data, skipped_len);
 	buf_adj(buf, skipped_len + skip);
 	return 0;
 }
@@ -403,7 +415,7 @@ static inline void buf_print(const buf_t *buf)
 {
 	sbuf_t sb;
 
-	sbuf_init(&sb, buf->data + buf->skip, buf->len);
+	sbuf_init(&sb, buf->data, buf->len);
 	sbuf_print(&sb);
 }
 
@@ -411,7 +423,7 @@ static inline void buf_print_hex(const buf_t *buf)
 {
 	sbuf_t sb;
 
-	sbuf_init(&sb, buf->data + buf->skip, buf->len);
+	sbuf_init(&sb, buf->data, buf->len);
 	sbuf_print_hex(&sb);
 }
 #else

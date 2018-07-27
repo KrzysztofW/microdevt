@@ -19,12 +19,12 @@ struct pkt {
 } __attribute__((__packed__));
 typedef struct pkt pkt_t;
 
-#define btod(pkt) (void *)((pkt)->buf.data + (pkt)->buf.skip)
+#define btod(pkt) (void *)((pkt)->buf.data)
 #define pkt_adj(pkt, len) buf_adj(&(pkt)->buf, len)
 
 #define PKT2SBUF(pkt) (sbuf_t)			       \
 	{					       \
-		.data = pkt->buf.data + pkt->buf.skip, \
+		.data = pkt->buf.data,                 \
 		.len  = pkt_len(pkt),                  \
 	}
 
