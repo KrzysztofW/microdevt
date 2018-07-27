@@ -1063,7 +1063,7 @@ net_swen_l3_test(swen_l3_assoc_t *assoc, swen_l3_assoc_t *assoc_remote,
 				local) < 0)
 		__abort();
 	local->if_input(local);
-	net_swen_l3_check_events(EV_WRITE);
+	net_swen_l3_check_events(EV_WRITE|EV_READ);
 
 	/* -- handshake completed -- */
 

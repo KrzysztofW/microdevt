@@ -401,7 +401,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 			break;
 		if (assoc->state == S_STATE_CONN_COMPLETE) {
 			assoc->state = S_STATE_CONNECTED;
-			swen_event_cb(from, EV_WRITE, NULL);
+			swen_event_cb(from, EV_READ|EV_WRITE, NULL);
 		}
 		break;
 
