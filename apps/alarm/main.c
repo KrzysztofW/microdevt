@@ -10,7 +10,7 @@
 #include "alarm.h"
 #include "module.h"
 
-INIT_ADC_DECL(f, DDRF, PORTF)
+INIT_ADC_DECL(f, DDRF, PORTF, 3)
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 #define UART_RING_SIZE 64

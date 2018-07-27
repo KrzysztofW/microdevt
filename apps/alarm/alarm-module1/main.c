@@ -17,7 +17,7 @@ void tim_led_cb(void *arg)
 	timer_reschedule(timer, 1000000UL);
 }
 
-INIT_ADC_DECL(c, DDRC, PORTC);
+INIT_ADC_DECL(c, DDRC, PORTC, 0);
 
 int main(void)
 {
