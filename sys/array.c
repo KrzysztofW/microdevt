@@ -48,6 +48,26 @@ int array_get_average(int *array, unsigned int size)
 	return res / size;
 }
 
+void array_left_shift(int *array, unsigned int size, unsigned int shift)
+{
+	int i, j;
+
+	for (j = 0; j < shift; j++) {
+		for (i = 1; i < size ; i++)
+			array[i - 1] = array[i];
+	}
+}
+
+void array_right_shift(int *array, unsigned int size, unsigned int shift)
+{
+	int i, j;
+
+	for (j = 0; j < shift; j++) {
+		for (i = 1; i < size; i++)
+			array[i] = array[i - 1];
+	}
+}
+
 
 #if TEST
 static int array_shell_sort_check(int *array, unsigned int size)
