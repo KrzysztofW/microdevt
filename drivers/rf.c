@@ -243,28 +243,23 @@ static int rf_snd(rf_ctx_t *ctx)
 	return 0;
 }
 
-#ifndef CONFIG_RF_RECEIVER
 static void rf_start_sending(const iface_t *iface)
 {
 	rf_ctx_t *ctx = iface->priv;
 
-	if (timer_is_pending(&ctx->timer))
+	if (ctx->rcv.receiving)
 		return;
+	timer_del(&ctx->timer);
 	timer_add(&ctx->timer, RF_SAMPLING_US * 2, rf_snd_tim_cb,
 		  (void *)iface);
 }
-#endif
 
 int rf_output(const iface_t *iface, pkt_t *pkt)
 {
-#ifndef CONFIG_RF_RECEIVER
 	if (pkt_put(iface->tx, pkt) < 0)
 		return -1;
 	rf_start_sending(iface);
 	return 0;
-#else
-	return pkt_put(iface->tx, pkt);
-#endif
 }
 #endif
 
