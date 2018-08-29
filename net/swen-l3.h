@@ -11,7 +11,9 @@ typedef struct swen_l3_assoc {
 	uint8_t seq_id;
 	uint8_t ack;
 	uint8_t new_ack;
+	uint8_t ack_needed;
 	uint8_t state;
+	/* uint8_t win_size; */
 	tim_t timer;
 	list_t list;
 	list_t pkt_list;
