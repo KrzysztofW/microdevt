@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <crypto/xtea.h>
 #include <scheduler.h>
+#include <sys/random.h>
 #include "swen.h"
 #include "swen-l3.h"
 #include "event.h"
@@ -284,9 +285,11 @@ void swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to,
 {
 	assert(swen_event_cb);
 	assert(assoc->state == S_STATE_CLOSED);
-	do
-		assoc->seq_id = rand();
-	while (assoc->seq_id == 0 || assoc->seq_id == 0xFF);
+#ifdef CONFIG_RND_SEED
+	assoc->seq_id = rand_r(&rnd_seed);
+#else
+	assoc->seq_id = rand();
+#endif
 	assoc->iface = iface;
 	assoc->enc_key = enc_key;
 	assoc->dst = to;

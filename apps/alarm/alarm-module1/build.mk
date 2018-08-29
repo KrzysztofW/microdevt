@@ -23,6 +23,11 @@ CFLAGS += -DCONFIG_USART1_SPEED=57600
 endif
 endif
 
+ifdef CONFIG_RND_SEED
+CFLAGS += -DCONFIG_RND_SEED
+SOURCES += ../../../sys/random.c
+endif
+
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
 SOURCES += rf.c module.c ../../../crypto/xtea.c ../../../sys/array.c
 SOURCES += ../../../drivers/rf.c ../../../sys/chksum.c

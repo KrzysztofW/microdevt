@@ -3,6 +3,9 @@
 #include <timer.h>
 #include <sys/byte.h>
 #include <sys/chksum.h>
+#ifdef CONFIG_RND_SEED
+#include <sys/random.h>
+#endif
 #include <net/swen.h>
 #ifdef CONFIG_RF_CHECKS
 #include <net/event.h>
@@ -99,6 +102,9 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 {
 	rf_ctx_t *ctx = iface->priv;
 
+#ifdef CONFIG_RND_SEED
+	rnd_seed = rnd_seed * (16807 << bit);
+#endif
 	if (ctx->rcv.receiving && ctx->rcv.cnt < 11) {
 		if (ctx->rcv.receiving == 1) {
 			/* first bit must be set to '1' */
