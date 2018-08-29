@@ -51,8 +51,7 @@ swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
 	hdr->proto = type;
 	hdr->chksum = 0;
 	hdr->chksum = htons(cksum(hdr, pkt_len(pkt)));
-	iface->send(iface, pkt);
-	return 0;
+	return iface->send(iface, pkt);
 }
 
 int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf)
