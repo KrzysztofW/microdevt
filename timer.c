@@ -1,9 +1,9 @@
-#include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <log.h>
+#include <common.h>
 #include "timer.h"
 
 #define TIMER_TABLE_SIZE 8

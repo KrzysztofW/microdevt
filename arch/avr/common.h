@@ -3,6 +3,7 @@
 
 #include <avr/io.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <avr/power.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
@@ -12,14 +13,14 @@
 
 #define __abort() do {							\
 		DEBUG_LOG("%s:%d aborted\n", __func__, __LINE__);	\
-		while (1) {}						\
+		exit(1);						\
 	} while (0)
 
 #define assert(cond) do {			\
 		if (!(cond)) {			\
 			DEBUG_LOG("%s:%d assert failed\n",		\
 				  __func__, __LINE__);			\
-			while (1) {}					\
+			exit(1);					\
 		}							\
 	} while (0)
 
