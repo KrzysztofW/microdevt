@@ -56,6 +56,9 @@ size: all
 nm: all
 	avr-nm -S --size-sort -t d $(EXE)
 
+reset:
+	sudo avrdude -c usbtiny -p ${CONFIG_AVR_BMCU}
+
 read_fuses:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h
 
@@ -63,15 +66,16 @@ read_fuses:
 
 # 8MHZ (no internal clk/8)
 #write_fuses:
-#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
+#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
 
 # 1MHZ (internal clk/8)
 #write_fuses:
-#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
+#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
 
 # 16MHZ external crystal
+# preserve eeprom: hfuse:w:0xd1:m
 write_fuses:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
+	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
 
 erase:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
