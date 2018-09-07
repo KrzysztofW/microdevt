@@ -31,7 +31,11 @@ typedef struct buf buf_t;
 			.data = (void *)(sbuf)->data,	\
 			.size = (sbuf)->len }
 
-#define SBUF_INITS(str) (sbuf_t)					\
+#define SBUF_INITS(str)							\
+	{								\
+		.data = (uint8_t *)str, .len = sizeof(str) - 1		\
+	}
+#define SBUF_INITS_V(str) (sbuf_t)					\
 	{								\
 		.data = (uint8_t *)str, .len = sizeof(str) - 1		\
 	}
@@ -264,13 +268,13 @@ static inline int buf_getc(buf_t *buf, uint8_t *c)
 	return 0;
 }
 
-static inline void __buf_skip(buf_t *buf, unsigned len)
+static inline void __buf_skip(buf_t *buf, int len)
 {
 	buf->skip += len;
 	buf->data += len;
 }
 
-static inline int buf_skip(buf_t *buf, unsigned len)
+static inline int buf_skip(buf_t *buf, int len)
 {
 	if (buf_len(buf) < len)
 		return -1;
@@ -389,7 +393,6 @@ static inline int buf_read_file(buf_t *buf, const char *filename)
 }
 #endif
 
-#if defined(TEST) || defined(DEBUG)
 static inline void __sbuf_print(const sbuf_t *buf, uint8_t hex)
 {
 	int i;
@@ -426,9 +429,5 @@ static inline void buf_print_hex(const buf_t *buf)
 	sbuf_init(&sb, buf->data, buf->len);
 	sbuf_print_hex(&sb);
 }
-#else
-#define sbuf_print(x)
-#define buf_print(x)
-#endif
 
 #endif
