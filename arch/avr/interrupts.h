@@ -5,8 +5,14 @@
 #define irq_disable cli
 #define irq_enable sei
 
-#define disable_spi_irq()
-#define enable_spi_irq()
+#define irq_save(flags) do {			\
+		flags = SREG;			\
+		irq_disable();			\
+	} while (0)
+
+#define irq_restore(flags) do {			\
+		SREG = flags;			\
+	} while (0)
 
 #define IRQ_CHECK() (!!(SREG & 0x80))
 

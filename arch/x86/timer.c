@@ -1,4 +1,5 @@
 #include <signal.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -6,12 +7,12 @@
 
 #include "timer.h"
 
-atomic_t timer_disabled;
+uint8_t irq_lock;
 
 static inline void process_timers(int signo)
 {
 	(void)signo;
-	if (atomic_load(&timer_disabled) == 0)
+	if (!irq_lock)
 		timer_process();
 }
 
@@ -24,7 +25,7 @@ void __timer_subsystem_init(void)
 	sa.sa_handler = &process_timers;
 	if (sigaction(SIGALRM, &sa, NULL) < 0) {
 		fprintf(stderr, "\ncan't initialize timers (%m)\n");
-		return;
+		abort();
 	}
 
 	/* configure the timer to first expire after 3 seconds */

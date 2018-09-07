@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <interrupts.h>
 
 #include <log.h>
 #include <common.h>
@@ -14,18 +15,6 @@ struct timer_state {
 	list_t timer_list[TIMER_TABLE_SIZE];
 } __attribute__((__packed__));
 struct timer_state timer_state;
-
-static void timer_disable_timer_int(tim_t *timer)
-{
-	if (timer->status != TIMER_RUNNING)
-		disable_timer_int();
-}
-
-static void timer_enable_timer_int(tim_t *timer)
-{
-	if (timer->status != TIMER_RUNNING)
-		enable_timer_int();
-}
 
 void timer_process(void)
 {
@@ -82,7 +71,6 @@ void timer_subsystem_init(void)
 
 	for (i = 0; i < TIMER_TABLE_SIZE; i++)
 		INIT_LIST_HEAD(&timer_state.timer_list[i]);
-
 	__timer_subsystem_init();
 }
 
@@ -98,55 +86,61 @@ void timer_init(tim_t *timer)
 	memset(timer, 0, sizeof(tim_t));
 }
 
-void timer_add(tim_t *timer, unsigned long expiry_us, void (*cb)(void *),
-	       void *arg)
+/* set the tick duration to the current timer resolution */
+#ifdef CONFIG_TIMER_RESOLUTION_MS
+#define TIMER_RESOLUTION CONFIG_TIMER_RESOLUTION_MS
+#else
+#define TIMER_RESOLUTION CONFIG_TIMER_RESOLUTION_US
+#endif
+
+void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 {
 	unsigned int idx;
-	unsigned long ticks = expiry_us / CONFIG_TIMER_RESOLUTION_US;
-
-	assert(timer->status == TIMER_STOPPED || timer->status == TIMER_RUNNING);
-
-	timer->cb = cb;
-	timer->arg = arg;
+	uint32_t ticks = expiry / TIMER_RESOLUTION;
+	uint8_t flags;
 
 	/* don't schedule at current idx */
 	if (ticks == 0)
 		ticks = 1;
 
-	timer->remaining_loops = ticks / TIMER_TABLE_SIZE;
+	assert(timer->status == TIMER_STOPPED || timer->status == TIMER_RUNNING);
 
-	timer_disable_timer_int(timer);
+	timer->cb = cb;
+	timer->arg = arg;
+	timer->remaining_loops = ticks / TIMER_TABLE_SIZE;
+	timer->status = TIMER_SCHEDULED;
+
+	irq_save(flags);
 	idx = (timer_state.current_idx + ticks) & TIMER_TABLE_MASK;
 	list_add_tail(&timer->list, &timer_state.timer_list[idx]);
-	timer_enable_timer_int(timer);
-	timer->status = TIMER_SCHEDULED;
+	irq_restore(flags);
 }
 
 void timer_del(tim_t *timer)
 {
+	uint8_t flags;
+
+	if (!timer_is_pending(timer))
+		return;
+
+	irq_save(flags);
 	if (timer_is_pending(timer)) {
-		timer_disable_timer_int(timer);
 		list_del(&timer->list);
-		timer_enable_timer_int(timer);
 		timer->status = TIMER_STOPPED;
 	}
+	irq_restore(flags);
 }
 
-void timer_reschedule(tim_t *timer, unsigned long expiry_us)
+void timer_reschedule(tim_t *timer, uint32_t expiry)
 {
-	timer_add(timer, expiry_us, timer->cb, timer->arg);
-}
-
-int timer_is_pending(tim_t *timer)
-{
-	return timer->status == TIMER_SCHEDULED;
+	timer_add(timer, expiry, timer->cb, timer->arg);
 }
 
 #ifdef CONFIG_TIMER_CHECKS
-#define TIM_CNT 64
-tim_t timers[TIM_CNT];
-unsigned long timer_iters;
-uint8_t is_random;
+#define TIM_CNT 64U
+static tim_t timers[TIM_CNT];
+static uint32_t timer_iters;
+static uint8_t is_random;
 
 static void timer_cb(void *arg)
 {
@@ -202,7 +196,19 @@ static void delete_timers(void)
 		timer_del(&timers[i]);
 }
 
-int timer_check_subsequent_deletion_failed;
+static void random_reschedule(void)
+{
+	int i;
+
+	for (i = 0; i < TIM_CNT * 100; i++) {
+		int j = rand() % TIM_CNT;
+
+		timer_del(&timers[j]);
+		timer_add(&timers[j], rand(), timer_cb, &timers[j]);
+	}
+}
+
+static int timer_check_subsequent_deletion_failed;
 
 static void check_subsequent_deletion_cb2(void *arg)
 {
@@ -217,8 +223,11 @@ static void check_subsequent_deletion_cb1(void *arg)
 
 static void check_subsequent_deletion(void)
 {
-	timer_add(&timers[0], 100, check_subsequent_deletion_cb1, &timers[0]);
-	timer_add(&timers[1], 100, check_subsequent_deletion_cb2, &timers[1]);
+	/* these two adds must be atomic */
+	irq_disable();
+	timer_add(&timers[0], 200, check_subsequent_deletion_cb1, &timers[0]);
+	timer_add(&timers[1], 200, check_subsequent_deletion_cb2, &timers[1]);
+	irq_enable();
 }
 
 void timer_checks(void)
@@ -246,13 +255,18 @@ void timer_checks(void)
 	LOG("timer deletion test passed\n");
 
 	arm_timers();
+	random_reschedule();
+	wait_to_finish();
+	LOG("timer random reschedule test 1 passed\n");
+
+	arm_timers();
 	wait_to_finish();
 	LOG("timer reschedule test passed\n");
 
 	is_random = 1;
 	arm_timers();
 	wait_to_finish();
-	LOG("timer random reschedule test passed\n");
+	LOG("timer random reschedule test 2 passed\n");
 
 	LOG("\n=== timer tests passed ===\n\n");
 }
