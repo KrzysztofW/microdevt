@@ -944,14 +944,19 @@ static void net_swen_ev_cb(uint8_t from, uint8_t events, buf_t *buf)
 static int net_swen_send(const struct iface *iface, pkt_t *pkt)
 {
 	pkt_t *pkt_dst;
+	static pkt_t *pkt_to_free;
 
+	if (pkt_to_free) {
+		pkt_free(pkt_to_free);
+		pkt_to_free = NULL;
+	}
 	if (swen_l3_test_failed)
 		return -1;
 	if ((pkt_dst = pkt_alloc()) == NULL)
 		return -1;
 	if (buf_addbuf(&pkt_dst->buf, &pkt->buf) < 0)
 		return -1;
-	pkt_free(pkt);
+	pkt_to_free = pkt;
 
 	if (pkt_put(iface_swen_l3_remote.rx, pkt_dst) < 0) {
 		swen_l3_test_failed = 1;
@@ -1047,7 +1052,7 @@ net_swen_l3_test(swen_l3_assoc_t *assoc, swen_l3_assoc_t *assoc_remote,
 				remote) < 0)
 		__abort();
 	remote->if_input(remote);
-	net_swen_l3_check_events(EV_WRITE);
+	net_swen_l3_check_events(EV_WRITE|EV_READ);
 
 	/* drop ack */
 	if ((pkt = pkt_get(local->rx)) == NULL)
