@@ -4,6 +4,7 @@
 #include <net/swen-l3.h>
 #include <adc.h>
 #include <sys/array.h>
+#include <avr/eeprom.h>
 #include "../module.h"
 #include "../rf-common.h"
 
@@ -27,6 +28,13 @@ static tim_t siren_timer;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t gha_pos;
 static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
+
+typedef struct __attribute__((__packed__)) persistent_data {
+	uint8_t armed : 1;
+	uint8_t fan_enabled : 1;
+	uint16_t humidity_threshold;
+} persistent_data_t;
+static persistent_data_t EEMEM persistent_data;
 
 typedef enum tendency {
 	RINSING,
@@ -176,6 +184,39 @@ static void get_status(module_status_t *status)
 	status->humidity_threshold = humidity_threshold;
 }
 
+static void update_storage(void)
+{
+	persistent_data_t data = {
+		.armed = (state == MODULE_STATE_ARMED),
+		.fan_enabled = !fan_sensor_off,
+		.humidity_threshold = humidity_threshold,
+	};
+	eeprom_write_block(&data , &persistent_data, sizeof(persistent_data_t));
+}
+
+static void reload_cfg_from_storage(void)
+{
+	persistent_data_t data;
+	uint8_t i;
+	uint8_t invalid = 1;
+	uint8_t *bytes = (uint8_t *)&data;
+
+	eeprom_read_block(&data, &persistent_data, sizeof(persistent_data_t));
+	for (i = 0; i < sizeof(data); i++) {
+		if (bytes[i] != 0xFF) {
+			invalid = 0;
+			break;
+		}
+	}
+	if (invalid)
+		return;
+
+	if (data.armed)
+		state = MODULE_STATE_ARMED;
+	fan_sensor_off = !data.fan_enabled;
+	humidity_threshold = data.humidity_threshold;
+}
+
 void module_print_status(void)
 {
 	LOG("\nStatus:\n");
@@ -197,6 +238,7 @@ void module_print_status(void)
 void module_arm(uint8_t on)
 {
 	state = on ? MODULE_STATE_ARMED : MODULE_STATE_DISARMED;
+	update_storage();
 }
 
 void handle_rf_commands(uint8_t cmd, uint16_t value)
@@ -206,9 +248,11 @@ void handle_rf_commands(uint8_t cmd, uint16_t value)
 	switch (cmd) {
 	case CMD_ARM:
 		state = MODULE_STATE_ARMED;
+		update_storage();
 		return;
 	case CMD_DISARM:
 		state = MODULE_STATE_DISARMED;
+		update_storage();
 		set_siren_off();
 		return;
 	case CMD_STATUS:
@@ -227,9 +271,11 @@ void handle_rf_commands(uint8_t cmd, uint16_t value)
 		return;
 	case CMD_DISABLE_FAN:
 		fan_sensor_off = 1;
+		update_storage();
 		return;
 	case CMD_ENABLE_FAN:
 		fan_sensor_off = 0;
+		update_storage();
 		return;
 	case CMD_SIREN_ON:
 		set_siren_on(1);
@@ -240,6 +286,7 @@ void handle_rf_commands(uint8_t cmd, uint16_t value)
 	case CMD_SET_HUM_TH:
 		if (value) {
 			humidity_threshold = value;
+			update_storage();
 		}
 		return;
 	}
@@ -275,6 +322,7 @@ static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 
 void module_init(void)
 {
+	reload_cfg_from_storage();
 	timer_add(&humidity_timer, HUMIDITY_SAMPLING, humidity_sampling, NULL);
 	swen_ev_set(rf_event_cb);
 	swen_l3_assoc_init(&assoc);
