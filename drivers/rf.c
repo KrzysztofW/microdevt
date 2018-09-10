@@ -101,9 +101,12 @@ static void __rf_start_sending(iface_t *iface)
 static void rf_fill_data(const iface_t *iface, uint8_t bit)
 {
 	rf_ctx_t *ctx = iface->priv;
-
 #ifdef CONFIG_RND_SEED
-	rnd_seed = rnd_seed * (16807 << bit);
+	static uint16_t rnd;
+
+	rnd <<= 1;
+	rnd |= bit;
+	rnd_seed *= 16807 * rnd;
 #endif
 	if (ctx->rcv.receiving && ctx->rcv.cnt < 11) {
 		if (ctx->rcv.receiving == 1) {
