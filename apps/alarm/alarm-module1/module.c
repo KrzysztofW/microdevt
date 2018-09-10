@@ -363,8 +363,8 @@ void module_init(void)
 		     &local_counter, &remote_counter, set_rc_cnt,
 		     rf_enc_defkey);
 #else
-	swen_l3_assoc_init(&assoc);
-	swen_l3_assoc_bind(&assoc, RF_MOD0_HW_ADDR, &rf_iface, rf_enc_defkey);
+	swen_l3_assoc_init(&assoc, rf_enc_defkey);
+	swen_l3_assoc_bind(&assoc, RF_MOD0_HW_ADDR, &rf_iface);
 	if (swen_l3_associate(&assoc) < 0)
 		__abort();
 #endif

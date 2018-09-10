@@ -485,8 +485,8 @@ void module_init(void)
 		addr = module_to_addr(i);
 #ifndef CONFIG_SWEN_ROLLING_CODES
 		assoc = &m->assoc;
-		swen_l3_assoc_init(assoc);
-		swen_l3_assoc_bind(assoc, addr, &rf_iface, rf_enc_defkey);
+		swen_l3_assoc_init(assoc, rf_enc_defkey);
+		swen_l3_assoc_bind(assoc, addr, &rf_iface);
 		if (swen_l3_associate(assoc) < 0)
 			__abort();
 #else

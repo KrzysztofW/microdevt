@@ -21,12 +21,12 @@ typedef struct swen_l3_assoc {
 	const uint32_t *enc_key;
 } swen_l3_assoc_t;
 
-void swen_l3_assoc_init(swen_l3_assoc_t *assoc);
+void swen_l3_assoc_init(swen_l3_assoc_t *assoc, const uint32_t *enc_key);
 void swen_l3_assoc_shutdown(swen_l3_assoc_t *assoc);
 int swen_l3_associate(swen_l3_assoc_t *assoc);
 void swen_l3_disassociate(swen_l3_assoc_t *assoc);
-void swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to,
-			const iface_t *iface, const uint32_t *enc_key);
+void
+swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface);
 void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface);
 int swen_l3_send(swen_l3_assoc_t *assoc, const sbuf_t *sbuf);
 #ifdef TEST

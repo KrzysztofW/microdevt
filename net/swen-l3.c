@@ -270,9 +270,10 @@ void swen_l3_disassociate(swen_l3_assoc_t *assoc)
 	assoc->state = S_STATE_CLOSING;
 }
 
-void swen_l3_assoc_init(swen_l3_assoc_t *assoc)
+void swen_l3_assoc_init(swen_l3_assoc_t *assoc, const uint32_t *enc_key)
 {
 	memset(assoc, 0, sizeof(swen_l3_assoc_t));
+	assoc->enc_key = enc_key;
 	INIT_LIST_HEAD(&assoc->list);
 	INIT_LIST_HEAD(&assoc->pkt_list);
 	list_add(&assoc->list, &assoc_list);
@@ -287,8 +288,8 @@ void swen_l3_assoc_shutdown(swen_l3_assoc_t *assoc)
 }
 #endif
 
-void swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to,
-			const iface_t *iface, const uint32_t *enc_key)
+void
+swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface)
 {
 	assert(swen_event_cb);
 	assert(assoc->state == S_STATE_CLOSED);
@@ -298,7 +299,6 @@ void swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to,
 	assoc->seq_id = rand();
 #endif
 	assoc->iface = iface;
-	assoc->enc_key = enc_key;
 	assoc->dst = to;
 }
 

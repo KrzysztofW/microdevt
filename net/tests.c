@@ -1152,13 +1152,11 @@ int net_swen_l3_tests(void)
 		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX, 0);
 
 	swen_ev_set(net_swen_ev_cb);
-	swen_l3_assoc_init(&assoc_remote);
-	swen_l3_assoc_bind(&assoc_remote, hw_addr, &iface_swen_l3_remote,
-			   rf_enc_key);
+	swen_l3_assoc_init(&assoc_remote, rf_enc_key);
+	swen_l3_assoc_bind(&assoc_remote, hw_addr, &iface_swen_l3_remote);
 
-	swen_l3_assoc_init(&assoc);
-	swen_l3_assoc_bind(&assoc, hw_remote_addr, &iface_swen_l3_local,
-			   rf_enc_key);
+	swen_l3_assoc_init(&assoc, rf_enc_key);
+	swen_l3_assoc_bind(&assoc, hw_remote_addr, &iface_swen_l3_local);
 
 	/* unencrypted */
 	net_swen_l3_test(&assoc, &assoc_remote, &iface_swen_l3_local,
