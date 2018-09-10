@@ -17,7 +17,8 @@
 
 #define htons(x) (uint16_t)((x) >> 8 | (x) << 8)
 #define ntohs(x) htons(x)
-#define htonl(l) (uint32_t)(((l)<<24) | (((l)&0x00FF0000l)>>8) | (((l)&0x0000FF00l)<<8) | ((l)>>24))
+#define htonl(l) (uint32_t)(((l)<<24) | (((l)&0x00FF0000l)>>8) |	\
+			    (((l)&0x0000FF00l)<<8) | ((l)>>24))
 #define ntohl(x) htonl(x)
 
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))

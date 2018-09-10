@@ -36,6 +36,7 @@ void scheduler_run_tasks(void)
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));
 	int irq_rlen = ring_len(ring_irq);
+
 	if (irq_rlen < sizeof(task_t))
 		irq_enable();
 	else {

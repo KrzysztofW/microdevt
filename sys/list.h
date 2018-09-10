@@ -41,8 +41,13 @@ static inline void __list_add(list_t *new,
 }
 
 #ifdef LIST_DEBUG
-#define list_add(new, head) printf("%s:%d add:%p\n", __func__, __LINE__, new); __list_add((new), (head), (head)->next)
-#define list_add_tail(new, head) printf("%s:%d add:%p\n", __func__, __LINE__, new); __list_add((new), (head)->prev, (head))
+#define list_add(new, head)						\
+	printf("%s:%d add:%p\n", __func__, __LINE__, new);		\
+	__list_add((new), (head), (head)->next)
+
+#define list_add_tail(new, head)					\
+	printf("%s:%d add:%p\n", __func__, __LINE__, new);		\
+	__list_add((new), (head)->prev, (head))
 #else
 static inline void list_add(list_t *new, list_t *head)
 {
