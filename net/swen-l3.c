@@ -25,7 +25,7 @@ typedef enum swen_l3_state {
 } swen_l3_state_t;
 
 #define SWEN_L3_RETRANSMIT_DELAY 1000000 /* 1s */
-#define SWEN_L3_MAX_RETRIES 4
+#define SWEN_L3_MAX_RETRIES 15
 
 typedef struct __attribute__((__packed__)) swen_l3_hdr {
 	uint8_t op;
@@ -45,6 +45,7 @@ typedef struct __attribute__((__packed__)) swen_l3_hdr_encr {
 	return #op;				\
 	break
 
+#ifdef DEBUG
 static const char *swen_l3_print_op(uint8_t op)
 {
 	switch (op) {
@@ -60,10 +61,10 @@ static const char *swen_l3_print_op(uint8_t op)
 	}
 }
 #endif
+#endif
 
 static list_t assoc_list = LIST_HEAD_INIT(assoc_list);
 
-extern void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
 static int swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc,
 			  const sbuf_t *sbuf);
 
@@ -119,10 +120,8 @@ static void swen_l3_task_cb(void *arg)
 			op = S_OP_DISASSOC;
 		else if (assoc->state == S_STATE_CONN_COMPLETE)
 			op = S_OP_ASSOC_COMPLETE;
-		else {
-			assert(0);
+		else
 			return;
-		}
 		swen_l3_output(op, assoc, NULL);
 		return;
 	}
@@ -133,6 +132,7 @@ static void swen_l3_task_cb(void *arg)
 		retries = swen_l3_get_pkt_retries(pkt);
 		if (retries == 0) {
 			swen_l3_free_assoc_pkts(assoc);
+			swen_event_cb(assoc->dst, EV_ERROR, NULL);
 			swen_l3_associate(assoc);
 			return;
 		}
@@ -140,8 +140,8 @@ static void swen_l3_task_cb(void *arg)
 		swen_l3_set_pkt_retries(pkt, retries);
 		pkt_retain(pkt);
 		assoc->iface->send(assoc->iface, pkt);
+		break;
 	}
-
 	timer_reschedule(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY);
 }
 
@@ -217,16 +217,19 @@ static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
 		if (xtea_encode(&pkt->buf, assoc->enc_key) < 0)
 			return -1;
 	}
-	if (swen_output(pkt, assoc->iface, L3_PROTO_SWEN, &assoc->dst) < 0)
+	pkt_retain(pkt);
+	if (swen_output(pkt, assoc->iface, L3_PROTO_SWEN, &assoc->dst) < 0) {
+		pkt_free(pkt);
 		return -1;
+	}
 	if (one_shot == 0) {
-		pkt_retain(pkt);
 		swen_l3_set_pkt_retries(pkt, SWEN_L3_MAX_RETRIES);
 		swen_l3_set_pkt_seqid(pkt, assoc->seq_id);
 
 		/* TODO sliding pkt window */
 		list_add_tail(&pkt->list, &assoc->pkt_list);
-	}
+	} else
+		pkt_free(pkt);
 	return 0;
 }
 
@@ -234,27 +237,31 @@ static int
 swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc, const sbuf_t *sbuf)
 {
 	pkt_t *pkt;
-	uint8_t factor = op == S_OP_ASSOC_SYN ? 5 : 1;
 
-	timer_del(&assoc->timer);
-	timer_add(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY * factor,
-		  swen_l3_timer_cb, assoc);
+	if (list_empty(&assoc->pkt_list)) {
+		uint8_t factor = op == S_OP_ASSOC_SYN ? 5 + rand() % 3 : 1;
 
+		timer_del(&assoc->timer);
+		timer_add(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY * factor,
+			  swen_l3_timer_cb, assoc);
+	}
 	if ((pkt = pkt_alloc()) == NULL) {
 		if (op == S_OP_DATA)
-			goto error;
+			return -1;
 		return 0;
 	}
 
 	assoc->seq_id++;
 	if (__swen_l3_output(pkt, op, assoc, sbuf) < 0) {
 		pkt_free(pkt);
-		goto error;
+		return -1;
 	}
+	/* make sure the timer did not expire before exiting this funtion */
+	if (!timer_is_pending(&assoc->timer))
+		timer_add(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY,
+			  swen_l3_timer_cb, assoc);
+
 	return 0;
- error:
-	timer_del(&assoc->timer);
-	return -1;
 }
 
 void swen_l3_disassociate(swen_l3_assoc_t *assoc)
@@ -309,7 +316,6 @@ static swen_l3_assoc_t *swen_l3_assoc_lookup(uint8_t dst)
 
 int swen_l3_send(swen_l3_assoc_t *assoc, const sbuf_t *sbuf)
 {
-	assert(!timer_in_interrupt());
 	if (assoc->state != S_STATE_CONNECTED)
 		return -1;
 	return swen_l3_output(S_OP_DATA, assoc, sbuf);
@@ -356,15 +362,15 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 	uint8_t ack, seq_id;
 
 	/* check if the address is bound locally */
-	if ((assoc = swen_l3_assoc_lookup(from)) == NULL)
+	if ((assoc = swen_l3_assoc_lookup(from)) == NULL ||
+	    assoc->iface != iface)
 		goto end;
 
-	assert(assoc->iface == iface);
 	if (assoc->enc_key) {
 		swen_l3_hdr_encr_t *hdr_encr = btod(pkt);
 
 		if (xtea_decode(&pkt->buf, assoc->enc_key) < 0 ||
-		    pkt->buf.len < hdr_encr->len)
+		    pkt->buf.len < hdr_encr->len + sizeof(swen_l3_hdr_encr_t))
 			goto end;
 
 		buf_shrink(&pkt->buf, pkt->buf.len

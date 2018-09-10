@@ -19,4 +19,6 @@ void
 swen_generic_cmds_init(void (*generic_cmds_cb)(int nb), const uint8_t *cmds);
 void swen_ev_set(void (*ev_cb)(uint8_t from, uint8_t events, buf_t *buf));
 
+extern void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
+
 #endif
