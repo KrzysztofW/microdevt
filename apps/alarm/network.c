@@ -15,7 +15,7 @@ static uint8_t ip[] = { 192, 168, 0, 99 };
 static uint8_t ip_mask[] = { 255, 255, 255, 0 };
 static uint8_t mac[] = { 0x62, 0x5F, 0x70, 0x72, 0x61, 0x79 };
 
-static iface_t eth0 = {
+iface_t eth_iface = {
 	.flags = IF_UP|IF_RUNNING,
 	.hw_addr = mac,
 	.ip4_addr = ip,
@@ -72,7 +72,7 @@ static void apps_loop(void)
 #ifdef ENC28J60_INT
 ISR(PCINT0_vect)
 {
-	enc28j60_handle_interrupts(&eth0);
+	enc28j60_handle_interrupts(&eth_iface);
 }
 #endif
 
@@ -81,10 +81,10 @@ void alarm_network_init(void)
 #ifdef NETWORK_WD_RESET
 	timer_add(&timer_wd, 5000000UL, tim_cb_wd, NULL);
 #endif
-	if_init(&eth0, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
+	if_init(&eth_iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
 		CONFIG_PKT_DRIVER_NB_MAX, 0);
 
-	dft_route.iface = &eth0;
+	dft_route.iface = &eth_iface;
 	dft_route.ip = 0x0b00a8c0;
 #if defined(CONFIG_UDP) || defined(CONFIG_TCP)
 	socket_init();
@@ -94,7 +94,8 @@ void alarm_network_init(void)
 	PCICR |= _BV(PCIE0);
 	PCMSK0 |= _BV(PCINT5);
 #endif
-	enc28j60_init(eth0.hw_addr);
+	enc28j60_init(eth_iface.hw_addr);
+
 	if (apps_init() < 0)
 		__abort();
 }
@@ -103,12 +104,12 @@ void alarm_network_loop(void)
 {
 	pkt_t *pkt;
 
-	eth0.recv(&eth0);
-	while ((pkt = pkt_get(eth0.tx)) != NULL) {
+	eth_iface.recv(&eth_iface);
+	while ((pkt = pkt_get(eth_iface.tx)) != NULL) {
 #ifdef NETWORK_WD_RESET
 		net_wd = 0;
 #endif
-		eth0.send(&eth0, pkt);
+		eth_iface.send(&eth_iface, pkt);
 	}
 
 #ifdef ENC28J60_INT

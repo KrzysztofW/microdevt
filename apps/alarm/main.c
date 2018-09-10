@@ -7,6 +7,7 @@
 #include <timer.h>
 #include <scheduler.h>
 #include <net/pkt-mempool.h>
+#include <interrupts.h>
 #include "alarm.h"
 #include "module.h"
 
@@ -65,8 +66,9 @@ int main(void)
 #endif
 	init_adc_f();
 	timer_subsystem_init();
-	watchdog_shutdown();
 #ifdef CONFIG_TIMER_CHECKS
+	watchdog_shutdown();
+	irq_enable();
 	timer_checks();
 #endif
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER	\
@@ -79,7 +81,6 @@ int main(void)
 
 
 	watchdog_enable();
-	sei();
 
 #ifdef CONFIG_NETWORKING
 	alarm_network_init();
@@ -91,6 +92,7 @@ int main(void)
 	alarm_rf_init();
 	module_init();
 #endif
+	irq_enable();
 
 	/* slow functions */
 	while (1) {

@@ -2,7 +2,7 @@
 
 static uint8_t *buffer_data;
 static pkt_t *buffer_pool;
-static ring_t *pkt_pool;
+ring_t *pkt_pool;
 static unsigned pkt_total_size;
 #ifdef PKT_DEBUG
 static unsigned pkt_nb_pkts;

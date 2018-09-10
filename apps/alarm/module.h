@@ -43,6 +43,8 @@ typedef enum commands {
 	CMD_STATUS,
 	CMD_SET_HUM_TH,
 	CMD_NOTIF_ALARM_ON,
+	CMD_DISCONNECT,
+	CMD_CONNECT,
 } commands_t;
 
 void module_init(void);

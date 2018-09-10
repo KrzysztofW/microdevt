@@ -3,8 +3,9 @@
 #include <net/swen.h>
 #include <net/swen-cmds.h>
 #include <net/event.h>
-#include <timer.h>
 #include "../rf-common.h"
+#include "../module.h"
+#include "alarm-module1.h"
 
 static uint8_t rf_addr = RF_MOD1_HW_ADDR;
 iface_t rf_iface = {
@@ -22,41 +23,36 @@ uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
 
-void send_rf_cmd(buf_t *buf)
-{
-	sbuf_t sbuf;
-
-	if (xtea_encode(buf, rf_enc_defkey) < 0) {
-		DEBUG_LOG("can't encode buf\n");
-		return;
-	}
-	sbuf = buf2sbuf(buf);
-	if (swen_sendto(&rf_iface, RF_MOD0_HW_ADDR, &sbuf) < 0)
-		DEBUG_LOG("failed sending humidity value\n");
-}
-
 #ifdef CONFIG_RF_RECEIVER
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 static void rf_kerui_cb(int nb)
 {
+	uint8_t cmd;
+
 	DEBUG_LOG("received kerui cmd %d\n", nb);
-	if (nb == 0)
-		PORTD |= 1 << PD3;
-	else if (nb == 1)
-		PORTD &= ~(1 << PD3);
-	else if (nb == 2)
-		PORTB |= 1 << PB2;
-	else if (nb == 3)
-		PORTB &= ~(1 << PB2);
+	switch (nb) {
+	case 0:
+		cmd = CMD_ARM;
+		break;
+	case 1:
+		cmd = CMD_DISARM;
+		break;
+	case 2:
+		cmd = CMD_RUN_FAN;
+		break;
+	case 3:
+		cmd = CMD_STOP_FAN;
+		break;
+	default:
+		return;
+	}
+	handle_rf_commands(cmd, 0);
 }
 #endif
 #endif
 
 void alarm_module1_rf_init(void)
 {
-#ifdef CONFIG_RF_SENDER
-	tim_t timer_rf;
-#endif
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	if_init(&rf_iface, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
 		CONFIG_PKT_DRIVER_NB_MAX, 1);
@@ -71,5 +67,4 @@ void alarm_module1_rf_init(void)
 	if (rf_checks(&rf_iface) < 0)
 		__abort();
 #endif
-	timer_init(&timer_rf);
 }

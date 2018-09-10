@@ -9,6 +9,9 @@
 #define SIREN_ON_DURATION (15 * 60 * 1000000UL)
 
 extern iface_t rf_iface;
+#ifdef CONFIG_NETWORKING
+extern iface_t eth_iface;
+#endif
 extern uint32_t rf_enc_defkey[4];
 
 #define NB_MODULES 2
@@ -26,6 +29,8 @@ static sbuf_t s_fan_enable = SBUF_INITS("fan enable");
 static sbuf_t s_siren_on = SBUF_INITS("siren on");
 static sbuf_t s_siren_off = SBUF_INITS("siren off");
 static sbuf_t s_humidity_th  = SBUF_INITS("humidity th");
+static sbuf_t s_disconnect = SBUF_INITS("disconnect");
+static sbuf_t s_connect = SBUF_INITS("connect");
 
 #define MAX_ARGS 8
 typedef enum arg_type {
@@ -56,6 +61,8 @@ static cmd_t cmds[] = {
 	{ .s = &s_siren_off, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_OFF },
 	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_HUM_TH },
+	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
+	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 };
 
 static uint8_t module_to_addr(uint8_t module)
@@ -124,7 +131,10 @@ static const char *on_off(uint8_t val)
 
 static void module_set_status(uint8_t nb, const module_status_t *status)
 {
+	uint8_t rf_up = modules[nb].status.rf_up;
+
 	modules[nb].status = *status;
+	modules[nb].status.rf_up = rf_up;
 }
 
 static void print_status(uint8_t nb)
@@ -132,31 +142,31 @@ static void print_status(uint8_t nb)
 	const module_status_t *status = &modules[nb].status;
 	const module_features_t *features = modules[nb].features;
 
-	printf_P(PSTR("\nModule %d:\n"), nb);
-	printf_P(PSTR(" State:\t%s\n"), state_to_string(status->state));
+	LOG("\nModule %d:\n", nb);
+	LOG(" State:  %s\n", state_to_string(status->state));
 	if (features->humidity) {
-		printf_P(PSTR(" Humidity value:\t%u\n"
-			      " Global humidity value:\t%u\n"
-			      " Humidity tendency:\t%u\n"
-			      " Humidity threshold:\t%u\n"),
-			 status->humidity_val,
-			 status->global_humidity_val,
-			 status->humidity_tendency,
-			 status->humidity_threshold);
+		LOG(" Humidity value:  %u\n"
+		    " Global humidity value:  %u\n"
+		    " Humidity tendency:  %u\n"
+		    " Humidity threshold:  %u\n",
+		    status->humidity_val,
+		    status->global_humidity_val,
+		    status->humidity_tendency,
+		    status->humidity_threshold);
 	}
 	if (features->temperature)
-		printf_P(PSTR(" Temp:\t%u\n"), status->temperature);
+		LOG(" Temp:  %u\n", analog_read(3));
 
 	if (features->fan)
-		printf_P(PSTR(" Fan: %s\n Fan enabled:\t%s\n"),
-			 on_off(status->fan_on), yes_no(status->fan_enabled));
+		LOG(" Fan: %s\n Fan enabled:  %s\n",
+		    on_off(status->fan_on), yes_no(status->fan_enabled));
 
 	if (features->siren)
-		printf_P(PSTR(" Siren:\t%s\n"), on_off(status->siren_on));
+		LOG(" Siren:  %s\n", on_off(status->siren_on));
 	if (features->lan)
-		printf_P(PSTR(" LAN:\t%s\n"), on_off(status->lan_up));
+		LOG(" LAN:  %s\n", on_off(status->lan_up));
 	if (features->rf)
-		printf_P(PSTR(" RF:\t%s\n"), on_off(status->rf_up));
+		LOG(" RF:  %s\n", on_off(status->rf_up));
 }
 
 static void send_rf_msg(uint8_t module, uint8_t cmd, const buf_t *args)
@@ -202,7 +212,20 @@ static void handle_commands(uint8_t module, uint8_t cmd, const buf_t *args)
 			return;
 		}
 	} else if (module > NB_MODULES) {
-		printf_P(PSTR("unhandled module %d\n"), module);
+		LOG("unhandled module %d\n", module);
+		return;
+	}
+	if (!modules[module].features->rf) {
+		LOG("module does not support RF commands\n");
+		return;
+	}
+	if (cmd == CMD_DISCONNECT) {
+		swen_l3_disassociate(&modules[module].assoc);
+		modules[module].status.rf_up = 0;
+		return;
+	}
+	if (cmd == CMD_CONNECT) {
+		swen_l3_associate(&modules[module].assoc);
 		return;
 	}
 	if ((!modules[module].features->fan
@@ -211,7 +234,7 @@ static void handle_commands(uint8_t module, uint8_t cmd, const buf_t *args)
 	    (!modules[module].features->siren
 	     && (cmd == CMD_SIREN_ON || cmd == CMD_SIREN_OFF)) ||
 	    (!modules[module].features->humidity && cmd == CMD_SET_HUM_TH)) {
-		printf_P(PSTR("unsupported feature\n"));
+		LOG("unsupported feature\n");
 		return;
 	}
 	send_rf_msg(module, cmd, args);
@@ -258,22 +281,22 @@ static void print_usage(void)
 {
 	uint8_t i;
 
-	puts("");
+	LOG("");
 	for (i = 0; i < sizeof(cmds) / sizeof(cmd_t); i++) {
 		cmd_t *cmd = &cmds[i];
 		uint8_t *args = cmd->args;
 
-		printf_P(PSTR("mod[nb] %s"), cmd->s->data);
+		LOG("mod[nb] %s", cmd->s->data);
 		while (args[0] != ARG_TYPE_NONE) {
 			if (args[0] == ARG_TYPE_STRING)
-				printf_P(PSTR(" <string>"));
+				LOG(" <string>");
 			else
-				printf_P(PSTR(" <number>"));
+				LOG(" <number>");
 			args++;
 		}
-		puts("");
+		LOG("\n");
 	}
-	puts("");
+	LOG("\n");
 }
 
 void alarm_parse_uart_commands(buf_t *buf)
@@ -282,9 +305,25 @@ void alarm_parse_uart_commands(buf_t *buf)
 	uint8_t module;
 	uint8_t i;
 	sbuf_t s;
+	iface_t *ifce = NULL;
 
 	if (buf_get_sbuf_upto_and_skip(buf, &s, "help") >= 0) {
 		print_usage();
+		return;
+	}
+	if (buf_get_sbuf_upto_and_skip(buf, &s, "rf buf") >= 0)
+		ifce = &rf_iface;
+	else if (buf_get_sbuf_upto_and_skip(buf, &s, "eth buf") >= 0) {
+#ifdef CONFIG_NETWORK
+		ifce = &eth_iface;
+#else
+		LOG(" unsupported\n");
+#endif
+	}
+	if (ifce) {
+		LOG("\nifce pool: %d rx: %d tx:%d\npkt pool: %d\n",
+		    ring_len(ifce->pkt_pool), ring_len(ifce->rx),
+		    ring_len(ifce->tx), ring_len(pkt_pool));
 		return;
 	}
 
@@ -322,24 +361,46 @@ void alarm_parse_uart_commands(buf_t *buf)
 		return;
 	}
  usage:
-	printf_P(PSTR("usage: [help] | mod[0-%d] command\n"), NB_MODULES - 1);
+	LOG("usage: [help] | mod[0-%d] command\n", NB_MODULES - 1);
 }
+#ifdef RF_DEBUG
+static void send_status(void)
+{
+	buf_t buf = BUF(sizeof(uint8_t) + sizeof(module_status_t));
+	sbuf_t sbuf;
+	module_status_t status;
 
+	memset(&status, 0, sizeof(module_status_t));
+	__buf_addc(&buf, CMD_STATUS);
+	__buf_add(&buf, &status, sizeof(module_status_t));
+	sbuf = buf2sbuf(&buf);
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	if (swen_rc_sendto(&debug_rc_ctx, &sbuf) >= 0)
+		debug_remote_counter++;
+#else
+	if (swen_l3_send(&debug_assoc, &sbuf) < 0)
+		printf("failed sending status\n");
+#endif
+}
+#endif
 static void handle_rf_replies(uint8_t addr, buf_t *buf)
 {
-	uint8_t cmd = buf_data(buf)[0];
+	uint8_t cmd;
 	uint8_t module;
 
+	if (buf == NULL)
+		return;
+	cmd = buf_data(buf)[0];
 	switch (cmd) {
 	case CMD_STATUS:
 		if (buf_len(buf) - 1 < sizeof(module_status_t)) {
-			printf_P(PSTR("corrupted message of len %d from 0x%X\n"),
-				 buf_len(buf), addr);
+			LOG("corrupted message of len %d from 0x%X\n",
+			    buf_len(buf), addr);
 			return;
 		}
 		if (addr < RF_MOD0_HW_ADDR ||
 		    addr - RF_MOD0_HW_ADDR > NB_MODULES) {
-			printf_P(PSTR("Address 0x%X not handled\n"), addr);
+			LOG("Address 0x%X not handled\n", addr);
 			return;
 		}
 		module = addr_to_module(addr);
@@ -357,13 +418,13 @@ static void handle_rf_replies(uint8_t addr, buf_t *buf)
 static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 {
 	if (events & EV_READ) {
-		if (buf == NULL) {
-			if (from == RF_MOD1_HW_ADDR)
-				modules[1].status.rf_up = 1;
-			return;
+		if (from == RF_MOD1_HW_ADDR) {
+			LOG("mod1 connected\n");
+			modules[1].status.rf_up = 1;
 		}
 		handle_rf_replies(from, buf);
 	} else if (events & EV_ERROR) {
+		LOG("failed sending to 0x%02X\n", from);
 		if (from == RF_MOD1_HW_ADDR)
 			modules[1].status.rf_up = 0;
 	}

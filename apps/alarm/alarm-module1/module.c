@@ -7,19 +7,19 @@
 #include "../module.h"
 #include "../rf-common.h"
 
+#define ONE_HOUR (3600 * 1000U)
 #define HUMIDITY_ANALOG_PIN 1
-#define FAN_ON_DURATION ((3600 * 4) * 1000000UL) /* max 4h of activity */
+#define FAN_ON_DURATION_H 4 /* max 4h of activity */
 #define HUMIDITY_SAMPLING (10 * 1000000UL) /* sample every 10s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 60
 #define DEFAULT_HUMIDITY_THRESHOLD 600
-#define SIREN_ON_DURATION (15 * 60 * 1000000UL)
+#define SIREN_ON_DURATION (10 * 1000000UL)
 
 extern iface_t rf_iface;
 extern uint32_t rf_enc_defkey[4];
-static swen_l3_assoc_t assoc;
-static uint8_t connected;
 static uint8_t state;
-static uint8_t fan_sensor_off;
+static uint8_t fan_sensor_off = 1; // change me
+static uint8_t fan_off_hour_cnt = FAN_ON_DURATION_H;
 
 static tim_t fan_timer;
 static tim_t humidity_timer;
@@ -68,23 +68,30 @@ static inline void set_fan_off(void)
 {
 	PORTD &= ~(1 << PD3);
 	timer_del(&fan_timer);
+	fan_off_hour_cnt = FAN_ON_DURATION_H;
 }
 
 static void fan_off_cb(void *arg)
 {
+	if (fan_off_hour_cnt) {
+		fan_off_hour_cnt--;
+		timer_reschedule(&fan_timer, ONE_HOUR);
+		return;
+	}
 	set_fan_off();
+	fan_off_hour_cnt = FAN_ON_DURATION_H;
 }
 
 static void set_fan_on(void)
 {
 	PORTD |= 1 << PD3;
 	timer_del(&fan_timer);
-	timer_add(&fan_timer, FAN_ON_DURATION, fan_off_cb, NULL);
+	timer_add(&fan_timer, ONE_HOUR, fan_off_cb, NULL);
 }
 
 static void set_siren_off(void)
 {
-	DDRB &= ~(1 << PB0);
+	PORTB &= ~(1 << PB0);
 }
 
 static void siren_tim_cb(void *arg)
@@ -94,11 +101,14 @@ static void siren_tim_cb(void *arg)
 
 static void set_siren_on(uint8_t force)
 {
+	if (PORTB & (1 << PB0))
+		return;
 	if (state == MODULE_STATE_ARMED || force) {
-		DDRB |= 1 << PB0;
+		PORTB |= 1 << PB0;
 		timer_del(&siren_timer);
 		timer_add(&siren_timer, SIREN_ON_DURATION, siren_tim_cb, NULL);
-		send_rf_msg(CMD_NOTIF_ALARM_ON, NULL);
+		if (state == MODULE_STATE_ARMED && !force)
+			send_rf_msg(CMD_NOTIF_ALARM_ON, NULL);
 	}
 }
 
@@ -159,16 +169,38 @@ static void get_status(module_status_t *status)
 		global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH / 2];
 	status->humidity_tendency = get_hum_tendency();
 	status->state = state;
-	status->fan_on = !!(PORTD | 1 << PD3);
-	status->siren_on = !!(PORTB | 1 << PB0);
+	status->fan_on = !!(PORTD & 1 << PD3);
+	status->siren_on = !!(PORTB & 1 << PB0);
 	status->fan_enabled = !fan_sensor_off;
 	status->rf_up = connected;
 	status->humidity_threshold = humidity_threshold;
 }
 
-static void handle_rf_commands(buf_t *buf)
+void module_print_status(void)
 {
-	uint8_t cmd = buf_data(buf)[0];
+	LOG("\nStatus:\n");
+	LOG(" State:  %s\n", state == MODULE_STATE_ARMED ? "armed" : "disarmed");
+	LOG(" Humidity value:  %u\n"
+	    " Global humidity value:  %u\n"
+	    " Humidity tendency:  %u\n"
+	    " Humidity threshold:  %u\n",
+	    get_humidity_value(),
+	    global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH / 2],
+	    get_hum_tendency(),
+	    humidity_threshold);
+	LOG(" Fan: %d\n Fan enabled: %d\n", !!(PORTD & 1 << PD3),
+	    !fan_sensor_off);
+	LOG(" Siren:  %d\n", !!(PORTB & 1 << PB0));
+	LOG(" RF:  %d\n", connected);
+}
+
+void module_arm(uint8_t on)
+{
+	state = on ? MODULE_STATE_ARMED : MODULE_STATE_DISARMED;
+}
+
+void handle_rf_commands(uint8_t cmd, uint16_t value)
+{
 	module_status_t status;
 
 	switch (cmd) {
@@ -206,13 +238,24 @@ static void handle_rf_commands(buf_t *buf)
 		set_siren_off();
 		return;
 	case CMD_SET_HUM_TH:
-		if (buf_len(buf) >= 3)
-			humidity_threshold = *(uint16_t *)(buf_data(buf) + 1);
+		if (value) {
+			humidity_threshold = value;
+		}
 		return;
 	}
 	send_rf_msg(cmd, &status);
 }
 
+static void handle_rf_buf_commands(buf_t *buf)
+{
+	uint8_t cmd = buf_data(buf)[0];
+	uint16_t value = 0;
+
+	if (buf_len(buf) >= 3)
+		value = *(uint16_t *)(buf_data(buf) + 1);
+
+	handle_rf_commands(cmd, value);
+}
 static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 {
 	if (events & EV_READ) {
@@ -223,7 +266,7 @@ static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 				state = MODULE_STATE_DISARMED;
 			return;
 		}
-		handle_rf_commands(buf);
+		handle_rf_buf_commands(buf);
 	} else if (events & EV_ERROR) {
 		printf("%X error\n", from);
 		connected = 0;
