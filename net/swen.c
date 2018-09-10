@@ -3,8 +3,11 @@
 #include <sys/buf.h>
 #include <sys/ring.h>
 #include <drivers/rf.h>
-#include <net/swen-l3.h>
+#ifdef CONFIG_SWEN_ROLLING_CODES
+#include "swen-rc.h"
+#endif
 #include "event.h"
+#include "swen-l3.h"
 #include "swen.h"
 
 #ifdef CONFIG_RF_GENERIC_COMMANDS
@@ -140,6 +143,11 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 #ifdef CONFIG_SWEN_L3
 	case L3_PROTO_SWEN:
 		swen_l3_input(hdr->from, pkt, iface);
+		return;
+#endif
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	case L3_PROTO_SWEN_RC:
+		swen_rc_input(hdr->from, pkt, iface);
 		return;
 #endif
 #ifdef CONFIG_IP_OVER_SWEN

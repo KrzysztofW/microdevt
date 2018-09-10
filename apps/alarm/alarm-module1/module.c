@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <scheduler.h>
 #include <net/event.h>
+#ifdef CONFIG_SWEN_ROLLING_CODES
+#include <net/swen.h>
+#else
 #include <net/swen-l3.h>
+#endif
 #include <adc.h>
 #include <sys/array.h>
 #include <avr/eeprom.h>
@@ -28,6 +32,15 @@ static tim_t siren_timer;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t gha_pos;
 static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
+#ifdef CONFIG_SWEN_ROLLING_CODES
+static swen_rc_ctx_t rc_ctx;
+static uint32_t local_counter;
+static uint32_t remote_counter;
+static uint8_t connected = 1;
+#else
+static swen_l3_assoc_t assoc;
+static uint8_t connected;
+#endif
 
 typedef struct __attribute__((__packed__)) persistent_data {
 	uint8_t armed : 1;
@@ -68,8 +81,13 @@ static void send_rf_msg(uint8_t cmd, const module_status_t *status)
 	if (status)
 		__buf_add(&buf, status, sizeof(module_status_t));
 	sbuf = buf2sbuf(&buf);
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	if (swen_rc_sendto(&rc_ctx, &sbuf) >= 0)
+		remote_counter++;
+#else
 	if (swen_l3_send(&assoc, &sbuf) < 0)
 		connected = 0;
+#endif
 }
 
 static inline void set_fan_off(void)
@@ -305,6 +323,12 @@ static void handle_rf_buf_commands(buf_t *buf)
 }
 static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 {
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	if (events & EV_READ) {
+		local_counter++;
+		handle_rf_buf_commands(buf);
+	}
+#else
 	if (events & EV_READ) {
 		if (buf == NULL) {
 			printf("%X connected\n", from);
@@ -318,15 +342,30 @@ static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 		printf("%X error\n", from);
 		connected = 0;
 	}
+#endif
 }
+
+#ifdef CONFIG_SWEN_ROLLING_CODES
+static void set_rc_cnt(uint32_t *counter, uint8_t value)
+{
+	*counter += value;
+	// eeprom ...
+}
+#endif
 
 void module_init(void)
 {
 	reload_cfg_from_storage();
 	timer_add(&humidity_timer, HUMIDITY_SAMPLING, humidity_sampling, NULL);
 	swen_ev_set(rf_event_cb);
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	swen_rc_init(&rc_ctx, &rf_iface, RF_MOD0_HW_ADDR,
+		     &local_counter, &remote_counter, set_rc_cnt,
+		     rf_enc_defkey);
+#else
 	swen_l3_assoc_init(&assoc);
 	swen_l3_assoc_bind(&assoc, RF_MOD0_HW_ADDR, &rf_iface, rf_enc_defkey);
 	if (swen_l3_associate(&assoc) < 0)
 		__abort();
+#endif
 }

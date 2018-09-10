@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <net/event.h>
+#include <net/swen.h>
+#include <net/swen-rc.h>
 #include <net/swen-l3.h>
 #include <adc.h>
 #include "module.h"
@@ -13,6 +15,11 @@ extern iface_t rf_iface;
 extern iface_t eth_iface;
 #endif
 extern uint32_t rf_enc_defkey[4];
+
+#ifdef CONFIG_SWEN_ROLLING_CODES
+static uint32_t local_counter;
+static uint32_t remote_counter;
+#endif
 
 #define NB_MODULES 2
 static module_t modules[NB_MODULES];
@@ -173,18 +180,25 @@ static void send_rf_msg(uint8_t module, uint8_t cmd, const buf_t *args)
 {
 	buf_t buf = BUF(sizeof(uint8_t) + args->len);
 	sbuf_t sbuf;
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	swen_rc_ctx_t *rc_ctx = &modules[module].rc_ctx;
+#else
 	swen_l3_assoc_t *assoc = &modules[module].assoc;
+#endif
 
-	if (!modules[module].status.rf_up) {
-		printf_P(PSTR("module %d not connected\n"), module);
-		return;
-	}
 	__buf_addc(&buf, cmd);
 	buf_addbuf(&buf, args);
 
 	sbuf = buf2sbuf(&buf);
-	if (swen_l3_send(assoc, &sbuf) < 0)
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	if (swen_rc_sendto(rc_ctx, &sbuf) >= 0)
+		remote_counter++;
+#else
+	if (swen_l3_send(assoc, &sbuf) < 0) {
+		LOG("sending to module %d failed\n", module);
 		modules[module].status.rf_up = 0;
+	}
+#endif
 }
 
 static void handle_commands(uint8_t module, uint8_t cmd, const buf_t *args)
@@ -220,12 +234,16 @@ static void handle_commands(uint8_t module, uint8_t cmd, const buf_t *args)
 		return;
 	}
 	if (cmd == CMD_DISCONNECT) {
+#ifndef CONFIG_SWEN_ROLLING_CODES
 		swen_l3_disassociate(&modules[module].assoc);
 		modules[module].status.rf_up = 0;
+#endif
 		return;
 	}
 	if (cmd == CMD_CONNECT) {
+#ifndef CONFIG_SWEN_ROLLING_CODES
 		swen_l3_associate(&modules[module].assoc);
+#endif
 		return;
 	}
 	if ((!modules[module].features->fan
@@ -415,8 +433,23 @@ static void handle_rf_replies(uint8_t addr, buf_t *buf)
 	}
 }
 
+#ifdef CONFIG_SWEN_ROLLING_CODES
+static void set_rc_cnt(uint32_t *counter, uint8_t value)
+{
+	*counter += value;
+	// eeprom ...
+}
+#endif
+
 static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 {
+#ifdef CONFIG_SWEN_ROLLING_CODES
+	if (events & EV_READ) {
+		if (from == RF_MOD1_HW_ADDR)
+			modules[1].local_counter++;
+		handle_rf_replies(from, buf);
+	}
+#else
 	if (events & EV_READ) {
 		if (from == RF_MOD1_HW_ADDR) {
 			LOG("mod1 connected\n");
@@ -428,6 +461,7 @@ static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 		if (from == RF_MOD1_HW_ADDR)
 			modules[1].status.rf_up = 0;
 	}
+#endif
 }
 
 void module_init(void)
@@ -438,7 +472,9 @@ void module_init(void)
 
 	for (i = 0; i < NB_MODULES; i++) {
 		module_t *m = &modules[i];
+#ifndef CONFIG_SWEN_ROLLING_CODES
 		swen_l3_assoc_t *assoc;
+#endif
 		uint8_t addr;
 
 		sprintf(m->name, "mod%u", i);
@@ -446,13 +482,18 @@ void module_init(void)
 
 		if (i == 0)
 			continue;
-		assoc = &m->assoc;
 		addr = module_to_addr(i);
-
+#ifndef CONFIG_SWEN_ROLLING_CODES
+		assoc = &m->assoc;
 		swen_l3_assoc_init(assoc);
-		swen_l3_assoc_bind(assoc, addr, &rf_iface,
-				   rf_enc_defkey);
+		swen_l3_assoc_bind(assoc, addr, &rf_iface, rf_enc_defkey);
 		if (swen_l3_associate(assoc) < 0)
 			__abort();
+#else
+		swen_rc_init(&m->rc_ctx, &rf_iface, addr,
+			     &local_counter, &remote_counter, set_rc_cnt,
+			     rf_enc_defkey);
+#endif
+
 	}
 }
