@@ -66,9 +66,10 @@ static void if_schedule_receive_cb(void *arg)
 
 void if_schedule_receive(const iface_t *iface, pkt_t *pkt)
 {
-	if (ring_is_empty(iface->rx))
+	if (ring_is_empty(iface->rx) || ring_is_empty(iface->pkt_pool))
 		schedule_task(if_schedule_receive_cb, (iface_t *)iface);
-	pkt_put(iface->rx, pkt);
+	if (pkt)
+		pkt_put(iface->rx, pkt);
 }
 
 static void if_pkt_free_cb(void *arg)
