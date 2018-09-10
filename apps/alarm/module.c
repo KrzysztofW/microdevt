@@ -487,6 +487,7 @@ void module_init(void)
 		assoc = &m->assoc;
 		swen_l3_assoc_init(assoc, rf_enc_defkey);
 		swen_l3_assoc_bind(assoc, addr, &rf_iface);
+		swen_l3_set_events(assoc, EV_READ | EV_WRITE);
 		if (swen_l3_associate(assoc) < 0)
 			__abort();
 #else

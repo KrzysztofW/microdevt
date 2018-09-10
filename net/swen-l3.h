@@ -5,6 +5,7 @@
 #include "pkt-mempool.h"
 #include "if.h"
 #include "swen.h"
+#include "event.h"
 
 typedef struct swen_l3_assoc {
 	uint8_t dst;
@@ -17,6 +18,7 @@ typedef struct swen_l3_assoc {
 	tim_t timer;
 	list_t list;
 	list_t pkt_list;
+	uint8_t events_wanted;
 	const iface_t *iface;
 	const uint32_t *enc_key;
 } swen_l3_assoc_t;
@@ -32,5 +34,10 @@ int swen_l3_send(swen_l3_assoc_t *assoc, const sbuf_t *sbuf);
 #ifdef TEST
 void swen_l3_retransmit_pkts(swen_l3_assoc_t *assoc);
 #endif
+
+static inline void swen_l3_set_events(swen_l3_assoc_t *assoc, uint8_t events)
+{
+	assoc->events_wanted = events;
+}
 
 #endif

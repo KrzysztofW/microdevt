@@ -9,6 +9,7 @@
 #include <adc.h>
 #include <sys/array.h>
 #include <avr/eeprom.h>
+#include <avr/interrupt.h>
 #include "../module.h"
 #include "../rf-common.h"
 
@@ -365,6 +366,7 @@ void module_init(void)
 #else
 	swen_l3_assoc_init(&assoc, rf_enc_defkey);
 	swen_l3_assoc_bind(&assoc, RF_MOD0_HW_ADDR, &rf_iface);
+	swen_l3_set_events(&assoc, EV_READ | EV_WRITE);
 	if (swen_l3_associate(&assoc) < 0)
 		__abort();
 #endif

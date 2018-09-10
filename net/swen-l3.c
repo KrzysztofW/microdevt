@@ -4,7 +4,7 @@
 #include <sys/random.h>
 #include "swen.h"
 #include "swen-l3.h"
-#include "event.h"
+#include "pkt-mempool.h"
 
 typedef enum swen_l3_op {
 	S_OP_ASSOC_SYN,
@@ -354,6 +354,26 @@ static void __swen_l3_output_reuse_pkt(swen_l3_assoc_t *assoc, pkt_t *pkt,
 	__swen_l3_output(pkt, op, assoc, NULL);
 }
 
+static void swen_l3_event_cb(swen_l3_assoc_t *assoc, uint8_t events, buf_t *buf)
+{
+	uint8_t ev = (assoc->events_wanted & events) | (events & EV_ERROR);
+
+	if (ev) {
+		if ((ev & EV_WRITE) && pkt_get_nb_free() == 0)
+			ev &= ~EV_WRITE;
+		swen_event_cb(assoc->dst, ev, buf);
+	}
+}
+
+void swen_l3_event_set(swen_l3_assoc_t *assoc, uint8_t wanted)
+{
+	assoc->events_wanted = wanted;
+	if (wanted & EV_WRITE) {
+		if (assoc->state == S_STATE_CONNECTED && pkt_get_nb_free())
+			swen_l3_event_cb(assoc, EV_WRITE, NULL);
+	}
+}
+
 void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 {
 	swen_l3_hdr_t *hdr;
@@ -408,7 +428,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 				assoc->new_ack = 0;
 				assoc->ack = hdr->seq_id;
 				assoc->state = S_STATE_CONNECTED;
-				swen_event_cb(from, EV_READ|EV_WRITE, NULL);
+				swen_l3_event_cb(assoc, EV_READ|EV_WRITE, NULL);
 				__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
 				return;
 			}
@@ -443,7 +463,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		if (assoc->state == S_STATE_CONN_COMPLETE) {
 			swen_l3_free_assoc_pkts(assoc);
 			assoc->state = S_STATE_CONNECTED;
-			swen_event_cb(from, EV_READ|EV_WRITE, NULL);
+			swen_l3_event_cb(assoc, EV_READ|EV_WRITE, NULL);
 		}
 		break;
 
@@ -464,7 +484,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		 * in the event callback */
 		ack = assoc->ack;
 		assoc->ack_needed = 1;
-		swen_event_cb(from, EV_READ|EV_WRITE, &pkt->buf);
+		swen_l3_event_cb(assoc, EV_READ|EV_WRITE, &pkt->buf);
 		assoc->ack_needed = 0;
 
 		/* check if the pkt has been acked by sending data from the cb */
@@ -488,7 +508,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		if (assoc->state == S_STATE_CONNECTED)
 			assoc->state = S_STATE_CLOSED;
 		assoc->state = S_STATE_CLOSED;
-		swen_event_cb(from, EV_ERROR, NULL);
+		swen_l3_event_cb(assoc, EV_ERROR, NULL);
 		__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
 		return;
 

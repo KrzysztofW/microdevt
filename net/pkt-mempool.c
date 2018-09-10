@@ -17,6 +17,11 @@ int pkt_is_emergency(pkt_t *pkt)
 }
 #endif
 
+unsigned int pkt_get_nb_free(void)
+{
+	return ring_len(pkt_pool);
+}
+
 #ifdef PKT_DEBUG
 void pkt_get_traced_pkts(void)
 {
@@ -26,16 +31,11 @@ void pkt_get_traced_pkts(void)
 	for (i = 0; i < pkt_nb_pkts - 1; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
-		fprintf(stderr, "[%d] pkt:%p get:%s put:%s\n",
-			i, pkt, pkt->last_get_func,
-		       pkt->last_put_func);
+		DEBUG_LOG("[%d] pkt:%p get:%s put:%s\n",
+			  i, pkt, pkt->last_get_func,
+			  pkt->last_put_func);
 	}
-	fprintf(stderr, "\n");
-}
-
-unsigned int pkt_get_nb_free(void)
-{
-	return ring_len(pkt_pool);
+	DEBUG_LOG("\n");
 }
 
 pkt_t *__pkt_get(ring_t *ring, const char *func, int line)

@@ -1024,6 +1024,8 @@ net_swen_l3_test(swen_l3_assoc_t *assoc, swen_l3_assoc_t *assoc_remote,
 	pkt_t *pkt;
 	sbuf_t data = SBUF_INITS("<test data>");
 
+	swen_l3_set_events(assoc, EV_READ|EV_WRITE);
+	swen_l3_set_events(assoc_remote, EV_READ|EV_WRITE);
 	net_swen_l3_events = 0;
 	if (swen_l3_associate(assoc) < 0)
 		__abort();
