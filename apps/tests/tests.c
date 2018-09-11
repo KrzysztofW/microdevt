@@ -147,6 +147,7 @@ static int ring_check(void)
 
 typedef struct list_el {
 	list_t list;
+	slist_node_t slist;
 	int a;
 	int b;
 } list_el_t;
@@ -192,6 +193,99 @@ static int list_check(void)
 		list_del(node);
 		free(e);
 	}
+	return 0;
+}
+
+static int slist_check(void)
+{
+	int i;
+	list_el_t *e;
+	slist_t list_head;
+	slist_node_t *node;
+
+	INIT_SLIST_HEAD(&list_head);
+
+	/* slist add head: */
+	for (i = 0; i < LIST_ELEMS; i++) {
+		list_el_t *el = malloc(sizeof(list_el_t));
+
+		if (el == NULL) {
+			fprintf(stderr, "malloc failed\n");
+			exit(EXIT_FAILURE);
+		}
+		memset(el, 0, sizeof(list_el_t));
+		el->a = el->b = i;
+		slist_add(&el->slist, &list_head);
+	}
+
+	e = slist_first_entry(&list_head, list_el_t, slist);
+	i = LIST_ELEMS - 1;
+	if (e->a != i) {
+		fprintf(stderr, "%s:%d failed a != %d\n",
+			__func__, __LINE__, i);
+		return -1;
+	}
+
+	slist_for_each(node, &list_head) {
+		e = list_entry(node, list_el_t, slist);
+		if (i != e->a && i != e->b) {
+			fprintf(stderr, "%s:%d failed i:%d a:%d b:%d\n",
+				__func__, __LINE__, i, e->a, e->b);
+			return -1;
+		}
+		i--;
+	}
+
+	if (i != -1) {
+		fprintf(stderr, "%s:%d failed i:%d\n", __func__, __LINE__, i);
+		return -1;
+	}
+
+	while ((node = slist_get_first(&list_head))) {
+		e = list_entry(node, list_el_t, slist);
+		free(e);
+	}
+
+	/* slist add tail: */
+	for (i = 0; i < LIST_ELEMS; i++) {
+		list_el_t *el = malloc(sizeof(list_el_t));
+
+		if (el == NULL) {
+			fprintf(stderr, "malloc failed\n");
+			exit(EXIT_FAILURE);
+		}
+		memset(el, 0, sizeof(list_el_t));
+		el->a = el->b = i;
+		slist_add_tail(&el->slist, &list_head);
+	}
+
+	e = slist_first_entry(&list_head, list_el_t, slist);
+	i = 0;
+	if (e->a != i) {
+		fprintf(stderr, "%s:%d failed a != %d\n",
+			__func__, __LINE__, i);
+		return -1;
+	}
+	slist_for_each(node, &list_head) {
+		e = list_entry(node, list_el_t, slist);
+		if (i != e->a && i != e->b) {
+			fprintf(stderr, "%s:%d failed i:%d a:%d b:%d\n",
+				__func__, __LINE__, i, e->a, e->b);
+			return -1;
+		}
+		i++;
+	}
+
+	if (i != 10) {
+		fprintf(stderr, "%s:%d failed i:%d\n", __func__, __LINE__, i);
+		return -1;
+	}
+
+	while ((node = slist_get_first(&list_head))) {
+		e = list_entry(node, list_el_t, slist);
+		free(e);
+	}
+
 	return 0;
 }
 
@@ -440,10 +534,16 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> ring checks succeeded\n");
 	if (list_check() < 0) {
-		fprintf(stderr, "  ==> list checks failed\n");
+		fprintf(stderr, "  ==> double linked list checks failed\n");
 		return -1;
 	}
-	printf("  ==> list checks succeeded\n");
+	printf("  ==> double linked list checks succeeded\n");
+
+	if (slist_check() < 0) {
+		fprintf(stderr, "  ==> singly linked list checks failed\n");
+		return -1;
+	}
+	printf("  ==> singly linked list checks succeeded\n");
 
 #ifdef CONFIG_HT_STORAGE
 	if (htable_check(1024) < 0) {

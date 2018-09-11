@@ -158,4 +158,67 @@ static inline int list_is_singular(const list_t *head)
 		n = list_next_entry(pos, member);			\
 	     &pos->member != (head);					\
 	     pos = n, n = list_next_entry(n, member))
+
+/* singly linked lists */
+typedef struct slist_node {
+	struct slist_node *next;
+} slist_node_t;
+
+typedef struct slist_head {
+	slist_node_t *head;
+	slist_node_t *tail;
+} slist_t;
+
+#define SLIST_HEAD_INIT(name) { .tail = NULL , .head = NULL }
+#define SLIST_HEAD(name) slist_t name = SLIST_HEAD_INIT(name)
+
+static inline void INIT_SLIST_HEAD(slist_t *list)
+{
+	list->tail = NULL;
+	list->head = NULL;
+}
+
+static inline int slist_empty(const slist_t *list)
+{
+	return list->tail == NULL;
+}
+
+static inline void slist_add(slist_node_t *node, slist_t *list)
+{
+	if (slist_empty(list))
+	    list->tail = node;
+	node->next = list->head;
+	list->head = node;
+}
+
+static inline void slist_add_tail(slist_node_t *node, slist_t *list)
+{
+	if (slist_empty(list)) {
+		slist_add(node, list);
+		return;
+	}
+	node->next = NULL;
+	list->tail->next = node;
+	list->tail = node;
+}
+
+#define slist_first_entry(list, type, member)	\
+	list_entry((list)->head, type, member)
+
+static inline slist_node_t *slist_get_first(slist_t *list)
+{
+	slist_node_t *node;
+
+	if (list->head == NULL)
+		return NULL;
+	node = list->head;
+	list->head = node->next;
+	if (list->tail == node)
+		list->tail = NULL;
+	return node;
+}
+
+#define slist_for_each(pos, list)				\
+	for (pos = (list)->head; pos != NULL; pos = pos->next)
+
 #endif
