@@ -292,7 +292,7 @@ static int slist_check(void)
 #ifdef CONFIG_HT_STORAGE
 static int htable_check(int htable_size)
 {
-	hash_table_t *htable = htable_create(htable_size);
+	HTABLE_DECL(htable, htable_size);
 	unsigned i;
 	const char *keys[] = {
 		"key1", "key2", "fdsa", "fewsfesf", "feafse",
@@ -302,8 +302,7 @@ static int htable_check(int htable_size)
 	};
 	unsigned count = sizeof(keys) / sizeof(char *);
 
-	if (htable == NULL)
-		return -1;
+	htable_init(&htable);
 
 	for (i = 0; i < count; i++) {
 		sbuf_t key, val, *val2;
@@ -311,17 +310,17 @@ static int htable_check(int htable_size)
 		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
 		sbuf_init(&val, (unsigned char *)vals[i], strlen(vals[i]));
 
-		if (htable->len != (int)i) {
+		if (htable.len != (int)i) {
 			fprintf(stderr, "wrong htable length %d. Should be %d (0)\n",
-				htable->len, i);
+				htable.len, i);
 			return -1;
 		}
 
-		if (htable_add(htable, &key, &val) < 0) {
+		if (htable_add(&htable, &key, &val) < 0) {
 			fprintf(stderr, "htable: can't add entry\n");
 			return -1;
 		}
-		if (htable_lookup(htable, &key, &val2) < 0) {
+		if (htable_lookup(&htable, &key, &val2) < 0) {
 			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
@@ -334,7 +333,7 @@ static int htable_check(int htable_size)
 		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
 		sbuf_init(&val, (unsigned char *)vals[i], strlen(vals[i]));
 
-		if (htable_lookup(htable, &key, &val2) < 0) {
+		if (htable_lookup(&htable, &key, &val2) < 0) {
 			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
@@ -351,18 +350,18 @@ static int htable_check(int htable_size)
 
 		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
 
-		if (htable->len != (int)(count - i)) {
+		if (htable.len != (int)(count - i)) {
 			fprintf(stderr, "wrong htable length %d. Should be %d (1)\n",
-				htable->len, i);
+				htable.len, i);
 			return -1;
 		}
 
-		if (htable_del(htable, &key) < 0) {
+		if (htable_del(&htable, &key) < 0) {
 			fprintf(stderr, "can't delete key: %.*s\n",
 				key.len, key.data);
 		}
 
-		if (htable_lookup(htable, &key, &val2) >= 0) {
+		if (htable_lookup(&htable, &key, &val2) >= 0) {
 			fprintf(stderr, "key: %.*s should not be present\n",
 				key.len, key.data);
 			return -1;
@@ -376,17 +375,17 @@ static int htable_check(int htable_size)
 		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
 		sbuf_init(&val, (unsigned char *)vals[i], strlen(vals[i]));
 
-		if (htable->len != (int)i) {
+		if (htable.len != (int)i) {
 			fprintf(stderr, "wrong htable length %d. Should be %d (2)\n",
-				htable->len, i);
+				htable.len, i);
 			return -1;
 		}
 
-		if (htable_add(htable, &key, &val) < 0) {
+		if (htable_add(&htable, &key, &val) < 0) {
 			fprintf(stderr, "htable: can't add entry\n");
 			return -1;
 		}
-		if (htable_lookup(htable, &key, &val2) < 0) {
+		if (htable_lookup(&htable, &key, &val2) < 0) {
 			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
@@ -398,19 +397,19 @@ static int htable_check(int htable_size)
 
 		sbuf_init(&key, (unsigned char *)keys[i], strlen(keys[i]));
 
-		if (htable->len != (int)(count - i)) {
+		if (htable.len != (int)(count - i)) {
 			fprintf(stderr, "wrong htable length %d. Should be %d (2)\n",
-				htable->len, i);
+				htable.len, i);
 			return -1;
 		}
 
-		if (htable_lookup(htable, &key, &val2) < 0) {
+		if (htable_lookup(&htable, &key, &val2) < 0) {
 			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
 		}
-		htable_del_val(htable, val2);
-		if (htable_lookup(htable, &key, &val2) >= 0) {
+		htable_del_val(&htable, val2);
+		if (htable_lookup(&htable, &key, &val2) >= 0) {
 			fprintf(stderr, "found key: `%.*s' but shouldn't\n",
 				key.len, key.data);
 			return -1;
@@ -425,11 +424,11 @@ static int htable_check(int htable_size)
 		sbuf_init(&key, &k, sizeof(k));
 		sbuf_init(&val, &v, sizeof(v));
 
-		if (htable_add(htable, &key, &val) < 0) {
+		if (htable_add(&htable, &key, &val) < 0) {
 			fprintf(stderr, "htable: can't add entry\n");
 			return -1;
 		}
-		if (htable_lookup(htable, &key, &val2) < 0) {
+		if (htable_lookup(&htable, &key, &val2) < 0) {
 			fprintf(stderr, "can't find key: %.*s\n",
 				key.len, key.data);
 			return -1;
@@ -442,7 +441,7 @@ static int htable_check(int htable_size)
 		}
 	}
 
-	htable_free(htable);
+	htable_free(&htable);
 
 	return 0;
 }

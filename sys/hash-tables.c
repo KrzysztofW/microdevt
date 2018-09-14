@@ -3,31 +3,6 @@
 #include <string.h>
 #include "hash-tables.h"
 
-hash_table_t *htable_create(int size)
-{
-	hash_table_t *htable;
-	int i;
-
-	if (size < 1 || !POWEROF2(size))
-		return NULL;
-
-	if ((htable = malloc(sizeof(hash_table_t))) == NULL) {
-		return NULL;
-	}
-
-	htable->list_head = malloc(sizeof(list_t) * size);
-	if (htable->list_head == NULL)
-		return NULL;
-
-	for (i = 0; i < size; i++)
-		INIT_LIST_HEAD(&htable->list_head[i]);
-
-	htable->size = size;
-	htable->len = 0;
-
-	return htable;
-}
-
 static inline uint32_t hash_function(const hash_table_t *htable, sbuf_t key)
 {
 	uint32_t hashval = 0;
@@ -66,7 +41,7 @@ int htable_add(hash_table_t *htable, const sbuf_t *key, sbuf_t *val)
 {
 	node_t *new_node;
 	sbuf_t *cur_val;
-	unsigned char *data;
+	void *data;
 	uint32_t hashval = hash_function(htable, *key);
 
 	assert(htable->len >= 0);
@@ -78,15 +53,20 @@ int htable_add(hash_table_t *htable, const sbuf_t *key, sbuf_t *val)
 	if ((new_node = malloc(sizeof(node_t))) == NULL)
 		return -1;
 
-	if ((data = malloc(key->len)) == NULL)
+	if ((data = malloc(key->len)) == NULL) {
+		free(new_node);
 		return -1;
+	}
 
 	memcpy(data, key->data, key->len);
 	new_node->key.data = data;
 	new_node->key.len = key->len;
 
-	if ((data = malloc(val->len)) == NULL)
+	if ((data = malloc(val->len)) == NULL) {
+		free((void *)new_node->key.data);
+		free(new_node);
 		return -1;
+	}
 
 	memcpy(data, val->data, val->len);
 	new_node->val.data = data;
@@ -100,28 +80,11 @@ int htable_add(hash_table_t *htable, const sbuf_t *key, sbuf_t *val)
 	return 0;
 }
 
-#if 0 /* unused function */
-int __htable_add(hash_table_t *htable, const void *key, int key_len,
-		 const void *val, int val_len)
-{
-	sbuf_t buf_key, buf_val;
-
-	sbuf_init(&buf_key, key, key_len);
-	sbuf_init(&buf_val, val, val_len);
-
-	return htable_add(htable, &buf_key, &buf_val);
-}
-#endif
-
 static void htable_free_node(node_t *node)
 {
-	unsigned char *data;
-
 	list_del(&node->list);
-	data = (unsigned char *)node->key.data;
-	free(data);
-	data = (unsigned char *)node->val.data;
-	free(data);
+	free((void *)node->key.data);
+	free((void *)node->val.data);
 	free(node);
 }
 
@@ -185,6 +148,4 @@ static int ht_free_node_cb(sbuf_t *key, sbuf_t *val, void **arg)
 void htable_free(hash_table_t *htable)
 {
 	htable_for_each(htable, ht_free_node_cb, NULL);
-	free(htable->list_head);
-	free(htable);
 }

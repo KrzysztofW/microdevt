@@ -10,12 +10,8 @@
 #include "udp.h"
 #endif
 
-#ifndef CONFIG_HT_STORAGE
-#undef CONFIG_MAX_SOCK_HT_SIZE
-#endif
-
 #if defined(CONFIG_HT_STORAGE) && defined(CONFIG_BSD_COMPAT)
-static hash_table_t *fd_to_sock;
+static HTABLE_DECL(fd_to_sock, CONFIG_MAX_SOCK_HT_SIZE);
 #else
 static list_t sock_list = LIST_HEAD_INIT(sock_list);
 #endif
@@ -27,10 +23,10 @@ static uint8_t max_fds = 100;
 
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_UDP
-static hash_table_t *udp_binds;
+static HTABLE_DECL(udp_binds, CONFIG_MAX_SOCK_HT_SIZE);
 #endif
 #ifdef CONFIG_TCP
-static hash_table_t *tcp_binds;
+static HTABLE_DECL(tcp_binds, CONFIG_MAX_SOCK_HT_SIZE);
 #endif
 #endif
 
@@ -105,7 +101,7 @@ static sock_info_t *fd2sockinfo(int fd)
 	sbuf_t key = FD2SBUF(fd);
 	sbuf_t *val;
 
-	if (htable_lookup(fd_to_sock, &key, &val) < 0) {
+	if (htable_lookup(&fd_to_sock, &key, &val) < 0) {
 		errno = EINVAL;
 		return NULL;
 	}
@@ -118,11 +114,11 @@ static hash_table_t *get_hash_table(int type)
 	switch (type) {
 #ifdef CONFIG_UDP
 	case SOCK_DGRAM:
-		return udp_binds;
+		return &udp_binds;
 #endif
 #ifdef CONFIG_TCP
 	case SOCK_STREAM:
-		return tcp_binds;
+		return &tcp_binds;
 #endif
 	default:
 		errno = EINVAL;
@@ -151,7 +147,7 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 
 	sock_info->fd = fd;
 	sock_info->listen = NULL;
-	if (htable_add(fd_to_sock, &key, &val) < 0) {
+	if (htable_add(&fd_to_sock, &key, &val) < 0) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -187,7 +183,7 @@ static int unbind_port(sock_info_t *sock_info)
 	htable_del(ht, &key);
 #ifdef CONFIG_BSD_COMPAT
 	sbuf_init(&key, &sock_info->fd, sizeof(sock_info->fd));
-	if (htable_del(fd_to_sock, &key) < 0)
+	if (htable_del(&fd_to_sock, &key) < 0)
 		return -1;
 #endif
 	return 0;
@@ -245,7 +241,7 @@ tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
 	};
 	socket_tcp_conn_lookup_data_t *datap = &data;
 
-	htable_for_each(fd_to_sock, socket_tcp_conn_lookup_cb, (void **)&datap);
+	htable_for_each(&fd_to_sock, socket_tcp_conn_lookup_cb, (void **)&datap);
 	return data.tcp_conn;
 }
 
@@ -979,16 +975,13 @@ void socket_append_pkt(list_t *list_head, pkt_t *pkt)
 void socket_init(void)
 {
 #ifdef CONFIG_BSD_COMPAT
-	if ((fd_to_sock = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		__abort();
+	htable_init(&fd_to_sock);
 #endif
 #ifdef CONFIG_UDP
-	if ((udp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		__abort();
+	htable_init(&udp_binds);
 #endif
 #ifdef CONFIG_TCP
-	if ((tcp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		__abort();
+	htable_init(&tcp_binds);
 	tcp_init();
 #endif
 }
@@ -1014,17 +1007,17 @@ void socket_shutdown(void)
 {
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_UDP
-	htable_free(udp_binds);
+	htable_free(&udp_binds);
 #endif
 #ifdef CONFIG_TCP
-	htable_free(tcp_binds);
+	htable_free(&tcp_binds);
 	tcp_shutdown();
 #endif
 #if 0 /* this code prevents from finding leaks */
 #ifdef CONFIG_BSD_COMPAT
 	htable_for_each(fd_to_sock, socket_free_cb, NULL);
 #endif
-	htable_free(fd_to_sock);
+	htable_free(&fd_to_sock);
 #endif
 #else
 	sock_info_t *sock_info, *si_tmp;

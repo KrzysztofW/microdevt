@@ -7,8 +7,7 @@
 #include "../sys/hash-tables.h"
 
 #ifdef CONFIG_HT_STORAGE
-/* htable keys (tcp uids), values are pkt list (list_t) */
-static hash_table_t *tcp_conns;
+static HTABLE_DECL(tcp_conns, CONFIG_MAX_SOCK_HT_SIZE);
 #else
 static list_t tcp_conns = LIST_HEAD_INIT(tcp_conns);
 #endif
@@ -145,7 +144,7 @@ int tcp_conn_add(tcp_conn_t *tcp_conn)
 
 	sbuf_init(&key, &tcp_conn->syn.tuid, sizeof(tcp_uid_t));
 	sbuf_init(&val, &tcp_conn, sizeof(tcp_conn_t *));
-	if (htable_add(tcp_conns, &key, &val) < 0)
+	if (htable_add(&tcp_conns, &key, &val) < 0)
 		return -1;
 	return 0;
 }
@@ -155,7 +154,7 @@ void tcp_conn_delete(tcp_conn_t *tcp_conn)
 	sbuf_t key;
 
 	sbuf_init(&key, &tcp_conn->syn.tuid, sizeof(tcp_uid_t));
-	htable_del(tcp_conns, &key);
+	htable_del(&tcp_conns, &key);
 	__tcp_conn_delete(tcp_conn);
 }
 
@@ -164,7 +163,7 @@ tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
 	sbuf_t key, *val;
 
 	sbuf_init(&key, uid, sizeof(tcp_uid_t));
-	if (htable_lookup(tcp_conns, &key, &val) < 0)
+	if (htable_lookup(&tcp_conns, &key, &val) < 0)
 		return socket_tcp_conn_lookup(uid);
 	return *(tcp_conn_t **)val->data;
 }
@@ -707,13 +706,11 @@ void tcp_input(pkt_t *pkt)
 #ifdef CONFIG_HT_STORAGE
 void tcp_init(void)
 {
-	if ((tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
-		__abort();
+	htable_init(&tcp_conns);
 }
 
 void tcp_shutdown(void)
 {
-	htable_free(tcp_conns);
-
+	htable_free(&tcp_conns);
 }
 #endif
