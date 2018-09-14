@@ -41,11 +41,11 @@ static void tim_cb_wd(void *arg)
 static int apps_init(void)
 {
 #ifdef CONFIG_UDP
-	if (udp_init() < 0)
+	if (udp_app_init() < 0)
 		return -1;
 #endif
 #ifdef CONFIG_TCP
-	if (tcp_init() < 0)
+	if (tcp_app_init() < 0)
 		return -1;
 #endif
 #ifdef CONFIG_DNS

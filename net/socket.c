@@ -31,11 +31,6 @@ static hash_table_t *udp_binds;
 #endif
 #ifdef CONFIG_TCP
 static hash_table_t *tcp_binds;
-extern hash_table_t *tcp_conns;
-#endif
-#else  /* CONFIG_HT_STORAGE */
-#ifdef CONFIG_TCP
-extern list_t tcp_conns;
 #endif
 #endif
 
@@ -89,6 +84,19 @@ void socket_ev_set(sock_info_t *sock_info, uint8_t events,
 		socket_schedule_ev(sock_info, ev);
 }
 #endif
+
+static tcp_conn_t *
+socket_lookup_tcp_conn(const listen_t *listen, const tcp_uid_t *uid)
+{
+	tcp_conn_t *tcp_conn;
+
+	list_for_each_entry(tcp_conn, &listen->tcp_conn_list_head,
+			    list) {
+		if (memcmp(uid, &tcp_conn->syn.tuid, sizeof(tcp_uid_t)) == 0)
+			return tcp_conn;
+	}
+	return NULL;
+}
 
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_BSD_COMPAT
@@ -149,6 +157,15 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 	}
 	return 0;
 }
+
+#ifdef CONFIG_EVENT
+void
+socket_ev_set_fd(int fd, uint8_t events,
+		 void (*ev_cb)(struct sock_info *sock_info, uint8_t events))
+{
+	socket_ev_set(fd2sockinfo(fd), events, ev_cb);
+}
+#endif
 #endif
 
 static int unbind_port(sock_info_t *sock_info)
@@ -199,6 +216,37 @@ static int bind_on_port(uint16_t port, sock_info_t *sock_info)
 	}
 	sock_info->port = port;
 	return 0;
+}
+
+typedef struct socket_tcp_conn_lookup_data {
+	tcp_conn_t *tcp_conn;
+	const tcp_uid_t *uid;
+} socket_tcp_conn_lookup_data_t;
+
+static int socket_tcp_conn_lookup_cb(sbuf_t *key, sbuf_t *val, void **arg)
+{
+	sock_info_t *sock_info = SBUF2SOCKINFO(val);
+	socket_tcp_conn_lookup_data_t *data = *arg;
+
+	if (sock_info->listen == NULL)
+		return 0;
+	data->tcp_conn = socket_lookup_tcp_conn(sock_info->listen, data->uid);
+	if (data->tcp_conn)
+		return -1;
+
+	return 0;
+}
+
+tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
+{
+	socket_tcp_conn_lookup_data_t data = {
+		.tcp_conn = NULL,
+		.uid = uid,
+	};
+	socket_tcp_conn_lookup_data_t *datap = &data;
+
+	htable_for_each(fd_to_sock, socket_tcp_conn_lookup_cb, (void **)&datap);
+	return data.tcp_conn;
 }
 
 #else  /* CONFIG_HT_STORAGE */
@@ -287,11 +335,9 @@ tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
 
 		if (listen == NULL)
 			continue;
-		list_for_each_entry(tcp_conn, &listen->tcp_conn_list_head,
-				    list) {
-			if (memcmp(uid, &tcp_conn->syn.tuid, sizeof(tcp_uid_t)) == 0)
-				return tcp_conn;
-		}
+		tcp_conn = socket_lookup_tcp_conn(sock_info->listen, uid);
+		if (tcp_conn)
+			return tcp_conn;
 	}
 	return NULL;
 }
@@ -581,7 +627,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	}
 	tcp_conn = list_first_entry(&sock_info->listen->tcp_conn_list_head,
 				    tcp_conn_t, list);
-	list_del(&tcp_conn->list);
+	list_del_init(&tcp_conn->list);
 	sock_info->listen->backlog--;
 
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -589,9 +635,13 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 		tcp_conn_delete(tcp_conn);
 		return -1;
 	}
-#ifndef CONFIG_HT_STORAGE
-	list_add_tail(&tcp_conn->list, &tcp_conns);
-#endif
+
+	if (tcp_conn_add(tcp_conn) < 0) {
+		close(fd);
+		tcp_conn_delete(tcp_conn);
+		return -1;
+	}
+
 	sockaddr->sin_family = AF_INET;
 	sockaddr->sin_addr.s_addr = tcp_conn->syn.tuid.src_addr;
 	sockaddr->sin_port = tcp_conn->syn.tuid.src_port;
@@ -620,15 +670,16 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 		return -1;
 	tcp_conn = list_first_entry(&sock_info_server->listen->tcp_conn_list_head,
 				    tcp_conn_t, list);
-	list_del(&tcp_conn->list);
+	list_del_init(&tcp_conn->list);
 	sock_info_server->listen->backlog--;
 
 	if (sock_info_init(sock_info_client, SOCK_STREAM) < 0)
 		return -1;
 
-#ifndef CONFIG_HT_STORAGE
-	list_add_tail(&tcp_conn->list, &tcp_conns);
-#endif
+	if (tcp_conn_add(tcp_conn) < 0) {
+		tcp_conn_delete(tcp_conn);
+		return -1;
+	}
 	*src_addr = tcp_conn->syn.tuid.src_addr;
 	*src_port = tcp_conn->syn.tuid.src_port;
 	sock_info_client->trq.tcp_conn = tcp_conn;
@@ -936,23 +987,26 @@ void socket_init(void)
 		__abort();
 #endif
 #ifdef CONFIG_TCP
-	if ((tcp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL
-	    || (tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
+	if ((tcp_binds = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
 		__abort();
+	tcp_init();
 #endif
 }
 #endif
 
 #if 0 /* this code prevents from finding leaks */
-static void socket_free_cb(sbuf_t *key, sbuf_t *val)
+static int socket_free_cb(sbuf_t *key, sbuf_t *val, void **arg)
 {
 	sock_info_t *sock_info = SBUF2SOCKINFO(val);
 
 	(void)key;
+	(void)arg;
+
 #ifdef CONFIG_BSD_COMPAT
 	socket_listen_free(sock_info->listen);
 #endif
 	free(sock_info);
+	return 0;
 }
 #endif
 
@@ -964,11 +1018,11 @@ void socket_shutdown(void)
 #endif
 #ifdef CONFIG_TCP
 	htable_free(tcp_binds);
-	htable_free(tcp_conns);
+	tcp_shutdown();
 #endif
 #if 0 /* this code prevents from finding leaks */
 #ifdef CONFIG_BSD_COMPAT
-	htable_for_each(fd_to_sock, socket_free_cb);
+	htable_for_each(fd_to_sock, socket_free_cb, NULL);
 #endif
 	htable_free(fd_to_sock);
 #endif

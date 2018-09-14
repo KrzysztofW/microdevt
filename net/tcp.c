@@ -8,11 +8,11 @@
 
 #ifdef CONFIG_HT_STORAGE
 /* htable keys (tcp uids), values are pkt list (list_t) */
-hash_table_t *tcp_conns;
+static hash_table_t *tcp_conns;
 #else
-list_t tcp_conns = LIST_HEAD_INIT(tcp_conns);
+static list_t tcp_conns = LIST_HEAD_INIT(tcp_conns);
 #endif
-uint8_t tcp_conn_cnt;
+static uint8_t tcp_conn_cnt;
 
 struct syn_entries {
 	tcp_syn_t conns[CONFIG_TCP_SYN_TABLE_SIZE];
@@ -103,7 +103,8 @@ static inline void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 #endif
 	assert(tcp_conn_cnt <= CONFIG_TCP_MAX_CONNS);
 
-	list_del(&tcp_conn->list);
+	if (!list_empty(&tcp_conn->list))
+		list_del(&tcp_conn->list);
 	free(tcp_conn);
 	tcp_conn_cnt--;
 
@@ -138,7 +139,7 @@ tcp_conn_create(const tcp_uid_t *tuid, uint8_t status, sock_info_t *sock_info)
 }
 
 #ifdef CONFIG_HT_STORAGE
-static int tcp_conn_add(tcp_conn_t *tcp_conn)
+int tcp_conn_add(tcp_conn_t *tcp_conn)
 {
 	sbuf_t key, val;
 
@@ -164,18 +165,16 @@ tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
 
 	sbuf_init(&key, uid, sizeof(tcp_uid_t));
 	if (htable_lookup(tcp_conns, &key, &val) < 0)
-		return NULL;
-	return (tcp_conn_t *)val->data;
+		return socket_tcp_conn_lookup(uid);
+	return *(tcp_conn_t **)val->data;
 }
 #else /* CONFIG_HT_STORAGE */
 
-#ifdef CONFIG_TCP_CLIENT
-static inline int tcp_conn_add(tcp_conn_t *tcp_conn)
+int tcp_conn_add(tcp_conn_t *tcp_conn)
 {
 	list_add_tail(&tcp_conn->list, &tcp_conns);
 	return 0;
 }
-#endif
 
 void tcp_conn_delete(tcp_conn_t *tcp_conn)
 {
@@ -704,3 +703,17 @@ void tcp_input(pkt_t *pkt)
  end:
 	pkt_free(pkt);
 }
+
+#ifdef CONFIG_HT_STORAGE
+void tcp_init(void)
+{
+	if ((tcp_conns = htable_create(CONFIG_MAX_SOCK_HT_SIZE)) == NULL)
+		__abort();
+}
+
+void tcp_shutdown(void)
+{
+	htable_free(tcp_conns);
+
+}
+#endif

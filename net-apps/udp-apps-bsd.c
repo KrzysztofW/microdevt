@@ -78,7 +78,7 @@ int udp_client(struct sockaddr_in *sockaddr)
 #endif
 
 int udp_fd;
-int udp_init(void)
+int udp_app_init(void)
 {
 	udp_fd = udp_server();
 #ifdef UDP_CLIENT

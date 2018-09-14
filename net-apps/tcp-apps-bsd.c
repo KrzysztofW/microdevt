@@ -4,14 +4,7 @@
 #include "../timer.h"
 #include "../sys/errno.h"
 
-uint16_t port = 777; /* host endian */
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-uint32_t client_addr = 0x01020101;
-#endif
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-uint32_t client_addr = 0x01010201;
-#endif
-
+static uint16_t port = 777; /* host endian */
 struct sockaddr_in addr_c;
 
 int tcp_server(void)
@@ -36,6 +29,7 @@ int tcp_server(void)
 		DEBUG_LOG("can't listen\n");
 		return -1;
 	}
+
 	return fd;
 }
 
@@ -112,8 +106,8 @@ static void tcp_client_send_buf_cb(void *arg)
 }
 #endif
 
-int tcp_fd;
-int tcp_init(void)
+static int tcp_fd;
+int tcp_app_init(void)
 {
 	tcp_fd = tcp_server();
 	if (tcp_fd < 0) {

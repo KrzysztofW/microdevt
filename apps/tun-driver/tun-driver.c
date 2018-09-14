@@ -258,13 +258,13 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef CONFIG_UDP
-	if (udp_init() < 0) {
+	if (udp_app_init() < 0) {
 		fprintf(stderr, "cannot init udp sockets\n");
 		return -1;
 	}
 #endif
 #ifdef CONFIG_TCP
-	if (tcp_init() < 0) {
+	if (tcp_app_init() < 0) {
 		fprintf(stderr, "cannot init tcp sockets\n");
 		return -1;
 	}

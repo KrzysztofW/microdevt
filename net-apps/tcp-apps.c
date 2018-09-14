@@ -154,7 +154,7 @@ int tcp_server(void)
 	return 0;
 }
 
-int tcp_init(void)
+int tcp_app_init(void)
 {
 	if (tcp_server() < 0) {
 		DEBUG_LOG("can't create TCP socket\n");
@@ -172,10 +172,7 @@ typedef struct sock_info_client_ctx {
 	sbuf_t sb;
 	pkt_t *pkt;
 } sock_info_client_ctx_t;
-sock_info_client_ctx_t ctx[TCP_CLIENTS];
-sock_info_t sock_info_clients[TCP_CLIENTS];
-sbuf_t sb[TCP_CLIENTS];
-pkt_t *pkts[TCP_CLIENTS];
+static sock_info_client_ctx_t ctx[TCP_CLIENTS];
 
 #ifndef CONFIG_EVENT
 void tcp_app(void)

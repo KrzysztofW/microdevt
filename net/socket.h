@@ -148,6 +148,9 @@ typedef struct sock_info sock_info_t;
 void socket_schedule_ev(sock_info_t *sock_info, uint8_t events);
 void socket_ev_set(sock_info_t *sock_info, uint8_t events,
 		   void (*ev_cb)(struct sock_info *sock_info, uint8_t events));
+void
+socket_ev_set_fd(int fd, uint8_t events,
+		 void (*ev_cb)(struct sock_info *sock_info, uint8_t events));
 #endif
 
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt);

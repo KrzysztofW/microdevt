@@ -104,7 +104,7 @@ int udp_client(void)
 }
 #endif
 
-int udp_init(void)
+int udp_app_init(void)
 {
 	if (udp_server() < 0) {
 		DEBUG_LOG("can't create UDP server socket\n");

@@ -110,10 +110,18 @@ struct tcp_conn {
 typedef struct tcp_conn tcp_conn_t;
 
 tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid);
+int tcp_conn_add(tcp_conn_t *tcp_conn);
 void tcp_conn_delete(tcp_conn_t *tcp_conn);
 int
 tcp_connect(uint32_t dst_addr, uint16_t dst_port, void *sock_info);
 int tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags);
 void tcp_input(pkt_t *pkt);
 
+#ifdef CONFIG_HT_STORAGE
+void tcp_init(void);
+void tcp_shutdown(void);
+#else
+static inline void tcp_init(void) {}
+static inline void tcp_shutdown(void) {}
+#endif
 #endif
