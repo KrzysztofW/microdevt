@@ -550,9 +550,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	struct sockaddr_in *sockaddr = (struct sockaddr_in *)addr;
 
 	if ((sock_info = fd2sockinfo(sockfd)) == NULL) {
-#ifdef CONFIG_BSD_COMPAT
 		errno = EBADF;
-#endif
 		return -1;
 	}
 
@@ -569,22 +567,16 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	int fd;
 
 	if ((sock_info = fd2sockinfo(sockfd)) == NULL) {
-#ifdef CONFIG_BSD_COMPAT
 		errno = EBADF;
-#endif
 		return -1;
 	}
 
 	if (sock_info->type != SOCK_STREAM || sock_info->listen == NULL) {
-#ifdef CONFIG_BSD_COMPAT
 		errno = EBADF;
-#endif
 		return -1;
 	}
 	if (list_empty(&sock_info->listen->tcp_conn_list_head)) {
-#ifdef CONFIG_BSD_COMPAT
 		errno = EAGAIN;
-#endif
 		return -1;
 	}
 	tcp_conn = list_first_entry(&sock_info->listen->tcp_conn_list_head,
@@ -593,9 +585,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	sock_info->listen->backlog--;
 
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-#ifdef CONFIG_BSD_COMPAT
 		errno = EBADF;
-#endif
 		tcp_conn_delete(tcp_conn);
 		return -1;
 	}
