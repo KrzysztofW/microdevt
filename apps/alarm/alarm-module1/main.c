@@ -1,3 +1,4 @@
+#include <avr/sleep.h>
 #include <log.h>
 #include <_stdio.h>
 #include <common.h>
@@ -10,12 +11,34 @@
 #include "alarm-module1.h"
 #include "../module.h"
 
-void tim_led_cb(void *arg)
+extern uint8_t inactivity;
+static tim_t timer_1sec;
+
+ISR(WDT_vect) {
+	delay_ms(2000);
+	DEBUG_LOG("WD interrupt\n");
+}
+
+static void watchdog_cb(void *arg)
+{
+	DEBUG_LOG("sleeping...\n");
+	WDTCSR |= _BV(WDIE) | _BV(WDE);
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	sleep_mode();
+	wdt_reset();
+}
+
+static void tim_1sec_cb(void *arg)
 {
 	tim_t *timer = arg;
 
-	timer_reschedule(timer, 1000000);
+	timer_reschedule(&timer_1sec, 1000000);
+	inactivity++;
 	PORTD ^= 1 << PD4;
+
+	if (inactivity < 15)
+		return;
+	schedule_task(watchdog_cb, NULL);
 }
 
 INIT_ADC_DECL(c, DDRC, PORTC, 0);
@@ -86,8 +109,6 @@ ISR(USART_RX_vect)
 
 int main(void)
 {
-	tim_t timer_led;
-
 	init_adc_c();
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 1);
@@ -102,8 +123,7 @@ int main(void)
 	irq_enable();
 	timer_checks();
 #endif
-	timer_init(&timer_led);
-	timer_add(&timer_led, 1000000, tim_led_cb, &timer_led);
+	timer_add(&timer_1sec, 1000000, tim_1sec_cb, NULL);
 	watchdog_enable();
 
 	/* port D used by the LED and RF sender */
@@ -127,9 +147,10 @@ int main(void)
 #endif
 	irq_enable();
 
-	/* incorruptible functions */
+	/* interruptible functions */
 	while (1) {
-		scheduler_run_tasks();
+		if (scheduler_run_tasks())
+			inactivity = 0;
 		watchdog_reset();
 	}
 	return 0;

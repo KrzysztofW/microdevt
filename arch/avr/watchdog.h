@@ -4,9 +4,9 @@
 static inline void watchdog_shutdown(void)
 {
 	wdt_reset();
-	MCUSR=0;
-	WDTCSR|=_BV(WDCE) | _BV(WDE);
-	WDTCSR=0;
+	MCUSR = 0;
+	WDTCSR |= _BV(WDCE) | _BV(WDE);
+	WDTCSR = 0;
 }
 
 static inline void watchdog_enable(void)

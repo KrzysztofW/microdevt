@@ -13,25 +13,25 @@
 #include "../module.h"
 #include "../rf-common.h"
 
-#define ONE_HOUR (3600 * 1000U)
+#define ONE_HOUR (3600 * 1000000U)
 #define HUMIDITY_ANALOG_PIN 1
 #define FAN_ON_DURATION_H 4 /* max 4h of activity */
-#define HUMIDITY_SAMPLING (10 * 1000000UL) /* sample every 10s */
-#define GLOBAL_HUMIDITY_ARRAY_LENGTH 60
-#define DEFAULT_HUMIDITY_THRESHOLD 600
+#define HUMIDITY_SAMPLING (20 * 1000000UL) /* sample every 20s */
+#define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
+#define DEFAULT_HUMIDITY_THRESHOLD 600 // !!! to be removed
 #define SIREN_ON_DURATION (10 * 1000000UL)
 
 extern iface_t rf_iface;
 extern uint32_t rf_enc_defkey[4];
 static uint8_t state;
-static uint8_t fan_sensor_off = 1; // change me
+static uint8_t fan_sensor_off = 1;
 static uint8_t fan_off_hour_cnt = FAN_ON_DURATION_H;
 
 static tim_t fan_timer;
 static tim_t humidity_timer;
 static tim_t siren_timer;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
-static uint8_t gha_pos;
+static uint8_t prev_tendency;
 static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
 #ifdef CONFIG_SWEN_ROLLING_CODES
 static swen_rc_ctx_t rc_ctx;
@@ -46,12 +46,13 @@ static uint8_t connected;
 typedef struct __attribute__((__packed__)) persistent_data {
 	uint8_t armed : 1;
 	uint8_t fan_enabled : 1;
-	uint16_t humidity_threshold;
+	uint16_t humidity_threshold; // to be removed
 } persistent_data_t;
 static persistent_data_t EEMEM persistent_data;
 
 typedef enum tendency {
-	RINSING,
+	STABLE,
+	RISING,
 	FALLING,
 } tendency_t;
 
@@ -61,7 +62,7 @@ typedef struct humidity_info {
 } humidity_info_t;
 
 #define ARRAY_LENGTH 20
-static unsigned get_humidity_value(void)
+static unsigned get_humidity_cur_value(void)
 {
 	uint8_t i;
 	int arr[ARRAY_LENGTH];
@@ -153,47 +154,59 @@ ISR(PCINT2_vect) {
 
 static uint8_t get_hum_tendency(void)
 {
-	return global_humidity_array[0]
-		< global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
-		? RINSING : FALLING;
+	int val = global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
+		- global_humidity_array[0];
+
+	if (abs(val) < 20)
+		return STABLE;
+	if (val < 0)
+		return FALLING;
+	return RISING;
 }
 
 static void get_humidity(humidity_info_t *info)
 {
-	unsigned val = get_humidity_value();
+	unsigned val = get_humidity_cur_value();
+	uint8_t tendency;
 
-	if (gha_pos == GLOBAL_HUMIDITY_ARRAY_LENGTH) {
-		array_left_shift(global_humidity_array,
-				 GLOBAL_HUMIDITY_ARRAY_LENGTH, 1);
-		global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1] = val;
-	} else {
-		global_humidity_array[gha_pos] = val;
-		gha_pos++;
-	}
-	info->val = array_get_median(global_humidity_array,
-				     GLOBAL_HUMIDITY_ARRAY_LENGTH);
-	info->tendency = get_hum_tendency();
+	array_left_shift(global_humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH, 1);
+	global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1] = val;
+	tendency = get_hum_tendency();
+	if (info->tendency != tendency)
+		prev_tendency = info->tendency;
+	info->tendency = tendency;
+}
+
+static void humidity_sampling_task_cb(void *arg)
+{
+	humidity_info_t info;
+
+	get_humidity(&info);
+	timer_reschedule(&humidity_timer, HUMIDITY_SAMPLING);
+	if (fan_sensor_off || global_humidity_array[0] == 0)
+		return;
+	if (prev_tendency == STABLE && info.tendency == RISING)
+		set_fan_on();
+	else if (prev_tendency == FALLING && info.tendency == STABLE)
+		set_fan_off();
 }
 
 static void humidity_sampling(void *arg)
 {
-	humidity_info_t info;
-
-	if (!fan_sensor_off) {
-		get_humidity(&info);
-		if (info.val > humidity_threshold && info.tendency == RINSING)
-			set_fan_on();
-		else
-			set_fan_off();
-	}
-	timer_reschedule(&humidity_timer, HUMIDITY_SAMPLING);
+	schedule_task(humidity_sampling_task_cb, NULL);
 }
 
 static void get_status(module_status_t *status)
 {
-	status->humidity_val = get_humidity_value();
+	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
+
+	status->humidity_val = get_humidity_cur_value();
+
+	array_copy(humidity_array, global_humidity_array,
+		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
 	status->global_humidity_val =
-		global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH / 2];
+		array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH);
+
 	status->humidity_tendency = get_hum_tendency();
 	status->state = state;
 	status->fan_on = !!(PORTD & 1 << PD3);
@@ -238,14 +251,19 @@ static void reload_cfg_from_storage(void)
 
 void module_print_status(void)
 {
+	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
+
+	array_copy(humidity_array, global_humidity_array,
+		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
+	array_print(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH);
 	LOG("\nStatus:\n");
 	LOG(" State:  %s\n", state == MODULE_STATE_ARMED ? "armed" : "disarmed");
-	LOG(" Humidity value:  %u\n"
-	    " Global humidity value:  %u\n"
+	LOG(" Humidity value:  %d\n"
+	    " Global humidity value:  %d\n"
 	    " Humidity tendency:  %u\n"
 	    " Humidity threshold:  %u\n",
-	    get_humidity_value(),
-	    global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH / 2],
+	    get_humidity_cur_value(),
+	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
 	    get_hum_tendency(),
 	    humidity_threshold);
 	LOG(" Fan: %d\n Fan enabled: %d\n", !!(PORTD & 1 << PD3),

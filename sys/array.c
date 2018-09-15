@@ -68,6 +68,13 @@ void array_right_shift(int *array, unsigned int size, unsigned int shift)
 	}
 }
 
+void array_copy(int *dst, int *src, unsigned int size)
+{
+	int i;
+
+	for (i = 0; i < size; i++)
+		dst[i] = src[i];
+}
 
 #if TEST
 static int array_shell_sort_check(int *array, unsigned int size)

@@ -19,7 +19,6 @@ typedef struct __attribute__((__packed__)) task {
 static ring_t *ring;
 static ring_t *ring_irq;
 
-
 void schedule_task(void (*cb)(void *arg), void *arg)
 {
 	task_t task = {
@@ -31,11 +30,12 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 	ring_add(r, &task, sizeof(task_t));
 }
 
-void scheduler_run_tasks(void)
+uint8_t scheduler_run_tasks(void)
 {
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));
 	int irq_rlen = ring_len(ring_irq);
+	uint8_t ret = 0;
 
 	if (irq_rlen < sizeof(task_t))
 		irq_enable();
@@ -44,12 +44,15 @@ void scheduler_run_tasks(void)
 			irq_disable();
 		__ring_get_buf(ring_irq, &buf);
 		task.cb(task.arg);
+		ret = 1;
 	}
 
 	if (ring_len(ring) >= sizeof(task_t)) {
 		__ring_get_buf(ring, &buf);
 		task.cb(task.arg);
+		ret = 1;
 	}
+	return ret;
 }
 
 void scheduler_init(void)

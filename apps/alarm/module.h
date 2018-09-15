@@ -11,7 +11,7 @@ typedef enum module_state {
 } module_state_t;
 
 typedef struct __attribute__((__packed__)) module_status {
-	uint16_t humidity_threshold;
+	uint16_t humidity_threshold; // to be removed
 	uint16_t humidity_val;
 	uint16_t global_humidity_val;
 	int8_t  temperature;
