@@ -10,26 +10,27 @@
 #include <sys/array.h>
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
 #include "../module.h"
 #include "../rf-common.h"
 
 #define ONE_HOUR (3600 * 1000000U)
 #define HUMIDITY_ANALOG_PIN 1
 #define FAN_ON_DURATION_H 4 /* max 4h of activity */
-#define HUMIDITY_SAMPLING (20 * 1000000UL) /* sample every 20s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
-#define DEFAULT_HUMIDITY_THRESHOLD 600 // !!! to be removed
 #define SIREN_ON_DURATION (10 * 1000000UL)
+#define DEFAULT_HUMIDITY_THRESHOLD 20
 
 extern iface_t rf_iface;
 extern uint32_t rf_enc_defkey[4];
 static uint8_t state;
 static uint8_t fan_sensor_off = 1;
 static uint8_t fan_off_hour_cnt = FAN_ON_DURATION_H;
+static uint8_t inactivity;
 
 static tim_t fan_timer;
-static tim_t humidity_timer;
 static tim_t siren_timer;
+static tim_t timer_slow;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
@@ -46,7 +47,7 @@ static uint8_t connected;
 typedef struct __attribute__((__packed__)) persistent_data {
 	uint8_t armed : 1;
 	uint8_t fan_enabled : 1;
-	uint16_t humidity_threshold; // to be removed
+	uint16_t humidity_threshold;
 } persistent_data_t;
 static persistent_data_t EEMEM persistent_data;
 
@@ -73,6 +74,49 @@ static unsigned get_humidity_cur_value(void)
 	return array_get_median(arr, ARRAY_LENGTH);
 }
 #undef ARRAY_LENGTH
+
+static void humidity_sampling_task_cb(void *arg);
+
+ISR(WDT_vect) {
+	static uint8_t sampling_cnt;
+
+	delay_ms(1000);
+	DEBUG_LOG("WD interrupt\n");
+	if (sampling_cnt >= 3) { /* sample every 30 seconds */
+		schedule_task(humidity_sampling_task_cb, NULL);
+		sampling_cnt = 0;
+	} else
+		sampling_cnt++;
+}
+
+static void watchdog_cb(void *arg)
+{
+	DEBUG_LOG("sleeping...\n");
+	PORTD &= ~(1 << PD4);
+	WDTCSR |= _BV(WDIE) | _BV(WDE);
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	sleep_mode();
+	wdt_reset();
+	timer_reschedule(&timer_slow, 2000000);
+}
+
+static void tim_slow_cb(void *arg)
+{
+	inactivity++;
+
+	/* do not sleep if the siren is on */
+	if (!!(PORTB & 1 << PB0))
+		inactivity = 0;
+
+	/* toggle the LED */
+	PORTD ^= 1 << PD4;
+
+	if (inactivity < 15) {
+		timer_reschedule(&timer_slow, 1000000);
+		return;
+	}
+	schedule_task(watchdog_cb, NULL);
+}
 
 static void send_rf_msg(uint8_t cmd, const module_status_t *status)
 {
@@ -146,10 +190,9 @@ void pir_on_action(void *arg)
 }
 
 ISR(PCINT2_vect) {
+	inactivity = 0;
 	if (PIND & (1 << PD1))
 		schedule_task(pir_on_action, NULL);
-	/* else if (!(PIND & (1 << PD1))) */
-	/* 	schedule_task(pir_off_action, NULL); */
 }
 
 static uint8_t get_hum_tendency(void)
@@ -157,7 +200,7 @@ static uint8_t get_hum_tendency(void)
 	int val = global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
 		- global_humidity_array[0];
 
-	if (abs(val) < 20)
+	if (abs(val) < DEFAULT_HUMIDITY_THRESHOLD)
 		return STABLE;
 	if (val < 0)
 		return FALLING;
@@ -181,19 +224,16 @@ static void humidity_sampling_task_cb(void *arg)
 {
 	humidity_info_t info;
 
+	PORTD |= 1 << PD4;
 	get_humidity(&info);
-	timer_reschedule(&humidity_timer, HUMIDITY_SAMPLING);
 	if (fan_sensor_off || global_humidity_array[0] == 0)
-		return;
-	if (prev_tendency == STABLE && info.tendency == RISING)
+		goto end;
+	if (info.tendency == RISING)
 		set_fan_on();
-	else if (prev_tendency == FALLING && info.tendency == STABLE)
+	else if (info.tendency == STABLE)
 		set_fan_off();
-}
-
-static void humidity_sampling(void *arg)
-{
-	schedule_task(humidity_sampling_task_cb, NULL);
+ end:
+	PORTD &= ~(1 << PD4);
 }
 
 static void get_status(module_status_t *status)
@@ -272,10 +312,33 @@ void module_print_status(void)
 	LOG(" RF:  %d\n", connected);
 }
 
+static void arm_cb(void *arg)
+{
+	static uint8_t on;
+
+	if (on == 0) {
+		if (PORTB & (1 << PB0))
+			return;
+		PORTB |= 1 << PB0;
+		timer_reschedule(&siren_timer, 10000);
+		on = 1;
+	} else {
+		PORTB &= ~(1 << PB0);
+		on = 0;
+	}
+}
+
 void module_arm(uint8_t on)
 {
-	state = on ? MODULE_STATE_ARMED : MODULE_STATE_DISARMED;
+	if (on)
+		state = MODULE_STATE_ARMED;
+	else {
+		state = MODULE_STATE_DISARMED;
+		set_siren_off();
+	}
 	update_storage();
+	timer_del(&siren_timer);
+	timer_add(&siren_timer, 10000, arm_cb, NULL);
 }
 
 void handle_rf_commands(uint8_t cmd, uint16_t value)
@@ -284,13 +347,10 @@ void handle_rf_commands(uint8_t cmd, uint16_t value)
 
 	switch (cmd) {
 	case CMD_ARM:
-		state = MODULE_STATE_ARMED;
-		update_storage();
+		module_arm(1);
 		return;
 	case CMD_DISARM:
-		state = MODULE_STATE_DISARMED;
-		update_storage();
-		set_siren_off();
+		module_arm(0);
 		return;
 	case CMD_STATUS:
 	case CMD_NOTIF_ALARM_ON:
@@ -342,6 +402,7 @@ static void handle_rf_buf_commands(buf_t *buf)
 }
 static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 {
+	inactivity = 0;
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	if (events & EV_READ) {
 		local_counter++;
@@ -375,7 +436,7 @@ static void set_rc_cnt(uint32_t *counter, uint8_t value)
 void module_init(void)
 {
 	reload_cfg_from_storage();
-	timer_add(&humidity_timer, HUMIDITY_SAMPLING, humidity_sampling, NULL);
+	timer_add(&timer_slow, 1000000, tim_slow_cb, NULL);
 	swen_ev_set(rf_event_cb);
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	swen_rc_init(&rc_ctx, &rf_iface, RF_MOD0_HW_ADDR,

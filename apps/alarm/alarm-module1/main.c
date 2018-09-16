@@ -11,36 +11,6 @@
 #include "alarm-module1.h"
 #include "../module.h"
 
-extern uint8_t inactivity;
-static tim_t timer_1sec;
-
-ISR(WDT_vect) {
-	delay_ms(2000);
-	DEBUG_LOG("WD interrupt\n");
-}
-
-static void watchdog_cb(void *arg)
-{
-	DEBUG_LOG("sleeping...\n");
-	WDTCSR |= _BV(WDIE) | _BV(WDE);
-	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-	sleep_mode();
-	wdt_reset();
-}
-
-static void tim_1sec_cb(void *arg)
-{
-	tim_t *timer = arg;
-
-	timer_reschedule(&timer_1sec, 1000000);
-	inactivity++;
-	PORTD ^= 1 << PD4;
-
-	if (inactivity < 15)
-		return;
-	schedule_task(watchdog_cb, NULL);
-}
-
 INIT_ADC_DECL(c, DDRC, PORTC, 0);
 
 #define UART_RING_SIZE 16
@@ -123,7 +93,6 @@ int main(void)
 	irq_enable();
 	timer_checks();
 #endif
-	timer_add(&timer_1sec, 1000000, tim_1sec_cb, NULL);
 	watchdog_enable();
 
 	/* port D used by the LED and RF sender */
@@ -149,8 +118,7 @@ int main(void)
 
 	/* interruptible functions */
 	while (1) {
-		if (scheduler_run_tasks())
-			inactivity = 0;
+		scheduler_run_tasks();
 		watchdog_reset();
 	}
 	return 0;
