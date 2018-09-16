@@ -118,7 +118,10 @@ int main(void)
 
 	/* interruptible functions */
 	while (1) {
-		scheduler_run_tasks();
+		if (scheduler_run_tasks() == 0) {
+			set_sleep_mode(SLEEP_MODE_IDLE);
+			sleep_mode();
+		}
 		watchdog_reset();
 	}
 	return 0;
