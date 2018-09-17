@@ -93,7 +93,7 @@ int main(void)
 	irq_enable();
 	timer_checks();
 #endif
-	watchdog_enable();
+	watchdog_enable(WATCHDOG_TIMEOUT_8S);
 
 	/* port D used by the LED and RF sender */
 	DDRD = (1 << PD2);
@@ -118,10 +118,7 @@ int main(void)
 
 	/* interruptible functions */
 	while (1) {
-		if (scheduler_run_tasks() == 0) {
-			set_sleep_mode(SLEEP_MODE_IDLE);
-			sleep_mode();
-		}
+		scheduler_run_tasks();
 		watchdog_reset();
 	}
 	return 0;

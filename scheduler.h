@@ -6,6 +6,6 @@ void scheduler_init(void);
 void scheduler_shutdown(void);
 
 /* run bottom halves */
-uint8_t scheduler_run_tasks(void);
+void scheduler_run_tasks(void);
 
 #endif

@@ -80,7 +80,7 @@ int main(void)
 	timer_add(&timer_led, 0, blink_led, &timer_led);
 
 
-	watchdog_enable();
+	watchdog_enable(WATCHDOG_TIMEOUT_8S);
 
 #ifdef CONFIG_NETWORKING
 	alarm_network_init();

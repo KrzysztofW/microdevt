@@ -71,3 +71,8 @@ endif
 ifdef CONFIG_SWEN_L3
 CFLAGS += -DCONFIG_SWEN_L3
 endif
+
+ifdef CONFIG_POWER_MANAGEMENT
+CFLAGS += -DCONFIG_POWER_MANAGEMENT
+SOURCES += ../../../power-management.c
+endif

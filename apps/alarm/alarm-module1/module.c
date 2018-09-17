@@ -8,32 +8,41 @@
 #endif
 #include <adc.h>
 #include <sys/array.h>
+#include <power-management.h>
+#include <watchdog.h>
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
-#include <avr/sleep.h>
 #include "../module.h"
 #include "../rf-common.h"
 
+#define ONE_SECOND 1000000
 #define ONE_HOUR (3600 * 1000000U)
 #define HUMIDITY_ANALOG_PIN 1
 #define FAN_ON_DURATION_H 4 /* max 4h of activity */
+#ifndef CONFIG_POWER_MANAGEMENT
+#define HUMIDITY_SAMPLING (30 * 1000000UL) /* sample every 30s */
+#endif
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define SIREN_ON_DURATION (10 * 1000000UL)
 #define DEFAULT_HUMIDITY_THRESHOLD 20
+/* inactivity timeout in seconds */
+#define INACTIVITY_TIMEOUT 15
 
 extern iface_t rf_iface;
 extern uint32_t rf_enc_defkey[4];
 static uint8_t state;
 static uint8_t fan_sensor_off = 1;
 static uint8_t fan_off_hour_cnt = FAN_ON_DURATION_H;
-static uint8_t inactivity;
 
 static tim_t fan_timer;
 static tim_t siren_timer;
-static tim_t timer_slow;
+static tim_t timer_1sec;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
+#ifndef CONFIG_POWER_MANAGEMENT
+static tim_t humidity_timer;
+#endif
 #ifdef CONFIG_SWEN_ROLLING_CODES
 static swen_rc_ctx_t rc_ctx;
 static uint32_t local_counter;
@@ -68,7 +77,7 @@ static unsigned get_humidity_cur_value(void)
 	uint8_t i;
 	int arr[ARRAY_LENGTH];
 
-	/* get rid of the exterm values */
+	/* get rid of the extrem values */
 	for (i = 0; i < ARRAY_LENGTH; i++)
 		arr[i] = analog_read(HUMIDITY_ANALOG_PIN);
 	return array_get_median(arr, ARRAY_LENGTH);
@@ -77,45 +86,47 @@ static unsigned get_humidity_cur_value(void)
 
 static void humidity_sampling_task_cb(void *arg);
 
-ISR(WDT_vect) {
+#ifdef CONFIG_POWER_MANAGEMENT
+void watchdog_on_wakeup(void *arg)
+{
 	static uint8_t sampling_cnt;
 
-	delay_ms(1000);
 	DEBUG_LOG("WD interrupt\n");
 	if (sampling_cnt >= 3) { /* sample every 30 seconds */
 		schedule_task(humidity_sampling_task_cb, NULL);
 		sampling_cnt = 0;
 	} else
 		sampling_cnt++;
+
+	/* stay active for 2 seconds in order to catch incoming RF packets */
+	power_management_set_inactivity(INACTIVITY_TIMEOUT - 2);
 }
 
-static void watchdog_cb(void *arg)
+static void pwr_mgr_on_sleep(void *arg)
 {
 	DEBUG_LOG("sleeping...\n");
 	PORTD &= ~(1 << PD4);
-	WDTCSR |= _BV(WDIE) | _BV(WDE);
-	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-	sleep_mode();
-	wdt_reset();
-	timer_reschedule(&timer_slow, 2000000);
+	watchdog_enable_interrupt(watchdog_on_wakeup, NULL);
 }
-
-static void tim_slow_cb(void *arg)
+#else
+static void humidity_sampling(void *arg)
 {
-	inactivity++;
+	timer_reschedule(&humidity_timer, HUMIDITY_SAMPLING);
+	schedule_task(humidity_sampling_task_cb, NULL);
+}
+#endif
 
-	/* do not sleep if the siren is on */
-	if (!!(PORTB & 1 << PB0))
-		inactivity = 0;
-
+static void timer_1sec_cb(void *arg)
+{
 	/* toggle the LED */
 	PORTD ^= 1 << PD4;
 
-	if (inactivity < 15) {
-		timer_reschedule(&timer_slow, 1000000);
-		return;
-	}
-	schedule_task(watchdog_cb, NULL);
+#ifdef CONFIG_POWER_MANAGEMENT
+	/* do not sleep if the siren is on */
+	if (!!(PORTB & 1 << PB0))
+		power_management_pwr_down_reset();
+#endif
+	timer_reschedule(&timer_1sec, ONE_SECOND);
 }
 
 static void send_rf_msg(uint8_t cmd, const module_status_t *status)
@@ -190,7 +201,9 @@ void pir_on_action(void *arg)
 }
 
 ISR(PCINT2_vect) {
-	inactivity = 0;
+#ifdef CONFIG_POWER_MANAGEMENT
+	power_management_pwr_down_reset();
+#endif
 	if (PIND & (1 << PD1))
 		schedule_task(pir_on_action, NULL);
 }
@@ -402,7 +415,9 @@ static void handle_rf_buf_commands(buf_t *buf)
 }
 static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 {
-	inactivity = 0;
+#ifdef CONFIG_POWER_MANAGEMENT
+	power_management_pwr_down_reset();
+#endif
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	if (events & EV_READ) {
 		local_counter++;
@@ -436,7 +451,13 @@ static void set_rc_cnt(uint32_t *counter, uint8_t value)
 void module_init(void)
 {
 	reload_cfg_from_storage();
-	timer_add(&timer_slow, 1000000, tim_slow_cb, NULL);
+	timer_add(&timer_1sec, ONE_SECOND, timer_1sec_cb, NULL);
+#ifdef CONFIG_POWER_MANAGEMENT
+	power_management_power_down_init(INACTIVITY_TIMEOUT, pwr_mgr_on_sleep,
+					 NULL);
+#else
+	timer_add(&humidity_timer, HUMIDITY_SAMPLING, humidity_sampling, NULL);
+#endif
 	swen_ev_set(rf_event_cb);
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	swen_rc_init(&rc_ctx, &rf_iface, RF_MOD0_HW_ADDR,

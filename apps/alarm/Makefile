@@ -40,7 +40,7 @@ libnet:
 $(EXE): $(OBJ) $(STATIC_LIBS) config
 	$(AR) -cr $(EXE).a $(OBJ)
 	ranlib $(EXE).a
-	$(CC) $(EXE).a $(STATIC_LIBS) $(LDFLAGS) -o $@
+	$(CC) $(EXE).a $(STATIC_LIBS) $(EXE).a $(LDFLAGS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c

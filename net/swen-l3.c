@@ -2,6 +2,7 @@
 #include <crypto/xtea.h>
 #include <scheduler.h>
 #include <sys/random.h>
+#include <power-management.h>
 #include "swen.h"
 #include "swen-l3.h"
 #include "pkt-mempool.h"
@@ -167,6 +168,9 @@ static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
 	uint8_t len = 0;
 	uint8_t hdr_len;
 
+#ifdef CONFIG_POWER_MANAGEMENT
+	power_management_pwr_down_reset();
+#endif
 	if (assoc->enc_key)
 		hdr_len = sizeof(swen_l3_hdr_encr_t);
 	else
@@ -354,7 +358,8 @@ static void __swen_l3_output_reuse_pkt(swen_l3_assoc_t *assoc, pkt_t *pkt,
 	__swen_l3_output(pkt, op, assoc, NULL);
 }
 
-static void swen_l3_event_cb(swen_l3_assoc_t *assoc, uint8_t events, buf_t *buf)
+static void
+swen_l3_event_cb(swen_l3_assoc_t *assoc, uint8_t events, buf_t *buf)
 {
 	uint8_t ev = (assoc->events_wanted & events) | (events & EV_ERROR);
 

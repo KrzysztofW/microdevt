@@ -1,5 +1,6 @@
 #include <sys/ring.h>
 #include <interrupts.h>
+#include <power-management.h>
 #include "scheduler.h"
 
 typedef struct __attribute__((__packed__)) task {
@@ -30,13 +31,14 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 	ring_add(r, &task, sizeof(task_t));
 }
 
-uint8_t scheduler_run_tasks(void)
+void scheduler_run_tasks(void)
 {
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));
 	int irq_rlen = ring_len(ring_irq);
-	uint8_t ret = 0;
-
+#ifdef CONFIG_POWER_MANAGEMENT
+	uint8_t idle = 1;
+#endif
 	if (irq_rlen < sizeof(task_t))
 		irq_enable();
 	else {
@@ -44,15 +46,24 @@ uint8_t scheduler_run_tasks(void)
 			irq_disable();
 		__ring_get_buf(ring_irq, &buf);
 		task.cb(task.arg);
-		ret = 1;
+#ifdef CONFIG_POWER_MANAGEMENT
+		idle = 0;
+#endif
 	}
 
 	if (ring_len(ring) >= sizeof(task_t)) {
 		__ring_get_buf(ring, &buf);
 		task.cb(task.arg);
-		ret = 1;
+#ifdef CONFIG_POWER_MANAGEMENT
+		idle = 0;
+#endif
 	}
-	return ret;
+#ifdef CONFIG_POWER_MANAGEMENT
+	if (idle) {
+		power_management_set_mode(PWR_MGR_SLEEP_MODE_IDLE);
+		power_management_sleep();
+	}
+#endif
 }
 
 void scheduler_init(void)
