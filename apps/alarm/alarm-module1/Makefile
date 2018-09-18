@@ -28,12 +28,18 @@ STATIC_LIBS = ../../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
 all: libnet $(SOURCES) $(EXE)
+optimized: libnet $(SOURCES) $(EXE)_optimized
 
 libnet:
 	make -C ../../../net
 
 $(EXE): $(OBJ) $(STATIC_LIBS) config
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
+
+$(EXE)_optimized: $(OBJ) $(STATIC_LIBS) config
+	$(AR) -cr $(EXE).a $(OBJ)
+	ranlib $(EXE).a
+	$(CC) $(EXE).a $(STATIC_LIBS) $(EXE).a $(LDFLAGS) -o $(EXE)
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
@@ -45,7 +51,7 @@ clean:
 run: all
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
 
-upload: all
+upload: optimized
 	avr-size $(EXE)
 	avr-objcopy -j .text -j .data -O ihex $(EXE) $(EXE).hex
 	avr-objcopy -O srec $(EXE) $(EXE).srec
@@ -81,4 +87,4 @@ write_fuses:
 erase:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
 
-.PHONY: all
+.PHONY: all optimized
