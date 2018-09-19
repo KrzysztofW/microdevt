@@ -21,11 +21,11 @@
 #define FAN_ON_DURATION_H 4 /* max 4h of activity */
 #define HUMIDITY_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
-#define SIREN_ON_DURATION (10 * 1000000UL)
 #define DEFAULT_HUMIDITY_THRESHOLD 20
 #define MAX_HUMIDITY_VALUE 676 /* => 80% RH */
 #define HIH_4000_TO_RH(mv_val) (((mv_val) - 826) / 31)
 
+#define SIREN_ON_DURATION (1 * 60 * 1000000U) /* 1 minute */
 /* inactivity timeout in seconds */
 #define INACTIVITY_TIMEOUT 15
 
