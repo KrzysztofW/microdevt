@@ -14,9 +14,11 @@
 INIT_ADC_DECL(c, DDRC, PORTC, 0);
 
 #define UART_RING_SIZE 16
-static ring_t *uart_ring;
 extern iface_t rf_iface;
 extern ring_t *pkt_pool;
+
+#ifdef DEBUG
+static ring_t *uart_ring;
 
 static void parse_uart_commands(buf_t *buf)
 {
@@ -76,6 +78,7 @@ ISR(USART_RX_vect)
 	} else
 		ring_addc(uart_ring, c);
 }
+#endif
 
 int main(void)
 {

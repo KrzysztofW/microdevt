@@ -19,12 +19,13 @@
 #define ONE_HOUR (3600 * 1000000U)
 #define HUMIDITY_ANALOG_PIN 1
 #define FAN_ON_DURATION_H 4 /* max 4h of activity */
-#ifndef CONFIG_POWER_MANAGEMENT
-#define HUMIDITY_SAMPLING (30 * 1000000UL) /* sample every 30s */
-#endif
+#define HUMIDITY_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define SIREN_ON_DURATION (10 * 1000000UL)
 #define DEFAULT_HUMIDITY_THRESHOLD 20
+#define MAX_HUMIDITY_VALUE 676 /* => 80% RH */
+#define HIH_4000_TO_RH(mv_val) (((mv_val) - 826) / 31)
+
 /* inactivity timeout in seconds */
 #define INACTIVITY_TIMEOUT 15
 
@@ -39,10 +40,8 @@ static tim_t siren_timer;
 static tim_t timer_1sec;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
+static uint8_t humidity_sampling_update;
 static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
-#ifndef CONFIG_POWER_MANAGEMENT
-static tim_t humidity_timer;
-#endif
 #ifdef CONFIG_SWEN_ROLLING_CODES
 static swen_rc_ctx_t rc_ctx;
 static uint32_t local_counter;
@@ -110,16 +109,13 @@ static void pwr_mgr_on_sleep(void *arg)
 	PORTD &= ~(1 << PD4);
 	watchdog_enable_interrupt(watchdog_on_wakeup, NULL);
 }
-#else
-static void humidity_sampling(void *arg)
-{
-	timer_reschedule(&humidity_timer, HUMIDITY_SAMPLING);
-	schedule_task(humidity_sampling_task_cb, NULL);
-}
 #endif
 
 static void timer_1sec_cb(void *arg)
 {
+	if (humidity_sampling_update++ >= HUMIDITY_SAMPLING)
+		schedule_task(humidity_sampling_task_cb, NULL);
+
 	/* toggle the LED */
 	PORTD ^= 1 << PD4;
 
@@ -239,16 +235,16 @@ static void humidity_sampling_task_cb(void *arg)
 {
 	humidity_info_t info;
 
-	PORTD |= 1 << PD4;
+	humidity_sampling_update = 0;
 	get_humidity(&info);
 	if (fan_sensor_off || global_humidity_array[0] == 0)
-		goto end;
-	if (info.tendency == RISING)
+		return;
+	if (info.tendency == RISING ||
+	    global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
+	    >= MAX_HUMIDITY_VALUE) {
 		set_fan_on();
-	else if (info.tendency == STABLE)
+	} else if (info.tendency == STABLE)
 		set_fan_off();
- end:
-	PORTD &= ~(1 << PD4);
 }
 
 static void get_status(module_status_t *status)
@@ -304,20 +300,23 @@ static void reload_cfg_from_storage(void)
 	humidity_threshold = data.humidity_threshold;
 }
 
+#ifdef DEBUG
 void module_print_status(void)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
+	long hval = get_humidity_cur_value();
 
 	array_copy(humidity_array, global_humidity_array,
 		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
 	array_print(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH);
 	LOG("\nStatus:\n");
-	LOG(" State:  %s\n", state == MODULE_STATE_ARMED ? "armed" : "disarmed");
-	LOG(" Humidity value:  %d\n"
+	LOG(" State:  %s\n",
+	    state == MODULE_STATE_ARMED ? "armed" : "disarmed");
+	LOG(" Humidity value:  %ld%%\n"
 	    " Global humidity value:  %d\n"
 	    " Humidity tendency:  %u\n"
 	    " Humidity threshold:  %u\n",
-	    get_humidity_cur_value(),
+	    HIH_4000_TO_RH(analog_to_millivolt(hval)),
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
 	    get_hum_tendency(),
 	    humidity_threshold);
@@ -326,6 +325,7 @@ void module_print_status(void)
 	LOG(" Siren:  %d\n", !!(PORTB & 1 << PB0));
 	LOG(" RF:  %d\n", connected);
 }
+#endif
 
 static void arm_cb(void *arg)
 {
@@ -428,7 +428,6 @@ static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 #else
 	if (events & EV_READ) {
 		if (buf == NULL) {
-			printf("%X connected\n", from);
 			connected = 1;
 			if (state == MODULE_STATE_INIT)
 				state = MODULE_STATE_DISARMED;
@@ -436,7 +435,6 @@ static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
 		}
 		handle_rf_buf_commands(buf);
 	} else if (events & EV_ERROR) {
-		printf("%X error\n", from);
 		connected = 0;
 	}
 #endif
@@ -457,8 +455,6 @@ void module_init(void)
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_power_down_init(INACTIVITY_TIMEOUT, pwr_mgr_on_sleep,
 					 NULL);
-#else
-	timer_add(&humidity_timer, HUMIDITY_SAMPLING, humidity_sampling, NULL);
 #endif
 	swen_ev_set(rf_event_cb);
 #ifdef CONFIG_SWEN_ROLLING_CODES
