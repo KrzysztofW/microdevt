@@ -535,13 +535,10 @@ int sock_info_close(sock_info_t *sock_info)
 }
 
 #ifdef CONFIG_TCP
-int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn)
+void socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn)
 {
-	if (listen->backlog >= listen->backlog_max)
-		return -1;
 	list_add_tail(&tcp_conn->list, &listen->tcp_conn_list_head);
 	listen->backlog++;
-	return 0;
 }
 
 #ifdef CONFIG_TCP_CLIENT

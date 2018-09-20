@@ -192,7 +192,7 @@ int sock_info_bind(sock_info_t *sock_info, uint16_t port);
 int sock_info_close(sock_info_t *sock_info);
 #ifdef CONFIG_TCP
 int sock_info_listen(sock_info_t *sock_info, int backlog);
-int socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
+void socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
 int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 		     uint32_t *src_addr, uint16_t *src_port);
 int sock_info_connect(sock_info_t *sock_info, uint32_t addr, uint16_t port);

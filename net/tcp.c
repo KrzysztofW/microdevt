@@ -683,11 +683,7 @@ void tcp_input(pkt_t *pkt)
 			tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, &ts);
 			goto end;
 		}
-		if (socket_add_backlog(l, tcp_conn) < 0) {
-			tcp_send_pkt(ip_hdr, tcp_hdr, TH_RST, &ts);
-			tcp_conn_delete(tcp_conn);
-			goto end;
-		}
+		socket_add_backlog(l, tcp_conn);
 		tcp_conn->syn.seqid = tsyn_entry->seqid;
 		tcp_conn->syn.ack = tcp_hdr->seq;
 		tcp_conn->syn.opts = tsyn_entry->opts;
