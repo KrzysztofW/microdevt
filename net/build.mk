@@ -102,6 +102,7 @@ endif
 
 ifdef CONFIG_EVENT
 CFLAGS += -DCONFIG_EVENT
+SOURCES += event.c
 endif
 
 ifdef CONFIG_SWEN

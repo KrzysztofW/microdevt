@@ -66,6 +66,17 @@ static const char *swen_l3_print_op(uint8_t op)
 
 static list_t assoc_list = LIST_HEAD_INIT(assoc_list);
 
+pkt_t *swen_l3_get_pkt(swen_l3_assoc_t *assoc)
+{
+	pkt_t *pkt;
+
+	if (list_empty(&assoc->incoming_pkts))
+		return NULL;
+	pkt = list_first_entry(&assoc->incoming_pkts, pkt_t, list);
+	list_del(&pkt->list);
+	return pkt;
+}
+
 static int swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc,
 			  const sbuf_t *sbuf);
 
@@ -94,7 +105,7 @@ static void swen_l3_free_assoc_pkts(swen_l3_assoc_t *assoc)
 	pkt_t *pkt, *pkt_tmp;
 
 	timer_del(&assoc->timer);
-	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->pkt_list, list) {
+	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
 		list_del(&pkt->list);
 		pkt_free(pkt);
 	}
@@ -112,7 +123,7 @@ static void swen_l3_task_cb(void *arg)
 	swen_l3_assoc_t *assoc = arg;
 	pkt_t *pkt, *pkt_tmp;
 
-	if (list_empty(&assoc->pkt_list)) {
+	if (list_empty(&assoc->retrn_pkts)) {
 		uint8_t op;
 
 		if (assoc->state == S_STATE_CONNECTING)
@@ -127,13 +138,15 @@ static void swen_l3_task_cb(void *arg)
 		return;
 	}
 
-	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->pkt_list, list) {
+	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
 		uint8_t retries;
 
 		retries = swen_l3_get_pkt_retries(pkt);
 		if (retries == 0) {
 			swen_l3_free_assoc_pkts(assoc);
-			swen_event_cb(assoc->dst, EV_ERROR, NULL);
+#ifdef CONFIG_EVENT
+			event_schedule_event_error(&assoc->event);
+#endif
 			swen_l3_associate(assoc);
 			return;
 		}
@@ -159,7 +172,7 @@ static void swen_l3_timer_cb(void *arg)
 	schedule_task(swen_l3_task_cb, arg);
 }
 
-static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
+static int __swen_l3_output(pkt_t *pkt, swen_l3_assoc_t *assoc, uint8_t op,
 			    const sbuf_t *sbuf)
 {
 	swen_l3_hdr_t *hdr;
@@ -193,8 +206,10 @@ static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
 		hdr = btod(pkt);
 
 	hdr->op = op;
-	if (assoc->ack_needed)
+	if (assoc->ack_needed) {
 		assoc->ack++;
+		assoc->ack_needed = 0;
+	}
 	hdr->ack = assoc->ack;
 	hdr->seq_id = assoc->seq_id;
 
@@ -211,10 +226,10 @@ static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
 	}
 
 #ifdef SWEN_L3_DEBUG
-	DEBUG_LOG("%s: iface:%p op:%s seqid:0x%02X ack:0x%02X "
+	DEBUG_LOG("%s: to:0x%X iface:%p op:%s seqid:0x%02X ack:0x%02X "
 		  "(assoc seqid:0x%02X assoc->ack:0x%02X) one_shot:%d\n\n",
-		  __func__, assoc->iface, swen_l3_print_op(hdr->op), hdr->seq_id,
-		  hdr->ack, assoc->seq_id, assoc->ack, one_shot);
+		  __func__, assoc->dst, assoc->iface, swen_l3_print_op(hdr->op),
+		  hdr->seq_id, hdr->ack, assoc->seq_id, assoc->ack, one_shot);
 #endif
 	if (assoc->enc_key) {
 		hdr_encr->len = len;
@@ -231,7 +246,7 @@ static int __swen_l3_output(pkt_t *pkt, uint8_t op, swen_l3_assoc_t *assoc,
 		swen_l3_set_pkt_seqid(pkt, assoc->seq_id);
 
 		/* TODO sliding pkt window */
-		list_add_tail(&pkt->list, &assoc->pkt_list);
+		list_add_tail(&pkt->list, &assoc->retrn_pkts);
 	} else
 		pkt_free(pkt);
 	return 0;
@@ -242,7 +257,7 @@ swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc, const sbuf_t *sbuf)
 {
 	pkt_t *pkt;
 
-	if (list_empty(&assoc->pkt_list)) {
+	if (list_empty(&assoc->retrn_pkts)) {
 		uint8_t factor = op == S_OP_ASSOC_SYN ? 5 + rand() % 3 : 1;
 
 		timer_del(&assoc->timer);
@@ -256,10 +271,11 @@ swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc, const sbuf_t *sbuf)
 	}
 
 	assoc->seq_id++;
-	if (__swen_l3_output(pkt, op, assoc, sbuf) < 0) {
+	if (__swen_l3_output(pkt, assoc, op, sbuf) < 0) {
 		pkt_free(pkt);
 		return -1;
 	}
+
 	/* make sure the timer did not expire before exiting this funtion */
 	if (!timer_is_pending(&assoc->timer))
 		timer_add(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY,
@@ -279,8 +295,8 @@ void swen_l3_assoc_init(swen_l3_assoc_t *assoc, const uint32_t *enc_key)
 	memset(assoc, 0, sizeof(swen_l3_assoc_t));
 	assoc->enc_key = enc_key;
 	INIT_LIST_HEAD(&assoc->list);
-	INIT_LIST_HEAD(&assoc->pkt_list);
-	list_add(&assoc->list, &assoc_list);
+	INIT_LIST_HEAD(&assoc->retrn_pkts);
+	INIT_LIST_HEAD(&assoc->incoming_pkts);
 }
 
 #if 0
@@ -295,7 +311,6 @@ void swen_l3_assoc_shutdown(swen_l3_assoc_t *assoc)
 void
 swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface)
 {
-	assert(swen_event_cb);
 	assert(assoc->state == S_STATE_CLOSED);
 #ifdef CONFIG_RND_SEED
 	assoc->seq_id = rand_r(&rnd_seed);
@@ -304,6 +319,7 @@ swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface)
 #endif
 	assoc->iface = iface;
 	assoc->dst = to;
+	list_add(&assoc->list, &assoc_list);
 }
 
 /* slow linear search for assoc */
@@ -337,7 +353,7 @@ static int swen_l3_retrn_ack_pkts(swen_l3_assoc_t *assoc, uint8_t seq_id)
 	pkt_t *pkt, *pkt_tmp;
 	int ret = -1;
 
-	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->pkt_list, list) {
+	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
 		if (swen_l3_in_window(swen_l3_get_pkt_seqid(pkt), seq_id)) {
 			list_del(&pkt->list);
 			pkt_free(pkt);
@@ -345,38 +361,34 @@ static int swen_l3_retrn_ack_pkts(swen_l3_assoc_t *assoc, uint8_t seq_id)
 			break;
 		}
 	}
-	if (list_empty(&assoc->pkt_list))
+	if (list_empty(&assoc->retrn_pkts))
 		timer_del(&assoc->timer);
 
 	return ret;
 }
 
-static void __swen_l3_output_reuse_pkt(swen_l3_assoc_t *assoc, pkt_t *pkt,
-				       uint8_t op)
+static void
+__swen_l3_output_reuse_pkt(pkt_t *pkt, swen_l3_assoc_t *assoc, uint8_t op)
 {
 	buf_reset(&pkt->buf);
-	__swen_l3_output(pkt, op, assoc, NULL);
+	__swen_l3_output(pkt, assoc, op, NULL);
 }
 
-static void
-swen_l3_event_cb(swen_l3_assoc_t *assoc, uint8_t events, buf_t *buf)
+static void swen_l3_send_ack_task_cb(void *arg)
 {
-	uint8_t ev = (assoc->events_wanted & events) | (events & EV_ERROR);
+	pkt_t *pkt;
+	swen_l3_assoc_t *assoc = arg;
 
-	if (ev) {
-		if ((ev & EV_WRITE) && pkt_get_nb_free() == 0)
-			ev &= ~EV_WRITE;
-		swen_event_cb(assoc->dst, ev, buf);
-	}
-}
+	if (!assoc->ack_needed)
+		return;
 
-void swen_l3_event_set(swen_l3_assoc_t *assoc, uint8_t wanted)
-{
-	assoc->events_wanted = wanted;
-	if (wanted & EV_WRITE) {
-		if (assoc->state == S_STATE_CONNECTED && pkt_get_nb_free())
-			swen_l3_event_cb(assoc, EV_WRITE, NULL);
+	if ((pkt = pkt_alloc()) == NULL) {
+		schedule_task(swen_l3_send_ack_task_cb, assoc);
+		return;
 	}
+	assoc->ack_needed = 0;
+	assoc->ack++;
+	__swen_l3_output(pkt, assoc, S_OP_ACK, NULL);
 }
 
 void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
@@ -420,7 +432,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		if (hdr->ack != 0)
 			break;
 		assoc->new_ack = hdr->seq_id;
-		__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ASSOC_SYN_ACK);
+		__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ASSOC_SYN_ACK);
 		return;
 
 	case S_OP_ASSOC_COMPLETE:
@@ -433,13 +445,15 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 				assoc->new_ack = 0;
 				assoc->ack = hdr->seq_id;
 				assoc->state = S_STATE_CONNECTED;
-				swen_l3_event_cb(assoc, EV_READ|EV_WRITE, NULL);
-				__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
+#ifdef CONFIG_EVENT
+				event_schedule_event(&assoc->event, EV_WRITE);
+#endif
+				__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 				return;
 			}
 		}
 		if (hdr->seq_id == assoc->ack) {
-			__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
+			__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 			return;
 		}
 		break;
@@ -447,9 +461,8 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 	case S_OP_ASSOC_SYN_ACK:
 		if (assoc->state != S_STATE_CONNECTING)
 			break;
-		if (hdr->ack != assoc->seq_id) {
+		if (hdr->ack != assoc->seq_id)
 			break;
-		}
 		if (swen_l3_retrn_ack_pkts(assoc, hdr->ack) < 0)
 			break;
 		assoc->state = S_STATE_CONN_COMPLETE;
@@ -463,12 +476,16 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 			break;
 		if (assoc->state == S_STATE_CLOSING) {
 			assoc->state = S_STATE_CLOSED;
+			/* remove the assoc form bound list */
+			list_del(&assoc->list);
 			break;
 		}
 		if (assoc->state == S_STATE_CONN_COMPLETE) {
 			swen_l3_free_assoc_pkts(assoc);
 			assoc->state = S_STATE_CONNECTED;
-			swen_l3_event_cb(assoc, EV_READ|EV_WRITE, NULL);
+#ifdef CONFIG_EVENT
+			event_schedule_event(&assoc->event, EV_WRITE);
+#endif
 		}
 		break;
 
@@ -478,7 +495,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		swen_l3_retrn_ack_pkts(assoc, hdr->ack);
 
 		if (swen_l3_in_window(assoc->ack, hdr->seq_id)) {
-			__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
+			__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 			return;
 		}
 		ack = assoc->ack + 1;
@@ -489,20 +506,16 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		 * in the event callback */
 		ack = assoc->ack;
 		assoc->ack_needed = 1;
-		swen_l3_event_cb(assoc, EV_READ|EV_WRITE, &pkt->buf);
-		assoc->ack_needed = 0;
-
-		/* check if the pkt has been acked by sending data from the cb */
-		if (assoc->ack == ack) {
-			assoc->ack++;
-			__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
-			return;
-		}
-		break;
+		list_add_tail(&pkt->list, &assoc->incoming_pkts);
+#ifdef CONFIG_EVENT
+		event_schedule_event(&assoc->event, EV_READ | EV_WRITE);
+#endif
+		schedule_task(swen_l3_send_ack_task_cb, assoc);
+		return;
 
 	case S_OP_DISASSOC:
 		if (hdr->seq_id == assoc->ack && assoc->state == S_STATE_CLOSED) {
-			__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
+			__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 			return;
 		}
 		ack = assoc->ack + 1;
@@ -513,8 +526,10 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 		if (assoc->state == S_STATE_CONNECTED)
 			assoc->state = S_STATE_CLOSED;
 		assoc->state = S_STATE_CLOSED;
-		swen_l3_event_cb(assoc, EV_ERROR, NULL);
-		__swen_l3_output_reuse_pkt(assoc, pkt, S_OP_ACK);
+#ifdef CONFIG_EVENT
+		event_schedule_event_error(&assoc->event);
+#endif
+		__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 		return;
 
 	case S_OP_KEY_EXCHANGE:
