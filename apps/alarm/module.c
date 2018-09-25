@@ -3,22 +3,27 @@
 #include <net/swen.h>
 #include <net/swen-rc.h>
 #include <net/swen-l3.h>
+#include <net/swen-cmds.h>
 #include <adc.h>
 #include "module.h"
 #include "rf-common.h"
+#include "module-common.h"
 #include "features.h"
+
+/* #define RF_DEBUG */
 
 #define SIREN_ON_DURATION (15 * 60 * 1000000UL)
 
-extern iface_t rf_iface;
+#if defined (CONFIG_RF_RECEIVER) || defined (CONFIG_RF_SENDER)
+static uint8_t rf_addr = RF_MOD0_HW_ADDR;
+static iface_t rf_iface;
+#ifdef RF_DEBUG
+iface_t *rf_debug_iface1 = &rf_iface;
+#endif
+#endif
+
 #ifdef CONFIG_NETWORKING
 extern iface_t eth_iface;
-#endif
-extern uint32_t rf_enc_defkey[4];
-
-#ifdef CONFIG_SWEN_ROLLING_CODES
-static uint32_t local_counter;
-static uint32_t remote_counter;
 #endif
 
 #define NB_MODULES 2
@@ -35,7 +40,7 @@ static sbuf_t s_fan_disable = SBUF_INITS("fan disable");
 static sbuf_t s_fan_enable = SBUF_INITS("fan enable");
 static sbuf_t s_siren_on = SBUF_INITS("siren on");
 static sbuf_t s_siren_off = SBUF_INITS("siren off");
-static sbuf_t s_humidity_th  = SBUF_INITS("humidity th");
+static sbuf_t s_humidity_th = SBUF_INITS("humidity th");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
 static sbuf_t s_connect = SBUF_INITS("connect");
 
@@ -72,16 +77,6 @@ static cmd_t cmds[] = {
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 };
 
-static uint8_t module_to_addr(uint8_t module)
-{
-	return RF_MOD0_HW_ADDR + module;
-}
-
-static uint8_t addr_to_module(uint8_t addr)
-{
-	return addr - RF_MOD0_HW_ADDR;
-}
-
 static void set_siren_off(void)
 {
 	DDRB &= ~(1 << PB0);
@@ -103,16 +98,9 @@ static void set_siren_on(uint8_t force)
 	}
 }
 
-void pir_on_action(void *arg)
-{
-	set_siren_on(0);
-}
-
 static const char *state_to_string(uint8_t state)
 {
 	switch (state) {
-	case MODULE_STATE_INIT:
-		return "INIT";
 	case MODULE_STATE_DISARMED:
 		return "DISARMED";
 	case MODULE_STATE_ARMED:
@@ -176,30 +164,35 @@ static void print_status(uint8_t nb)
 		LOG(" RF:  %s\n", on_off(status->rf_up));
 }
 
-static void send_rf_msg(uint8_t module, uint8_t cmd, const buf_t *args)
+static int module_send_cmd(swen_l3_assoc_t *assoc, uint8_t cmd)
+{
+	buf_t buf = BUF(1);
+	sbuf_t sbuf;
+
+	__buf_addc(&buf, cmd);
+	sbuf = buf2sbuf(&buf);
+	return swen_l3_send(assoc, &sbuf);
+}
+
+static int send_rf_msg(uint8_t module, uint8_t cmd, const buf_t *args)
 {
 	buf_t buf = BUF(sizeof(uint8_t) + args->len);
 	sbuf_t sbuf;
-#ifdef CONFIG_SWEN_ROLLING_CODES
-	swen_rc_ctx_t *rc_ctx = &modules[module].rc_ctx;
-#else
 	swen_l3_assoc_t *assoc = &modules[module].assoc;
-#endif
 
 	__buf_addc(&buf, cmd);
 	buf_addbuf(&buf, args);
 
 	sbuf = buf2sbuf(&buf);
-#ifdef CONFIG_SWEN_ROLLING_CODES
-	if (swen_rc_sendto(rc_ctx, &sbuf) >= 0)
-		remote_counter++;
-#else
 	if (swen_l3_send(assoc, &sbuf) < 0) {
 		LOG("sending to module %d failed\n", module);
 		modules[module].status.rf_up = 0;
+		return -1;
 	}
-#endif
+	return 0;
 }
+
+static void rf_connecting_on_event(event_t *ev, uint8_t events);
 
 static void handle_commands(uint8_t module, uint8_t cmd, const buf_t *args)
 {
@@ -234,16 +227,16 @@ static void handle_commands(uint8_t module, uint8_t cmd, const buf_t *args)
 		return;
 	}
 	if (cmd == CMD_DISCONNECT) {
-#ifndef CONFIG_SWEN_ROLLING_CODES
 		swen_l3_disassociate(&modules[module].assoc);
 		modules[module].status.rf_up = 0;
-#endif
 		return;
 	}
 	if (cmd == CMD_CONNECT) {
-#ifndef CONFIG_SWEN_ROLLING_CODES
+		swen_l3_assoc_t *assoc = &modules[module].assoc;
+
+		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
+		swen_l3_assoc_bind(assoc, assoc->dst, assoc->iface);
 		swen_l3_associate(&modules[module].assoc);
-#endif
 		return;
 	}
 	if ((!modules[module].features->fan
@@ -341,7 +334,7 @@ void alarm_parse_uart_commands(buf_t *buf)
 	if (ifce) {
 		LOG("\nifce pool: %d rx: %d tx:%d\npkt pool: %d\n",
 		    ring_len(ifce->pkt_pool), ring_len(ifce->rx),
-		    ring_len(ifce->tx), ring_len(pkt_pool));
+		    ring_len(ifce->tx), pkt_pool_get_nb_free());
 		return;
 	}
 
@@ -376,32 +369,14 @@ void alarm_parse_uart_commands(buf_t *buf)
 			a++;
 		}
 		handle_commands(module, c, &args);
+		//buf_reset(&args); ?
 		return;
 	}
  usage:
 	LOG("usage: [help] | mod[0-%d] command\n", NB_MODULES - 1);
 }
-#ifdef RF_DEBUG
-static void send_status(void)
-{
-	buf_t buf = BUF(sizeof(uint8_t) + sizeof(module_status_t));
-	sbuf_t sbuf;
-	module_status_t status;
 
-	memset(&status, 0, sizeof(module_status_t));
-	__buf_addc(&buf, CMD_STATUS);
-	__buf_add(&buf, &status, sizeof(module_status_t));
-	sbuf = buf2sbuf(&buf);
-#ifdef CONFIG_SWEN_ROLLING_CODES
-	if (swen_rc_sendto(&debug_rc_ctx, &sbuf) >= 0)
-		debug_remote_counter++;
-#else
-	if (swen_l3_send(&debug_assoc, &sbuf) < 0)
-		printf("failed sending status\n");
-#endif
-}
-#endif
-static void handle_rf_replies(uint8_t addr, buf_t *buf)
+static void module_handle_commands(uint8_t addr, buf_t *buf)
 {
 	uint8_t cmd;
 	uint8_t module;
@@ -433,68 +408,100 @@ static void handle_rf_replies(uint8_t addr, buf_t *buf)
 	}
 }
 
-#ifdef CONFIG_SWEN_ROLLING_CODES
-static void set_rc_cnt(uint32_t *counter, uint8_t value)
+/* static void module_set_cfg(module_t *module) */
+/* { */
+/* 	if (module->cfg.state != module->status.state) { */
+/* 	} */
+/* } */
+
+#if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_GENERIC_COMMANDS)
+static void rf_kerui_cb(int nb)
 {
-	*counter += value;
-	// eeprom ...
+	DEBUG_LOG("received kerui cmd %d\n", nb);
 }
 #endif
 
-static void rf_event_cb(uint8_t from, uint8_t events, buf_t *buf)
+static void rf_event_cb(event_t *ev, uint8_t events)
 {
-#ifdef CONFIG_SWEN_ROLLING_CODES
-	if (events & EV_READ) {
-		if (from == RF_MOD1_HW_ADDR)
-			modules[1].local_counter++;
-		handle_rf_replies(from, buf);
-	}
-#else
-	if (events & EV_READ) {
-		if (from == RF_MOD1_HW_ADDR) {
-			LOG("mod1 connected\n");
-			modules[1].status.rf_up = 1;
-		}
-		handle_rf_replies(from, buf);
-	} else if (events & EV_ERROR) {
-		LOG("failed sending to 0x%02X\n", from);
-		if (from == RF_MOD1_HW_ADDR)
-			modules[1].status.rf_up = 0;
-	}
+	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
+#ifdef DEBUG
+	uint8_t m_nb = addr_to_module(assoc->dst);
 #endif
+	module_t *module = container_of(assoc, module_t, assoc);
+
+	DEBUG_LOG("from:%X ev:0x%X\n", assoc->dst, events);
+	if (events & EV_READ) {
+		pkt_t *pkt = swen_l3_get_pkt(assoc);
+
+		DEBUG_LOG("got pkt:%p from mod%d\n", pkt, m_nb);
+		module_handle_commands(assoc->dst, &pkt->buf);
+		pkt_free(pkt);
+	}
+	if (events & EV_ERROR) {
+		DEBUG_LOG("mod%d disconnected\n", m_nb);
+		module->status.rf_up = 0;
+		swen_l3_event_unregister(assoc);
+		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
+	}
+	if (events & EV_WRITE) {
+		DEBUG_LOG("mod%d ready to write\n");
+		//module_set_cfg(module);
+	}
 }
 
-void module_init(void)
+static void rf_connecting_on_event(event_t *ev, uint8_t events)
+{
+	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
+#ifdef DEBUG
+	uint8_t m_nb = addr_to_module(assoc->dst);
+#endif
+	module_t *module = container_of(assoc, module_t, assoc);
+
+	if (events & EV_ERROR) {
+		DEBUG_LOG("failed to connect to mod%d\n", m_nb);
+		module->status.rf_up = 0;
+		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
+		return;
+	}
+	if (events & EV_WRITE) {
+		DEBUG_LOG("connected to mod%d\n", m_nb);
+		module->status.rf_up = 1;
+
+		/* get slave statuses */
+		if (module_send_cmd(assoc, CMD_GET_STATUS) < 0)
+			return;
+		swen_l3_event_register(assoc, EV_READ, rf_event_cb);
+	}
+}
+
+void master_module_init(void)
 {
 	uint8_t i;
 
-	swen_ev_set(rf_event_cb);
-
-	for (i = 0; i < NB_MODULES; i++) {
-		module_t *m = &modules[i];
-#ifndef CONFIG_SWEN_ROLLING_CODES
-		swen_l3_assoc_t *assoc;
+	module_init_iface(&rf_iface, &rf_addr);
+#ifdef RF_DEBUG
+	module1_init();
 #endif
+	for (i = 0; i < NB_MODULES; i++) {
 		uint8_t addr;
+		module_t *module = &modules[i];
 
-		sprintf(m->name, "mod%u", i);
-		m->features = &module_features[i];
+		sprintf(module->name, "mod%u", i);
+		module->features = &module_features[i];
 
 		if (i == 0)
 			continue;
-		addr = module_to_addr(i);
-#ifndef CONFIG_SWEN_ROLLING_CODES
-		assoc = &m->assoc;
-		swen_l3_assoc_init(assoc, rf_enc_defkey);
-		swen_l3_assoc_bind(assoc, addr, &rf_iface);
-		swen_l3_set_events(assoc, EV_READ | EV_WRITE);
-		if (swen_l3_associate(assoc) < 0)
-			__abort();
-#else
-		swen_rc_init(&m->rc_ctx, &rf_iface, addr,
-			     &local_counter, &remote_counter, set_rc_cnt,
-			     rf_enc_defkey);
-#endif
 
+		addr = module_to_addr(i);
+
+		swen_l3_assoc_init(&module->assoc, rf_enc_defkey);
+		swen_l3_assoc_bind(&module->assoc, addr, &rf_iface);
+		swen_l3_event_register(&module->assoc, EV_WRITE,
+				       rf_connecting_on_event);
+		if (swen_l3_associate(&module->assoc) < 0)
+			__abort();
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+		swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
+#endif
 	}
 }

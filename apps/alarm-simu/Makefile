@@ -1,13 +1,15 @@
 # ../simulavr/src/simulavr  -f alarm -d atmega328 -F 16000000
 
 EXE = alarm
-CFLAGS = -Wall -Werror -Os -g -c
+# CFLAGS = -Wall -Werror -Os -g -c -DSWEN_L3_DEBUG -DRF_DEBUG
+CFLAGS = -Wall -Werror -Os -g -c -DRF_DEBUG
 
 # definition to fake the simulator
 CFLAGS += -DUSART0_RX_vect=USART_RX_vect -DDDRF=DDRD -DPORTF=PORTD -DPF1=PD1
 
 SOURCES = main.c $(ARCH_DIR)/$(ARCH)/adc.c
 SOURCES += ../../scheduler.c features.c
+SOURCES += ../alarm/alarm-module1/module.c ../../sys/array.c
 
 include config
 include build.mk

@@ -29,7 +29,7 @@ SOURCES += ../../sys/random.c
 endif
 
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
-SOURCES += ../../drivers/rf.c rf.c module.c
+SOURCES += ../../drivers/rf.c module-common.c module.c
 endif
 ifdef CONFIG_RF_RECEIVER
 CFLAGS += -DCONFIG_RF_RECEIVER
@@ -103,9 +103,7 @@ CFLAGS += -DCONFIG_PKT_NB_MAX=$(CONFIG_PKT_NB_MAX)
 CFLAGS += -DCONFIG_PKT_SIZE=$(CONFIG_PKT_SIZE)
 CFLAGS += -DCONFIG_PKT_DRIVER_NB_MAX=$(CONFIG_PKT_DRIVER_NB_MAX)
 endif
-ifdef CONFIG_SWEN_ROLLING_CODES
-CFLAGS += -DCONFIG_SWEN_ROLLING_CODES
-endif
+
 ifdef CONFIG_SWEN_L3
 CFLAGS += -DCONFIG_SWEN_L3
 endif

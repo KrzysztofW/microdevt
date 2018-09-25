@@ -88,13 +88,20 @@ int main(void)
 #ifdef CONFIG_GSM_SIM900
 	alarm_gsm_init();
 #endif
-#if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
-	alarm_rf_init();
-	module_init();
+
+#ifdef CONFIG_RF_RECEIVER
+#endif
+
+#ifdef CONFIG_RF_SENDER
+	/* port F used by the RF sender */
+	DDRF = (1 << PF1);
+#ifdef CONFIG_RF_RECEIVER
+	master_module_init();
+#endif
 #endif
 	irq_enable();
 
-	/* slow functions */
+	/* interruptible functions */
 	while (1) {
 #ifdef CONFIG_NETWORKING
 		alarm_network_loop();

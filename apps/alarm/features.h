@@ -9,6 +9,7 @@ typedef struct module_features {
 	uint8_t siren;
 	uint8_t lan;
 	uint8_t rf;
+	uint8_t rolling_codes;
 } module_features_t;
 
 #define MAX_HANDLED_MODULES 2

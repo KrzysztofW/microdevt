@@ -29,7 +29,7 @@ SOURCES += ../../../sys/random.c
 endif
 
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
-SOURCES += rf.c module.c ../../../crypto/xtea.c ../../../sys/array.c
+SOURCES += ../module-common.c module.c ../../../crypto/xtea.c ../../../sys/array.c
 SOURCES += ../../../drivers/rf.c ../../../sys/chksum.c
 endif
 ifdef CONFIG_RF_RECEIVER
@@ -64,8 +64,8 @@ CFLAGS += -DCONFIG_PKT_SIZE=$(CONFIG_PKT_SIZE)
 CFLAGS += -DCONFIG_PKT_DRIVER_NB_MAX=$(CONFIG_PKT_DRIVER_NB_MAX)
 endif
 
-ifdef CONFIG_SWEN_ROLLING_CODES
-CFLAGS += -DCONFIG_SWEN_ROLLING_CODES
+ifdef CONFIG_EVENT
+CFLAGS += -DCONFIG_EVENT
 endif
 
 ifdef CONFIG_SWEN_L3

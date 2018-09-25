@@ -5,13 +5,12 @@
 #include "features.h"
 
 typedef enum module_state {
-	MODULE_STATE_INIT,
 	MODULE_STATE_DISARMED,
 	MODULE_STATE_ARMED,
 } module_state_t;
 
 typedef struct __attribute__((__packed__)) module_status {
-	uint16_t humidity_threshold; // to be removed
+	uint16_t humidity_threshold;
 	uint16_t humidity_val;
 	uint16_t global_humidity_val;
 	int8_t  temperature;
@@ -54,6 +53,7 @@ typedef enum commands {
 	CMD_CONNECT,
 } commands_t;
 
-void module_init(void);
+void master_module_init(void);
+void module1_init(void);
 
 #endif

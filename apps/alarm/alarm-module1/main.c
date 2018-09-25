@@ -14,43 +14,9 @@
 INIT_ADC_DECL(c, DDRC, PORTC, 0);
 
 #define UART_RING_SIZE 16
-extern iface_t rf_iface;
-extern ring_t *pkt_pool;
 
 #ifdef DEBUG
 static ring_t *uart_ring;
-
-static void parse_uart_commands(buf_t *buf)
-{
-	sbuf_t s;
-	iface_t *ifce = NULL;
-
-	if (buf_get_sbuf_upto_and_skip(buf, &s, "rf buf") >= 0)
-		ifce = &rf_iface;
-	else if (buf_get_sbuf_upto_and_skip(buf, &s, "eth buf") >= 0) {
-		printf_P(PSTR(" unsupported\n"));
-		return;
-	}
-	if (buf_get_sbuf_upto_and_skip(buf, &s, "get status") >= 0) {
-		module_print_status();
-		return;
-	}
-	if (buf_get_sbuf_upto_and_skip(buf, &s, "disarm") >= 0) {
-		module_arm(0);
-		return;
-	}
-	if (buf_get_sbuf_upto_and_skip(buf, &s, "arm") >= 0) {
-		module_arm(1);
-		return;
-	}
-
-	if (ifce) {
-		printf_P(PSTR("\nifce pool: %d rx: %d tx:%d\npkt pool: %d\n"),
-			      ring_len(ifce->pkt_pool), ring_len(ifce->rx),
-			      ring_len(ifce->tx), ring_len(pkt_pool));
-		return;
-	}
-}
 
 static void uart_task(void *arg)
 {
@@ -64,7 +30,7 @@ static void uart_task(void *arg)
 	buf= BUF(rlen + 1);
 	__ring_get(uart_ring, &buf, rlen);
 	__buf_addc(&buf, '\0');
-	parse_uart_commands(&buf);
+	module1_parse_uart_commands(&buf);
 }
 
 ISR(USART_RX_vect)
@@ -114,8 +80,8 @@ int main(void)
 	PCICR = 1 << PCIE2;
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
-	alarm_module1_rf_init();
-	module_init();
+	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+	module1_init();
 #endif
 	irq_enable();
 
