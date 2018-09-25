@@ -1,7 +1,7 @@
 #ifndef _RING_H_
 #define _RING_H_
 
-#include <sys/chksum.h>
+#include "chksum.h"
 #include "buf.h"
 #include "utils.h"
 
@@ -58,8 +58,7 @@ static inline ring_t *ring_create(int size)
 
 static inline void ring_free(ring_t *ring)
 {
-	if (ring)
-		free(ring);
+	free(ring);
 }
 
 static inline int ring_is_full(const ring_t *ring)
