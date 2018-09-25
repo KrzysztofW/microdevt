@@ -28,7 +28,8 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 	};
 	ring_t *r = IRQ_CHECK() ? ring_irq : ring;
 
-	ring_add(r, &task, sizeof(task_t));
+	if (ring_add(r, &task, sizeof(task_t)) < 0)
+		__abort();
 }
 
 void scheduler_run_tasks(void)
