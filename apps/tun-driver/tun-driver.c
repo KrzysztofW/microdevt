@@ -11,7 +11,6 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
-#include <poll.h>
 
 #ifdef CONFIG_USE_CAPABILITIES
 #include <sys/capability.h>
@@ -27,13 +26,24 @@
 #undef SOCKLEN_DEFINED
 #include <net-apps/net-apps.h>
 #include <net/pkt-mempool.h>
+#include "tun.h"
 
-#include <linux/if.h>
-#include <linux/if_tun.h>
+static uint8_t ip[] = { 1, 1, 2, 2 };
+static uint8_t ip_mask[] = { 255, 255, 255, 0 };
+static uint8_t mac[] = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x41 };
+static struct pollfd tun_fds[1];
 
-struct pollfd tun_fds[1];
-
+static int send(const iface_t *iface, pkt_t *pkt);
 static void recv(const iface_t *iface) {}
+
+static iface_t iface = {
+	.flags = IF_UP|IF_RUNNING,
+	.hw_addr = mac,
+	.ip4_addr = ip,
+	.ip4_mask = ip_mask,
+	.send = &send,
+	.recv = &recv,
+};
 
 static int send(const iface_t *iface, pkt_t *pkt)
 {
@@ -49,40 +59,6 @@ static int send(const iface_t *iface, pkt_t *pkt)
 		return -1;
 	}
 	return 0;
-}
-
-static uint8_t ip[] = { 1, 1, 2, 2 };
-static uint8_t ip_mask[] = { 255, 255, 255, 0 };
-static uint8_t mac[] = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x41 };
-
-static iface_t iface = {
-	.flags = IF_UP|IF_RUNNING,
-	.hw_addr = mac,
-	.ip4_addr = ip,
-	.ip4_mask = ip_mask,
-	.send = &send,
-	.recv = &recv,
-};
-
-static void tun_alloc(char *dev)
-{
-	struct ifreq ifr;
-
-	assert(dev != NULL);
-	if ((tun_fds[0].fd = open("/dev/net/tun", O_RDWR)) < 0) {
-		fprintf(stderr, "%s: cannot open tun device (%m)\n", __func__);
-		exit(EXIT_FAILURE);
-	}
-
-	memset(&ifr, 0, sizeof(ifr));
-	ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
-	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
-	if (ioctl(tun_fds[0].fd, TUNSETIFF, (void *) &ifr) < 0) {
-		fprintf(stderr, "%s: cannot ioctl tun device (%m)\n", __func__);
-		exit(EXIT_FAILURE);
-	}
-	strncpy(dev, ifr.ifr_name, IFNAMSIZ);
-	tun_fds[0].events = POLLIN;
 }
 
 static int tun_receive_pkt(const iface_t *iface)
@@ -140,7 +116,7 @@ static int tun_receive_pkt(const iface_t *iface)
 
 int main(int argc, char *argv[])
 {
-	char dev[IFNAMSIZ+1];
+	char dev[256];
 #ifdef CONFIG_USE_CAPABILITIES
 	cap_t caps;
 	cap_value_t cap = CAP_NET_ADMIN;
@@ -149,7 +125,6 @@ int main(int argc, char *argv[])
 	cap_flag_value_t cap_inheritable;
 	cap_flag_value_t cap_permitted;
 #endif
-
 	memset(dev, 0, sizeof(dev));
 	if (argc > 1)
 		strncpy(dev, argv[1], sizeof(dev) - 1);
@@ -215,7 +190,7 @@ int main(int argc, char *argv[])
 	}
 
 #endif
-	tun_alloc(dev);
+	tun_alloc(dev, tun_fds);
 	if (tun_fds[0].fd < 0)
 		exit(0);
 

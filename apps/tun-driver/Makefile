@@ -1,6 +1,6 @@
 EXE = tun-driver
 CFLAGS = -Wall -Werror -Os -g
-SOURCES = tun-driver.c
+SOURCES = tun-driver.c tun.c
 
 export CFG_FILE = $(PWD)/config
 export DEBUG
