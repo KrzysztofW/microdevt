@@ -46,14 +46,14 @@ int __pkt_put(ring_t *ring, pkt_t *pkt, const char *func, int line);
 #define pkt_put(ring, pkt) __pkt_put(ring, pkt, __func__, __LINE__)
 
 pkt_t *__pkt_alloc(const char *func, int line);
-int __pkt_free(pkt_t *pkt, const char *func, int line);
+void __pkt_free(pkt_t *pkt, const char *func, int line);
 #define pkt_alloc() __pkt_alloc(__func__, __LINE__)
 #define pkt_free(pkt) __pkt_free(pkt, __func__, __LINE__)
 #else
 pkt_t *pkt_get(ring_t *ring);
 int pkt_put(ring_t *ring, pkt_t *pkt);
 pkt_t *pkt_alloc(void);
-int pkt_free(pkt_t *pkt);
+void pkt_free(pkt_t *pkt);
 #endif
 
 /* the emergency pkt should only be used for sending to avoid a race
@@ -74,7 +74,7 @@ static inline void pkt_retain(pkt_t *pkt)
 	pkt->refcnt++;
 }
 
-unsigned int pkt_get_nb_free(void);
+unsigned int pkt_pool_get_nb_free(void);
 void pkt_get_traced_pkts(void);
 
 #endif

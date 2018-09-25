@@ -1,8 +1,9 @@
 #include "pkt-mempool.h"
+#include "event.h"
 
 static uint8_t *buffer_data;
 static pkt_t *buffer_pool;
-ring_t *pkt_pool;
+static ring_t *pkt_pool;
 static unsigned pkt_total_size;
 #ifdef PKT_DEBUG
 static unsigned pkt_nb_pkts;
@@ -17,7 +18,7 @@ int pkt_is_emergency(pkt_t *pkt)
 }
 #endif
 
-unsigned int pkt_get_nb_free(void)
+unsigned int pkt_pool_get_nb_free(void)
 {
 	return ring_len(pkt_pool);
 }
@@ -80,22 +81,26 @@ pkt_t *__pkt_alloc(const char *func, int line)
 }
 
 
-int __pkt_free(pkt_t *pkt, const char *func, int line)
+void __pkt_free(pkt_t *pkt, const char *func, int line)
 {
 	if (pkt->refcnt) {
 		pkt->refcnt--;
-		return 0;
+		return;
 	}
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
 		assert(emergency_pkt);
 		free(pkt);
 		emergency_pkt = NULL;
-		return 0;
+		return;
 	}
 #endif
 	buf_reset(&pkt->buf);
-	return pkt_put(pkt_pool, pkt);
+	if (pkt_put(pkt_pool, pkt) < 0)
+		__abort();
+#ifdef CONFIG_EVENT
+	event_resume_write_events();
+#endif
 }
 #else
 pkt_t *pkt_get(ring_t *ring)
@@ -122,11 +127,11 @@ pkt_t *pkt_alloc(void)
 	return pkt_get(pkt_pool);
 }
 
-int pkt_free(pkt_t *pkt)
+void pkt_free(pkt_t *pkt)
 {
 	if (pkt->refcnt) {
 		pkt->refcnt--;
-		return 0;
+		return;
 	}
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
@@ -134,11 +139,15 @@ int pkt_free(pkt_t *pkt)
 		assert(emergency_pkt);
 		free(pkt);
 		emergency_pkt = NULL;
-		return 0;
+		return;
 	}
 #endif
 	buf_reset(&pkt->buf);
-	return pkt_put(pkt_pool, pkt);
+	if (pkt_put(pkt_pool, pkt) < 0)
+		__abort();
+#ifdef CONFIG_EVENT
+	event_resume_write_events();
+#endif
 }
 
 #endif
