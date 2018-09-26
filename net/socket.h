@@ -6,6 +6,10 @@
 #include "tcp.h"
 #endif
 
+#ifdef CONFIG_EVENT
+#include "event.h"
+#endif
+
 /*
  * Socket types
  */
@@ -80,6 +84,13 @@ typedef union uaddr {
 #endif
 } uaddr_t;
 
+#ifdef CONFIG_TCP
+struct tcp_conn;
+typedef struct tcp_conn tcp_conn_t;
+struct tcp_uid;
+typedef struct tcp_uid tcp_uid_t;
+#endif
+
 typedef union transport_queue {
 #ifdef CONFIG_UDP
 	/* connectionless socket packet queue */
@@ -97,10 +108,6 @@ struct listen {
 	struct list_head tcp_conn_list_head;
 } __attribute__((__packed__));
 typedef struct listen listen_t;
-#endif
-
-#ifdef CONFIG_EVENT
-#include "event.h"
 #endif
 
 struct sock_info {
@@ -123,9 +130,7 @@ struct sock_info {
 	transport_queue_t trq;
 	/* TODO tx_pkt_list */
 #ifdef CONFIG_EVENT
-	void (*ev_cb)(struct sock_info *sock_info, uint8_t events);
-	uint8_t events_wanted;
-	uint8_t events_available;
+	event_t event;
 #endif
 } __attribute__((__packed__));
 typedef struct sock_info sock_info_t;
@@ -145,12 +150,28 @@ typedef struct sock_info sock_info_t;
 #define SBUF2SOCKINFO(sb) *(sock_info_t **)(sb)->data
 
 #ifdef CONFIG_EVENT
-void socket_schedule_ev(sock_info_t *sock_info, uint8_t events);
-void socket_ev_set(sock_info_t *sock_info, uint8_t events,
-		   void (*ev_cb)(struct sock_info *sock_info, uint8_t events));
-void
-socket_ev_set_fd(int fd, uint8_t events,
-		 void (*ev_cb)(struct sock_info *sock_info, uint8_t events));
+void socket_event_register(sock_info_t *sock_info, uint8_t events,
+			   void (*ev_cb)(event_t *ev, uint8_t events));
+
+#ifdef CONFIG_BSD_COMPAT
+void socket_event_register_fd(int fd, uint8_t events,
+			      void (*ev_cb)(event_t *ev, uint8_t events));
+#endif
+static inline void socket_event_unregister(sock_info_t *sock_info)
+{
+	event_unregister(&sock_info->event);
+}
+
+static inline void
+socket_event_set_mask(sock_info_t *sock_info, uint8_t events)
+{
+	event_set_mask(&sock_info->event, events);
+}
+
+static inline sock_info_t *socket_event_get_sock_info(event_t *ev)
+{
+	return container_of(ev, sock_info_t, event);
+}
 #endif
 
 void socket_append_pkt(struct list_head *list_head, pkt_t *pkt);
@@ -182,7 +203,7 @@ int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr_in *addr);
 int
 socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr_in *addr);
 #endif
-int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pkt,
+int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pkt,
 		     uint32_t *src_addr, uint16_t *src_port);
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint32_t dst_addr, uint16_t dst_port);

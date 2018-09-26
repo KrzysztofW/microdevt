@@ -30,57 +30,6 @@ static HTABLE_DECL(tcp_binds, CONFIG_MAX_SOCK_HT_SIZE);
 #endif
 #endif
 
-#ifdef CONFIG_EVENT
-static void socket_event_cb(void *arg)
-{
-	sock_info_t *sock_info = arg;
-
-	sock_info->ev_cb(sock_info, sock_info->events_available);
-
-	/* reload the write event */
-	if (sock_info->events_available & sock_info->events_wanted & EV_WRITE)
-		socket_schedule_ev(sock_info, EV_WRITE);
-}
-
-void socket_schedule_ev(sock_info_t *sock_info, uint8_t events)
-{
-	assert(events);
-	if (sock_info->ev_cb == NULL)
-		return;
-	if ((sock_info->events_wanted & events) || (events & EV_ERROR)) {
-		sock_info->events_available = events;
-		schedule_task(socket_event_cb, sock_info);
-	}
-}
-
-void socket_ev_set(sock_info_t *sock_info, uint8_t events,
-		   void (*ev_cb)(struct sock_info *sock_info, uint8_t events))
-{
-	uint8_t ev = 0;
-
-	sock_info->events_wanted = events;
-	sock_info->ev_cb = ev_cb;
-
-	if (sock_info->type == SOCK_STREAM) {
-#ifdef CONFIG_TCP
-		if (sock_info->trq.tcp_conn) {
-			ev |= EV_WRITE;
-			if ((!list_empty(&sock_info->trq.tcp_conn->pkt_list_head)))
-				ev |= EV_READ;
-		}
-#endif
-	} else {
-#ifdef CONFIG_UDP
-		ev |= EV_WRITE;
-		if (!list_empty(&sock_info->trq.pkt_list))
-			ev |= EV_READ;
-#endif
-	}
-	if (ev)
-		socket_schedule_ev(sock_info, ev);
-}
-#endif
-
 static tcp_conn_t *
 socket_lookup_tcp_conn(const listen_t *listen, const tcp_uid_t *uid)
 {
@@ -93,6 +42,35 @@ socket_lookup_tcp_conn(const listen_t *listen, const tcp_uid_t *uid)
 	}
 	return NULL;
 }
+
+#ifdef CONFIG_EVENT
+void socket_event_register(sock_info_t *sock_info, uint8_t events,
+			   void (*ev_cb)(event_t *ev, uint8_t events))
+{
+	list_t *rx_queue;
+
+	switch (sock_info->type) {
+	case SOCK_STREAM:
+#ifdef CONFIG_TCP
+		if (sock_info->listen)
+			rx_queue = &sock_info->listen->tcp_conn_list_head;
+		else if (sock_info->trq.tcp_conn)
+			rx_queue = &sock_info->trq.tcp_conn->pkt_list_head;
+		else
+			return;
+#endif
+		break;
+#ifdef CONFIG_UDP
+	case SOCK_DGRAM:
+		rx_queue = &sock_info->trq.pkt_list;
+		break;
+#endif
+	default:
+		return;
+	}
+	event_register(&sock_info->event, events, rx_queue, ev_cb);
+}
+#endif
 
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_BSD_COMPAT
@@ -139,7 +117,6 @@ static sock_info_t *port2sockinfo(uint8_t type, uint16_t port)
 	return *(sock_info_t **)val->data;
 }
 
-#ifdef CONFIG_BSD_COMPAT
 static int sock_info_add(int fd, sock_info_t *sock_info)
 {
 	sbuf_t key = FD2SBUF(fd);
@@ -155,13 +132,11 @@ static int sock_info_add(int fd, sock_info_t *sock_info)
 }
 
 #ifdef CONFIG_EVENT
-void
-socket_ev_set_fd(int fd, uint8_t events,
-		 void (*ev_cb)(struct sock_info *sock_info, uint8_t events))
+void socket_event_register_fd(int fd, uint8_t events,
+			      void (*ev_cb)(event_t *ev, uint8_t events))
 {
-	socket_ev_set(fd2sockinfo(fd), events, ev_cb);
+	socket_event_register(fd2sockinfo(fd), events, ev_cb);
 }
-#endif
 #endif
 
 static int unbind_port(sock_info_t *sock_info)
@@ -295,7 +270,6 @@ static int unbind_port(sock_info_t *sock_info)
 	if (fd2sockinfo(sock_info->fd) == NULL)
 		return -1;
 #endif
-
 	sock_info->port = 0;
 #ifdef CONFIG_TCP
 	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn) {
@@ -372,6 +346,9 @@ int sock_info_init(sock_info_t *sock_info, int sock_type)
 #endif
 	memset(sock_info, 0, sizeof(sock_info_t));
 
+#ifdef CONFIG_EVENT
+	event_init(&sock_info->event);
+#endif
 	switch (sock_type) {
 #ifdef CONFIG_UDP
 	case SOCK_DGRAM:
@@ -517,7 +494,7 @@ int sock_info_bind(sock_info_t *sock_info, uint16_t port)
 #ifdef CONFIG_EVENT
 	if (sock_info->type == SOCK_DGRAM) {
 		if (bind_on_port(port, sock_info) >= 0) {
-			socket_schedule_ev(sock_info, EV_WRITE);
+			event_schedule_event(&sock_info->event, EV_WRITE);
 			return 0;
 		}
 		return -1;
@@ -548,6 +525,7 @@ int sock_info_connect(sock_info_t *sock_info, uint32_t addr, uint16_t port)
 		return -1;
 
 	if (tcp_connect(addr, port, sock_info) < 0) {
+		unbind_port(sock_info);
 #ifdef CONFIG_BSD_COMPAT
 		errno = EAGAIN;
 #endif
@@ -842,7 +820,7 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 }
 #endif
 
-int __socket_get_pkt(const sock_info_t *sock_info, pkt_t **pktp,
+int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pktp,
 		     uint32_t *src_addr, uint16_t *src_port)
 {
 	pkt_t *pkt;

@@ -42,8 +42,10 @@ static void udp_get_pkt(sock_info_t *sock_info)
 }
 
 #ifdef CONFIG_EVENT
-static void ev_udp_server_cb(sock_info_t *sock_info, uint8_t events)
+static void ev_udp_server_cb(event_t *ev, uint8_t events)
 {
+	sock_info_t *sock_info = socket_event_get_sock_info(ev);
+
 	DEBUG_LOG("received udp read event\n");
 	udp_get_pkt(sock_info);
 }
@@ -61,7 +63,7 @@ int udp_server(void)
 		return -1;
 	}
 #ifdef CONFIG_EVENT
-	socket_ev_set(&sock_info_udp_server, EV_READ, ev_udp_server_cb);
+	socket_event_register(&sock_info_udp_server, EV_READ, ev_udp_server_cb);
 #endif
 
 	return 0;

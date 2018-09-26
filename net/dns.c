@@ -150,16 +150,18 @@ dns_parse_answer(const dns_query_t *dns_answer, int data_len, uint32_t *ip)
 	return -1;
 }
 
-static void ev_dns_cb(sock_info_t *sock_info, uint8_t events)
+static void ev_dns_cb(event_t *ev, uint8_t events)
 {
-	dns_query_ctx_t *ctx = container_of(sock_info, dns_query_ctx_t, sock_info);
+	sock_info_t *sock_info = socket_event_get_sock_info(ev);
+	dns_query_ctx_t *ctx = container_of(sock_info, dns_query_ctx_t,
+					    sock_info);
 	pkt_t *pkt;
 	dns_query_t *dns_answer;
 	uint32_t ip = 0;
 	int data_len;
 
 	DEBUG_LOG("received read event\n");
-	if (__socket_get_pkt(&ctx->sock_info, &pkt, NULL, NULL) < 0)
+	if (__socket_get_pkt(sock_info, &pkt, NULL, NULL) < 0)
 		return;
 
 	data_len = pkt_len(pkt) - (sizeof(dns_query_t) - 1);
@@ -187,7 +189,7 @@ static int dns_query_ctx_init(dns_query_ctx_t *ctx, const sbuf_t *sb)
 	memset(ctx, 0, sizeof(dns_query_ctx_t));
 	if (sock_info_init(&ctx->sock_info, SOCK_DGRAM) < 0)
 		return -1;
-	socket_ev_set(&ctx->sock_info, EV_READ, ev_dns_cb);
+	socket_event_register(&ctx->sock_info, EV_READ, ev_dns_cb);
 	ctx->name_len = sb->len;
 	ctx->tr_id = rand();
 	INIT_LIST_HEAD(&ctx->list);

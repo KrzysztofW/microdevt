@@ -145,7 +145,7 @@ static void swen_l3_task_cb(void *arg)
 		if (retries == 0) {
 			swen_l3_free_assoc_pkts(assoc);
 #ifdef CONFIG_EVENT
-			event_schedule_event_error(&assoc->event);
+			event_schedule_event(&assoc->event, EV_ERROR);
 #endif
 			swen_l3_associate(assoc);
 			return;
@@ -294,6 +294,9 @@ void swen_l3_assoc_init(swen_l3_assoc_t *assoc, const uint32_t *enc_key)
 {
 	memset(assoc, 0, sizeof(swen_l3_assoc_t));
 	assoc->enc_key = enc_key;
+#ifdef CONFIG_EVENT
+	event_init(&assoc->event);
+#endif
 	INIT_LIST_HEAD(&assoc->list);
 	INIT_LIST_HEAD(&assoc->retrn_pkts);
 	INIT_LIST_HEAD(&assoc->incoming_pkts);
@@ -527,7 +530,7 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 			assoc->state = S_STATE_CLOSED;
 		assoc->state = S_STATE_CLOSED;
 #ifdef CONFIG_EVENT
-		event_schedule_event_error(&assoc->event);
+		event_schedule_event(&assoc->event, EV_HUNGUP);
 #endif
 		__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 		return;

@@ -73,7 +73,8 @@ void icmp_input(pkt_t *pkt, const iface_t *iface)
 			udp_hdr =  (udp_hdr_t *)((uint8_t *)ip2 + sizeof(ip_hdr_t));
 			sock_info = udpport2sockinfo(udp_hdr->dst_port);
 			if (sock_info)
-				socket_schedule_ev(sock_info, EV_ERROR);
+				event_schedule_event(&sock_info->event,
+						     EV_ERROR);
 		}
 		break;
 #endif

@@ -74,7 +74,7 @@ void udp_input(pkt_t *pkt, const iface_t *iface)
 	pkt_adj(pkt, -(sizeof(udp_hdr_t) + ip_hdr_len));
 	socket_append_pkt(&sock_info->trq.pkt_list, pkt);
 #ifdef CONFIG_EVENT
-	socket_schedule_ev(sock_info, EV_READ);
+	event_schedule_event(&sock_info->event, EV_READ | EV_WRITE);
 #endif
 	return;
 

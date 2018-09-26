@@ -108,7 +108,7 @@ static inline void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 	tcp_conn_cnt--;
 
 #ifdef CONFIG_EVENT
-	socket_schedule_ev(sock_info, EV_READ);
+	event_schedule_event(&sock_info->event, EV_ERROR);
 #endif
 }
 
@@ -264,7 +264,8 @@ static void tcp_conn_mark_closed(tcp_conn_t *tcp_conn, uint8_t error)
 {
 	tcp_conn->syn.status = SOCK_CLOSED;
 #ifdef CONFIG_EVENT
-	socket_schedule_ev(tcp_conn->sock_info, error ? EV_ERROR : EV_READ);
+	event_schedule_event(&tcp_conn->sock_info->event,
+			     error ? EV_ERROR : EV_HUNGUP);
 #endif
 }
 
@@ -573,7 +574,7 @@ void tcp_input(pkt_t *pkt)
 		pkt_adj(pkt, -(tcp_hdr_len + ip_hdr_len));
 		socket_append_pkt(&tcp_conn->pkt_list_head, pkt);
 #ifdef CONFIG_EVENT
-		socket_schedule_ev(tcp_conn->sock_info, EV_READ);
+		event_schedule_event(&tcp_conn->sock_info->event, EV_READ | EV_WRITE);
 #endif
 		return;
 	}
@@ -618,7 +619,7 @@ void tcp_input(pkt_t *pkt)
 			goto end;
 		}
 #ifdef CONFIG_EVENT
-		socket_schedule_ev(tcp_conn->sock_info, EV_WRITE);
+		event_schedule_event(&tcp_conn->sock_info->event, EV_WRITE);
 #endif
 		goto end;
 	}
@@ -688,7 +689,7 @@ void tcp_input(pkt_t *pkt)
 		tcp_conn->syn.ack = tcp_hdr->seq;
 		tcp_conn->syn.opts = tsyn_entry->opts;
 #ifdef CONFIG_EVENT
-		socket_schedule_ev(sock_info, EV_READ);
+		event_schedule_event(&sock_info->event, EV_READ);
 #endif
 		goto end;
 	}

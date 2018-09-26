@@ -6,6 +6,8 @@
 #include "../timer.h"
 #endif
 
+#include "socket.h"
+
 #define TH_FIN  0x01
 #define TH_SYN  0x02
 #define TH_RST  0x04
@@ -98,9 +100,12 @@ struct tcp_syn {
 } __attribute__((__packed__));
 typedef struct tcp_syn tcp_syn_t;
 
+struct sock_info;
+typedef struct sock_info sock_info_t;
+
 struct tcp_conn {
 	tcp_syn_t syn;
-	void *sock_info;
+	sock_info_t *sock_info;
 	list_t list;
 	list_t pkt_list_head;
 #ifdef CONFIG_TCP_RETRANSMIT

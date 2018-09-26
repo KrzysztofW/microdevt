@@ -437,7 +437,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		module_handle_commands(assoc->dst, &pkt->buf);
 		pkt_free(pkt);
 	}
-	if (events & EV_ERROR) {
+	if (events & (EV_ERROR | EV_HUNGUP)) {
 		DEBUG_LOG("mod%d disconnected\n", m_nb);
 		module->status.rf_up = 0;
 		swen_l3_event_unregister(assoc);
@@ -457,9 +457,10 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 #endif
 	module_t *module = container_of(assoc, module_t, assoc);
 
-	if (events & EV_ERROR) {
+	if (events & (EV_ERROR | EV_HUNGUP)) {
 		DEBUG_LOG("failed to connect to mod%d\n", m_nb);
 		module->status.rf_up = 0;
+		swen_l3_event_unregister(assoc);
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 		return;
 	}

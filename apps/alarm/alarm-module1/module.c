@@ -493,7 +493,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		module1_handle_commands(&pkt->buf);
 		pkt_free(pkt);
 	}
-	if (events & EV_ERROR) {
+	if (events & (EV_ERROR | EV_HUNGUP)) {
 		DEBUG_LOG("mod%d disconnected\n", m_nb);
 		connected = 0;
 		swen_l3_event_unregister(assoc);

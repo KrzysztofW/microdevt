@@ -52,8 +52,11 @@ void __pkt_free(pkt_t *pkt, const char *func, int line);
 #else
 pkt_t *pkt_get(ring_t *ring);
 int pkt_put(ring_t *ring, pkt_t *pkt);
+
+/* alloc and free can only be called from a task scheduler  */
 pkt_t *pkt_alloc(void);
 void pkt_free(pkt_t *pkt);
+
 #endif
 
 /* the emergency pkt should only be used for sending to avoid a race
