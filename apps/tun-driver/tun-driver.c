@@ -1,6 +1,3 @@
-/*
-  sudo ip link set up dev tap0 && sudo ip a a 1.1.2.1/24 dev tap0 && sudo ip link set tap0 address 54:52:00:02:00:40 */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -117,6 +114,8 @@ static int tun_receive_pkt(const iface_t *iface)
 int main(int argc, char *argv[])
 {
 	char dev[256];
+	char *dev_name;
+	char cmd[512];
 #ifdef CONFIG_USE_CAPABILITIES
 	cap_t caps;
 	cap_value_t cap = CAP_NET_ADMIN;
@@ -194,10 +193,13 @@ int main(int argc, char *argv[])
 	if (tun_fds[0].fd < 0)
 		exit(0);
 
-	/* wait for system to be initialized */
-	puts("run in a terminal:");
-	puts("sudo ip link set up dev tap0 && sudo ip a a 1.1.2.1/24 dev tap0");
-	sleep(5);
+	dev_name = argc ? dev : "tap0";
+	snprintf(cmd, 512, "sudo ip link set up dev %s && "
+		 "sudo ip a a 1.1.2.1/24 dev %s",  dev_name, dev_name);
+	if (system(cmd) < 0)
+		fprintf(stderr, "failed to run command: `%s'\n", cmd);
+	printf("the system is available on IP address 1.1.2.2 (interface: %s)\n",
+	       dev_name);
 
 #ifdef CONFIG_USE_CAPABILITIES
 	/* And before anything else, clear all our capabilities */
