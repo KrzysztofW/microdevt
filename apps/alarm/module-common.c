@@ -4,6 +4,10 @@ const uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
 
+#define TX_QUEUE_SIZE 4
+static ring_t *tx_queue;
+static ring_t *urgent_tx_queue;
+
 void module_init_iface(iface_t *iface, uint8_t *addr)
 {
 	iface->hw_addr = addr;
@@ -18,4 +22,56 @@ void module_init_iface(iface_t *iface, uint8_t *addr)
 	if_init(iface, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
 		CONFIG_PKT_DRIVER_NB_MAX, 1);
 	rf_init(iface, 1);
+}
+
+void module_init_op_queues(void)
+{
+	tx_queue = ring_create(TX_QUEUE_SIZE);
+	urgent_tx_queue = ring_create(TX_QUEUE_SIZE);
+}
+
+void module_add_op(uint8_t op, uint8_t urgent)
+{
+	ring_t *queue = urgent ? urgent_tx_queue : tx_queue;
+
+	if (ring_addc(queue, op) < 0) {
+		/* ignore in prod */
+		assert(0);
+	}
+}
+
+static int __module_get_op(ring_t *queue, uint8_t *op)
+{
+	if (ring_is_empty(queue))
+		return -1;
+	__ring_getc_at(queue, op, 0);
+	return 0;
+}
+
+int module_get_op(uint8_t *op)
+{
+	if (__module_get_op(urgent_tx_queue, op) < 0)
+		return __module_get_op(tx_queue, op);
+	return 0;
+}
+
+void module_skip_op(void)
+{
+	if (!ring_is_empty(urgent_tx_queue))
+		__ring_skip(urgent_tx_queue, 1);
+	else
+		__ring_skip(tx_queue, 1);
+}
+
+int
+send_rf_msg(swen_l3_assoc_t *assoc, uint8_t cmd, const void *data, int len)
+{
+	buf_t buf = BUF(sizeof(uint8_t) + len);
+	sbuf_t sbuf;
+
+	__buf_addc(&buf, cmd);
+	if (data)
+		__buf_add(&buf, data, len);
+	sbuf = buf2sbuf(&buf);
+	return swen_l3_send(assoc, &sbuf);
 }

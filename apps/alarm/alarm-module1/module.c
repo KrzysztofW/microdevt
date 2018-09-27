@@ -44,7 +44,7 @@ static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint8_t humidity_sampling_update;
 static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
-static swen_l3_assoc_t assoc;
+static swen_l3_assoc_t mod1_assoc;
 static uint8_t connected;
 
 typedef struct __attribute__((__packed__)) persistent_data {
@@ -125,19 +125,6 @@ static void timer_1sec_cb(void *arg)
 #endif
 }
 
-static void send_rf_msg(uint8_t cmd, const module_status_t *status)
-{
-	buf_t buf = BUF(sizeof(uint8_t) + sizeof(module_status_t));
-	sbuf_t sbuf;
-
-	__buf_addc(&buf, cmd);
-	if (status)
-		__buf_add(&buf, status, sizeof(module_status_t));
-	sbuf = buf2sbuf(&buf);
-	/* XXX use EV_WRITE */
-	swen_l3_send(&assoc, &sbuf);
-}
-
 static inline void set_fan_off(void)
 {
 	PORTD &= ~(1 << PD3);
@@ -177,12 +164,15 @@ static void set_siren_on(uint8_t force)
 {
 	if (PORTB & (1 << PB0))
 		return;
-	if (state == MODULE_STATE_ARMED || force) {
-		PORTB |= 1 << PB0;
-		timer_del(&siren_timer);
-		timer_add(&siren_timer, SIREN_ON_DURATION, siren_tim_cb, NULL);
-		if (state == MODULE_STATE_ARMED && !force)
-			send_rf_msg(CMD_NOTIF_ALARM_ON, NULL);
+	if (state != MODULE_STATE_ARMED && !force)
+		return;
+
+	PORTB |= 1 << PB0;
+	timer_del(&siren_timer);
+	timer_add(&siren_timer, SIREN_ON_DURATION, siren_tim_cb, NULL);
+	if (state == MODULE_STATE_ARMED && !force) {
+		module_add_op(CMD_NOTIF_ALARM_ON, 1);
+		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 	}
 }
 
@@ -295,7 +285,7 @@ static void reload_cfg_from_storage(void)
 	humidity_threshold = data.humidity_threshold;
 }
 
-static void handle_rf_commands(uint8_t cmd, uint16_t value);
+static void handle_rx_commands(uint8_t cmd, uint16_t value);
 
 #ifdef CONFIG_RF_RECEIVER
 #ifdef CONFIG_RF_GENERIC_COMMANDS
@@ -320,7 +310,7 @@ static void rf_kerui_cb(int nb)
 	default:
 		return;
 	}
-	handle_rf_commands(cmd, 0);
+	handle_rx_commands(cmd, 0);
 }
 #endif
 #endif
@@ -354,10 +344,27 @@ static void module_arm(uint8_t on)
 	timer_add(&siren_timer, 10000, arm_cb, NULL);
 }
 
-static void handle_rf_commands(uint8_t cmd, uint16_t value)
+static int handle_tx_commands(uint8_t cmd)
 {
 	module_status_t status;
+	void *data;
+	int len;
 
+	switch (cmd) {
+	case CMD_STATUS:
+		get_status(&status);
+		data = &status;
+		len = sizeof(module_status_t);
+		break;
+	default:
+		return 0;
+	}
+	return send_rf_msg(&mod1_assoc, cmd, data, len);
+}
+
+static void handle_rx_commands(uint8_t cmd, uint16_t value)
+{
+	DEBUG_LOG("mod1: got cmd:0x%X\n", cmd);
 	switch (cmd) {
 	case CMD_ARM:
 		module_arm(1);
@@ -369,10 +376,6 @@ static void handle_rf_commands(uint8_t cmd, uint16_t value)
 	case CMD_NOTIF_ALARM_ON:
 		/* unsupported */
 		return;
-	case CMD_GET_STATUS:
-		cmd = CMD_STATUS;
-		get_status(&status);
-		break;
 	case CMD_RUN_FAN:
 		set_fan_on();
 		return;
@@ -399,11 +402,14 @@ static void handle_rf_commands(uint8_t cmd, uint16_t value)
 			update_storage();
 		}
 		return;
+	case CMD_GET_STATUS:
+		module_add_op(cmd, CMD_STATUS);
+		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		return;
 	}
-	send_rf_msg(cmd, &status);
 }
 
-static void module1_handle_commands(buf_t *buf)
+static void module1_parse_commands(buf_t *buf)
 {
 	uint8_t cmd = buf_data(buf)[0];
 	uint16_t value = 0;
@@ -411,7 +417,7 @@ static void module1_handle_commands(buf_t *buf)
 	if (buf_len(buf) >= 3)
 		value = *(uint16_t *)(buf_data(buf) + 1);
 
-	handle_rf_commands(cmd, value);
+	handle_rx_commands(cmd, value);
 }
 
 #ifdef DEBUG
@@ -444,14 +450,14 @@ static void module_print_status(void)
 void module1_parse_uart_commands(buf_t *buf)
 {
 	sbuf_t s;
-	iface_t *ifce = NULL;
 
-	if (buf_get_sbuf_upto_and_skip(buf, &s, "rf buf") >= 0)
-		ifce = &rf_iface;
-	else if (buf_get_sbuf_upto_and_skip(buf, &s, "eth buf") >= 0) {
-		LOG(" unsupported\n");
+	if (buf_get_sbuf_upto_and_skip(buf, &s, "rf buf") >= 0) {
+		LOG("\nifce pool: %d rx: %d tx:%d\npkt pool: %d\n",
+		    ring_len(rf_iface.pkt_pool), ring_len(rf_iface.rx),
+		    ring_len(rf_iface.tx), pkt_pool_get_nb_free());
 		return;
 	}
+
 	if (buf_get_sbuf_upto_and_skip(buf, &s, "get status") >= 0) {
 		module_print_status();
 		return;
@@ -464,13 +470,7 @@ void module1_parse_uart_commands(buf_t *buf)
 		module_arm(1);
 		return;
 	}
-
-	if (ifce) {
-		LOG("\nifce pool: %d rx: %d tx:%d\npkt pool: %d\n",
-		    ring_len(ifce->pkt_pool), ring_len(ifce->rx),
-		    ring_len(ifce->tx), pkt_pool_get_nb_free());
-		return;
-	}
+	LOG("unsupported command\n");
 }
 #endif
 
@@ -492,7 +492,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		pkt_t *pkt = swen_l3_get_pkt(assoc);
 
 		DEBUG_LOG("got pkt:%p from mod%d\n", pkt, m_nb);
-		module1_handle_commands(&pkt->buf);
+		module1_parse_commands(&pkt->buf);
 		pkt_free(pkt);
 	}
 	if (events & (EV_ERROR | EV_HUNGUP)) {
@@ -502,7 +502,15 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 	}
 	if (events & EV_WRITE) {
-		DEBUG_LOG("mod%d ready to write\n");
+		uint8_t op;
+
+		if (module_get_op(&op) < 0) {
+			swen_l3_event_set_mask(assoc, EV_READ);
+			return;
+		}
+		DEBUG_LOG("mod1: sending op:0x%X to mod%d\n", op, m_nb);
+		if (handle_tx_commands(op) >= 0)
+			module_skip_op();
 	}
 }
 
@@ -532,17 +540,18 @@ void module1_init(void)
 		__abort();
 #endif
 	reload_cfg_from_storage();
+	module_init_op_queues();
 	timer_add(&timer_1sec, ONE_SECOND, timer_1sec_cb, NULL);
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_power_down_init(INACTIVITY_TIMEOUT, pwr_mgr_on_sleep,
 					 NULL);
 #endif
 	module_init_iface(&rf_iface, &rf_addr);
-	swen_l3_assoc_init(&assoc, rf_enc_defkey);
-	swen_l3_assoc_bind(&assoc, RF_MOD0_HW_ADDR, &rf_iface);
-	swen_l3_event_register(&assoc, EV_WRITE, rf_connecting_on_event);
+	swen_l3_assoc_init(&mod1_assoc, rf_enc_defkey);
+	swen_l3_assoc_bind(&mod1_assoc, RF_MOD0_HW_ADDR, &rf_iface);
+	swen_l3_event_register(&mod1_assoc, EV_WRITE, rf_connecting_on_event);
 #ifndef RF_DEBUG
-	if (swen_l3_associate(&assoc) < 0)
+	if (swen_l3_associate(&mod1_assoc) < 0)
 		__abort();
 #endif
 #ifdef CONFIG_RF_GENERIC_COMMANDS
