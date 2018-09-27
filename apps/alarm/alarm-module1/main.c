@@ -27,7 +27,7 @@ static void uart_task(void *arg)
 		ring_reset(uart_ring);
 		return;
 	}
-	buf= BUF(rlen + 1);
+	buf = BUF(rlen + 1);
 	__ring_get(uart_ring, &buf, rlen);
 	__buf_addc(&buf, '\0');
 	module1_parse_uart_commands(&buf);
@@ -75,9 +75,11 @@ int main(void)
 	/* enable pull-up resistor */
 	/* PORTD |= (1 << PD1); */
 
+#ifndef CONFIG_AVR_SIMU
 	/* PCINT17 enabled (PIR) */
 	PCMSK2 = 1 << PCINT17;
 	PCICR = 1 << PCIE2;
+#endif
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);

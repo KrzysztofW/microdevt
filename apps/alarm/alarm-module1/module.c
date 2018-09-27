@@ -186,6 +186,7 @@ static void set_siren_on(uint8_t force)
 	}
 }
 
+#ifndef CONFIG_AVR_SIMU
 static void pir_on_action(void *arg)
 {
 	set_siren_on(0);
@@ -198,6 +199,7 @@ ISR(PCINT2_vect) {
 	if (PIND & (1 << PD1))
 		schedule_task(pir_on_action, NULL);
 }
+#endif
 
 static uint8_t get_hum_tendency(void)
 {
