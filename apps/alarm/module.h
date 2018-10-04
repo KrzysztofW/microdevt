@@ -5,24 +5,44 @@
 #include "features.h"
 
 typedef enum module_state {
-	MODULE_STATE_DISABLED = 1, /* 1 => default blank eeprom value */
-	MODULE_STATE_DISARMED,
+	MODULE_STATE_DISARMED = 1,
 	MODULE_STATE_ARMED,
+	MODULE_STATE_DISABLED = 3, /* 0xFF => default blank eeprom value */
 } module_state_t;
 
 typedef struct __attribute__((__packed__)) module_cfg {
 	uint8_t  state : 2;
 	uint8_t  fan_enabled : 1;
-	uint8_t  humidity_report_interval;
-	uint16_t humidity_threshold;
+	uint16_t humidity_report_interval;
+	uint8_t  humidity_threshold;
 } module_cfg_t;
+
+enum humidity_tendency {
+	HUMIDITY_TENDENCY_STABLE,
+	HUMIDITY_TENDENCY_RISING,
+	HUMIDITY_TENDENCY_FALLING,
+};
+
+static inline const char *humidity_tendency_to_str(uint8_t tendency)
+{
+	switch (tendency) {
+	case HUMIDITY_TENDENCY_STABLE:
+		return "STABLE";
+	case HUMIDITY_TENDENCY_RISING:
+		return "RISING";
+	case HUMIDITY_TENDENCY_FALLING:
+		return "FALLING";
+	default:
+		return NULL;
+	}
+}
 
 typedef struct __attribute__((__packed__)) module_status {
 	module_cfg_t cfg;
-	uint16_t humidity_val;
-	uint16_t global_humidity_val;
+	uint8_t humidity_val;
+	uint8_t global_humidity_val;
 	int8_t  temperature;
-	uint8_t humidity_tendency : 1;
+	uint8_t humidity_tendency : 2;
 	uint8_t fan_on : 1;
 	uint8_t siren_on : 1;
 	uint8_t lan_up : 1;

@@ -19,8 +19,8 @@
 #define FAN_ON_DURATION_H 4 /* max 4h of activity */
 #define HUMIDITY_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
-#define DEFAULT_HUMIDITY_THRESHOLD 20
-#define MAX_HUMIDITY_VALUE 676 /* => 80% RH */
+#define DEFAULT_HUMIDITY_THRESHOLD 3
+#define MAX_HUMIDITY_VALUE 80
 #define HIH_4000_TO_RH(mv_val) (((mv_val) - 826) / 31)
 
 #define SIREN_ON_DURATION (1 * 60 * 1000000U) /* 1 minute */
@@ -43,16 +43,10 @@ static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint8_t humidity_sampling_update;
 static swen_l3_assoc_t mod1_assoc;
-static uint8_t report_hval_interval;
-static uint8_t report_hval_elapsed_secs;
+static uint16_t report_hval_interval;
+static uint16_t report_hval_elapsed_secs;
 
 static module_cfg_t EEMEM persistent_data;
-
-typedef enum tendency {
-	STABLE,
-	RISING,
-	FALLING,
-} tendency_t;
 
 typedef struct humidity_info {
 	int val;
@@ -60,15 +54,17 @@ typedef struct humidity_info {
 } humidity_info_t;
 
 #define ARRAY_LENGTH 20
-static unsigned get_humidity_cur_value(void)
+static uint8_t get_humidity_cur_value(void)
 {
 	uint8_t i;
 	int arr[ARRAY_LENGTH];
+	unsigned val;
 
 	/* get rid of the extrem values */
 	for (i = 0; i < ARRAY_LENGTH; i++)
 		arr[i] = analog_read(HUMIDITY_ANALOG_PIN);
-	return array_get_median(arr, ARRAY_LENGTH);
+	val = array_get_median(arr, ARRAY_LENGTH);
+	return HIH_4000_TO_RH(analog_to_millivolt(val));
 }
 #undef ARRAY_LENGTH
 
@@ -207,15 +203,15 @@ static uint8_t get_hum_tendency(void)
 		- global_humidity_array[0];
 
 	if (abs(val) < DEFAULT_HUMIDITY_THRESHOLD)
-		return STABLE;
+		return HUMIDITY_TENDENCY_STABLE;
 	if (val < 0)
-		return FALLING;
-	return RISING;
+		return HUMIDITY_TENDENCY_FALLING;
+	return HUMIDITY_TENDENCY_RISING;
 }
 
 static void get_humidity(humidity_info_t *info)
 {
-	unsigned val = get_humidity_cur_value();
+	uint8_t val = get_humidity_cur_value();
 	uint8_t tendency;
 
 	array_left_shift(global_humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH, 1);
@@ -234,11 +230,11 @@ static void humidity_sampling_task_cb(void *arg)
 	get_humidity(&info);
 	if (!module_cfg.fan_enabled || global_humidity_array[0] == 0)
 		return;
-	if (info.tendency == RISING ||
+	if (info.tendency == HUMIDITY_TENDENCY_RISING ||
 	    global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
 	    >= MAX_HUMIDITY_VALUE) {
 		set_fan_on();
-	} else if (info.tendency == STABLE)
+	} else if (info.tendency == HUMIDITY_TENDENCY_STABLE)
 		set_fan_off();
 }
 
@@ -268,7 +264,8 @@ static void update_storage(void)
 static void reload_cfg_from_storage(void)
 {
 	eeprom_read_block(&module_cfg, &persistent_data, sizeof(module_cfg_t));
-	if (module_cfg.humidity_threshold == 0xFFFF)
+	if (module_cfg.humidity_threshold == 0xFF ||
+	    module_cfg.humidity_threshold == 0)
 		module_cfg.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
 	if (module_cfg.state == 0)
 		module_cfg.state = MODULE_STATE_DISARMED;
@@ -336,10 +333,9 @@ static void module_arm(uint8_t on)
 static int handle_tx_commands(uint8_t cmd)
 {
 	module_status_t status;
-	void *data;
-	int len;
 	void *data = NULL;
 	int len = 0;
+	uint8_t hum_val;
 
 	switch (cmd) {
 	case CMD_STATUS:
@@ -350,7 +346,7 @@ static int handle_tx_commands(uint8_t cmd)
 	case CMD_REPORT_HUM_VAL:
 		hum_val = get_humidity_cur_value();
 		data = &hum_val;
-		len = sizeof(uint16_t);
+		len = sizeof(hum_val);
 		break;
 	case CMD_NOTIF_ALARM_ON:
 		break;
@@ -395,7 +391,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		set_siren_off();
 		return;
 	case CMD_SET_HUM_TH:
-		if (value) {
+		if (value && value <= 100) {
 			module_cfg.humidity_threshold = value;
 			update_storage();
 		}
@@ -414,11 +410,19 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 
 static void module1_parse_commands(buf_t *buf)
 {
-	uint8_t cmd = buf_data(buf)[0];
-	uint16_t value = 0;
+	uint8_t cmd;
+	uint16_t value;
 
+	if (buf_len(buf) == 0)
+		return;
+
+	cmd = buf_data(buf)[0];
 	if (buf_len(buf) >= 3)
 		value = *(uint16_t *)(buf_data(buf) + 1);
+	else if (buf_len(buf) == 2)
+		value = *(uint8_t *)(buf_data(buf) + 1);
+	else
+		value = 0;
 
 	handle_rx_commands(cmd, value);
 }
@@ -427,19 +431,18 @@ static void module1_parse_commands(buf_t *buf)
 static void module_print_status(void)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
-	long hval = get_humidity_cur_value();
+	uint8_t hval = get_humidity_cur_value();
 
 	array_copy(humidity_array, global_humidity_array,
 		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
-	hval = HIH_4000_TO_RH(analog_to_millivolt(hval));
 
 	LOG("\nStatus:\n");
 	LOG(" State:  %s\n",
 	    module_cfg.state == MODULE_STATE_ARMED ? "armed" : "disarmed");
 	LOG(" Humidity value:  %ld%%\n"
-	    " Global humidity value:  %d\n"
+	    " Global humidity value:  %d%%\n"
 	    " Humidity tendency:  %u\n"
-	    " Humidity threshold:  %u\n",
+	    " Humidity threshold:  %u%%\n",
 	    hval > 100 ? 0 : hval,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
 	    get_hum_tendency(),

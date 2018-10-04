@@ -19,7 +19,7 @@ uint16_t analog_read(uint8_t adc_channel);
 
 static inline uint16_t analog_to_millivolt(uint16_t val)
 {
-	return (val * 1000 / 1023) * 5;
+	return (val * 1000UL / 1023) * 5;
 }
 
 #endif

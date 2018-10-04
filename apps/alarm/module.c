@@ -69,7 +69,7 @@ static cmd_t cmds[] = {
 	  .cmd = CMD_ENABLE_FAN },
 	{ .s = &s_siren_on, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_ON },
 	{ .s = &s_siren_off, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_OFF },
-	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
+	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_HUM_TH },
 	{ .s = &s_report_hum_val, .args = { ARG_TYPE_INT16 },
 	  .cmd = CMD_GET_REPORT_HUM_VAL },
@@ -173,13 +173,13 @@ static void print_status(uint8_t id, module_status_t *status)
 	LOG("\nModule %d:\n", id);
 	LOG(" State:  %s\n", state_to_string(status->cfg.state));
 	if (features->humidity) {
-		LOG(" Humidity value:  %u\n"
-		    " Global humidity value:  %u\n"
-		    " Humidity tendency:  %u\n"
-		    " Humidity threshold:  %u\n",
+		LOG(" Humidity value:  %u%%\n"
+		    " Global humidity value:  %u%%\n"
+		    " Humidity tendency:  %s\n"
+		    " Humidity threshold:  %u%%\n",
 		    status->humidity_val,
 		    status->global_humidity_val,
-		    status->humidity_tendency,
+		    humidity_tendency_to_str(status->humidity_tendency),
 		    status->cfg.humidity_threshold);
 	}
 	if (features->temperature)
@@ -256,7 +256,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, const buf_t *args)
 			set_siren_off();
 		break;
 	case CMD_SET_HUM_TH:
-		cfg->humidity_threshold = *(uint16_t *)args->data;
+		cfg->humidity_threshold = args->data[0];
 		break;
 	case CMD_GET_REPORT_HUM_VAL:
 		cfg->humidity_report_interval = *(uint16_t *)args->data;
@@ -457,7 +457,7 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 {
 	uint8_t cmd;
 	uint8_t id = addr_to_module_id(addr);
-	uint16_t val;
+	uint8_t val;
 	module_status_t *status;
 
 	if (buf == NULL || buf_getc(buf, &cmd) < 0)
@@ -480,9 +480,9 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		LOG("mod%d: alarm on\n", id);
 		return;
 	case CMD_REPORT_HUM_VAL:
-		if (buf_len(buf) < sizeof(uint16_t))
+		if (buf_len(buf) < sizeof(uint8_t))
 			goto error;
-		val = *(uint16_t *)buf_data(buf);
+		val = buf_data(buf)[0];
 		LOG("humidity value: %u\n", val);
 		return;
 	default:
@@ -509,7 +509,7 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 	if (cmd == CMD_SET_HUM_TH) {
 		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
 		data = &cfg.humidity_threshold;
-		len = sizeof(uint16_t);
+		len = sizeof(uint8_t);
 	} else if (cmd == CMD_GET_REPORT_HUM_VAL) {
 		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
 		data = &cfg.humidity_report_interval;
