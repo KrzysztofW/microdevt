@@ -272,6 +272,7 @@ static inline void __buf_skip(buf_t *buf, int len)
 {
 	buf->skip += len;
 	buf->data += len;
+	buf->len -= len;
 }
 
 static inline int buf_skip(buf_t *buf, int len)
@@ -312,7 +313,8 @@ __buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s, int skip)
 		return -1;
 	skipped_len = d - data;
 	sbuf_init(sbuf, data, skipped_len);
-	buf_adj(buf, skipped_len + skip);
+	buf_adj(buf, skipped_len + s->len);
+
 	return 0;
 }
 
