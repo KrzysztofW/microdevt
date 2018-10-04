@@ -30,6 +30,8 @@
 			    (((l)&0x0000FF00l)<<8) | ((l)>>24))
 #define ntohl(x) htonl(x)
 
+#define __STR(x) #x
+
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
