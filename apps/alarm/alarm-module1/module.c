@@ -43,6 +43,8 @@ static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint8_t humidity_sampling_update;
 static swen_l3_assoc_t mod1_assoc;
+static uint8_t report_hval_interval;
+static uint8_t report_hval_elapsed_secs;
 
 static module_cfg_t EEMEM persistent_data;
 
@@ -98,6 +100,22 @@ static void pwr_mgr_on_sleep(void *arg)
 }
 #endif
 
+static void report_hum_value(void)
+{
+	if (report_hval_interval == 0)
+		return;
+	if (report_hval_elapsed_secs >= report_hval_interval) {
+		uint8_t cur_op;
+
+		report_hval_elapsed_secs = 0;
+		if (module_get_op(&cur_op) >= 0 && cur_op == CMD_REPORT_HUM_VAL)
+			return;
+		module_add_op(CMD_REPORT_HUM_VAL, 0);
+		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+	} else
+		report_hval_elapsed_secs++;
+}
+
 static void timer_1sec_cb(void *arg)
 {
 	timer_reschedule(&timer_1sec, ONE_SECOND);
@@ -114,6 +132,7 @@ static void timer_1sec_cb(void *arg)
 	if (timer_is_pending(&siren_timer))
 		power_management_pwr_down_reset();
 #endif
+	report_hum_value();
 }
 
 static inline void set_fan_off(void)
@@ -328,6 +347,11 @@ static int handle_tx_commands(uint8_t cmd)
 		data = &status;
 		len = sizeof(module_status_t);
 		break;
+	case CMD_REPORT_HUM_VAL:
+		hum_val = get_humidity_cur_value();
+		data = &hum_val;
+		len = sizeof(uint16_t);
+		break;
 	case CMD_NOTIF_ALARM_ON:
 		break;
 	default:
@@ -379,6 +403,11 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 	case CMD_GET_STATUS:
 		module_add_op(CMD_STATUS, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		return;
+	case CMD_GET_REPORT_HUM_VAL:
+		module_cfg.humidity_report_interval = value;
+		update_storage();
+		report_hval_interval = value;
 		return;
 	}
 }

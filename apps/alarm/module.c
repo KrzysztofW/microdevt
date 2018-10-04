@@ -39,6 +39,7 @@ static sbuf_t s_fan_enable = SBUF_INITS("fan enable");
 static sbuf_t s_siren_on = SBUF_INITS("siren on");
 static sbuf_t s_siren_off = SBUF_INITS("siren off");
 static sbuf_t s_humidity_th = SBUF_INITS("humidity th");
+static sbuf_t s_report_hum_val = SBUF_INITS("report hum");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
 static sbuf_t s_connect = SBUF_INITS("connect");
 
@@ -70,6 +71,8 @@ static cmd_t cmds[] = {
 	{ .s = &s_siren_off, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_OFF },
 	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_HUM_TH },
+	{ .s = &s_report_hum_val, .args = { ARG_TYPE_INT16 },
+	  .cmd = CMD_GET_REPORT_HUM_VAL },
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 };
@@ -254,6 +257,9 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, const buf_t *args)
 		break;
 	case CMD_SET_HUM_TH:
 		cfg->humidity_threshold = *(uint16_t *)args->data;
+		break;
+	case CMD_GET_REPORT_HUM_VAL:
+		cfg->humidity_report_interval = *(uint16_t *)args->data;
 		break;
 	case CMD_ENABLE_FAN:
 		cfg->fan_enabled = 1;
@@ -473,6 +479,12 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 	case CMD_NOTIF_ALARM_ON:
 		LOG("mod%d: alarm on\n", id);
 		return;
+	case CMD_REPORT_HUM_VAL:
+		if (buf_len(buf) < sizeof(uint16_t))
+			goto error;
+		val = *(uint16_t *)buf_data(buf);
+		LOG("humidity value: %u\n", val);
+		return;
 	default:
 		return;
 	}
@@ -498,7 +510,12 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
 		data = &cfg.humidity_threshold;
 		len = sizeof(uint16_t);
+	} else if (cmd == CMD_GET_REPORT_HUM_VAL) {
+		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
+		data = &cfg.humidity_report_interval;
+		len = sizeof(uint16_t);
 	}
+
 	return send_rf_msg(&module->assoc, cmd, data, len);
 }
 
