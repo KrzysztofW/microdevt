@@ -168,6 +168,12 @@ socket_event_set_mask(sock_info_t *sock_info, uint8_t events)
 	event_set_mask(&sock_info->event, events);
 }
 
+static inline void
+socket_event_clear_mask(sock_info_t *sock_info, uint8_t events)
+{
+	event_clear_mask(&sock_info->event, events);
+}
+
 static inline sock_info_t *socket_event_get_sock_info(event_t *ev)
 {
 	return container_of(ev, sock_info_t, event);

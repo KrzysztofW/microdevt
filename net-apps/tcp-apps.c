@@ -20,8 +20,9 @@ static tim_t tcp_client_timer;
 static sock_info_t sock_info_client;
 
 static void tcp_app_client_init(void);
+#ifdef CONFIG_EVENT
 static void ev_connecting_cb(event_t *ev, uint8_t events);
-
+#endif
 static void tcp_client_connect_cb(void *sock_info)
 {
 	if (sock_info_init(sock_info, SOCK_STREAM) < 0) {

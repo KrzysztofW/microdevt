@@ -15,7 +15,9 @@ static void event_cb(void *arg)
 
 		if (list_empty(ev->rx_queue))
 			ev->available &= ~EV_READ;
-		if (pkt_pool_get_nb_free() == 0) {
+		if (ev->available & (EV_HUNGUP|EV_ERROR))
+			ev->available &= ~EV_WRITE;
+		else if (pkt_pool_get_nb_free() == 0) {
 			ev->available &= ~EV_WRITE;
 			if (ev->wanted & EV_WRITE)
 				list_add_tail(&ev->list, &retry_list);
@@ -29,12 +31,13 @@ static void event_cb(void *arg)
 
 void event_schedule_event(event_t *ev, uint8_t events)
 {
-	if (events == 0 || ev->cb == NULL)
+	assert(events);
+	if (ev->cb == NULL)
 		return;
 
 	ev->available |= events;
 	if (events & (EV_ERROR | EV_HUNGUP)) {
-		ev->available &= ~EV_WRITE;
+		/* EV_WRITE will be removed in event_cb() */
 		if (!list_empty(&ev->list))
 			__list_del_entry(&ev->list);
 	}

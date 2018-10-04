@@ -17,6 +17,8 @@ typedef enum event_flags {
 	/* EV_LAST  = 1 << 7, */
 } event_flags_t;
 
+#define EV_ALL (EV_READ | EV_WRITE | EV_ERROR | EV_HUNGUP)
+
 typedef struct event {
 	void (*cb)(struct event *event_data, uint8_t events);
 	uint8_t wanted;
@@ -45,13 +47,18 @@ static inline void event_set_mask(event_t *ev, uint8_t events)
 		event_schedule_event(ev, ev->available);
 }
 
+static inline void event_clear_mask(event_t *ev, uint8_t events)
+{
+	ev->wanted = (ev->wanted & ~events) | EV_ERROR | EV_HUNGUP;
+}
+
 static inline void
 event_register(event_t *ev, uint8_t events, list_t *rx_queue,
 	       void (*ev_cb)(event_t *ev, uint8_t events))
 {
-	ev->wanted = events | EV_ERROR | EV_HUNGUP;
 	ev->cb = ev_cb;
 	ev->rx_queue = rx_queue;
+	event_set_mask(ev, events);
 }
 
 void event_unregister(event_t *ev);

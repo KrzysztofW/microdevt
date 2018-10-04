@@ -7,6 +7,14 @@
 #include "swen.h"
 #include "event.h"
 
+typedef enum swen_l3_state {
+	S_STATE_CLOSED,
+	S_STATE_CLOSING,
+	S_STATE_CONNECTING,
+	S_STATE_CONN_COMPLETE,
+	S_STATE_CONNECTED,
+} swen_l3_state_t;
+
 typedef struct swen_l3_assoc {
 	uint8_t dst;
 	uint8_t seq_id;
@@ -25,6 +33,11 @@ typedef struct swen_l3_assoc {
 	const iface_t *iface;
 	const uint32_t *enc_key;
 } swen_l3_assoc_t;
+
+static inline uint8_t swen_l3_get_state(swen_l3_assoc_t *assoc)
+{
+	return assoc->state;
+}
 
 void swen_l3_assoc_init(swen_l3_assoc_t *assoc, const uint32_t *enc_key);
 void swen_l3_assoc_shutdown(swen_l3_assoc_t *assoc);
@@ -61,6 +74,12 @@ static inline void
 swen_l3_event_set_mask(swen_l3_assoc_t *assoc, uint8_t events)
 {
 	event_set_mask(&assoc->event, events);
+}
+
+static inline void
+swen_l3_event_clear_mask(swen_l3_assoc_t *assoc, uint8_t events)
+{
+	event_clear_mask(&assoc->event, events);
 }
 
 static inline swen_l3_assoc_t *swen_l3_event_get_assoc(event_t *ev)
