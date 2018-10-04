@@ -3,10 +3,10 @@
 #include "scheduler.h"
 
 static tim_t timer;
-static uint8_t pwr_mgr_sleep_timeout;
+static uint16_t pwr_mgr_sleep_timeout;
 static void (*on_sleep_cb)(void *arg);
 static void *on_sleep_arg;
-uint8_t power_management_inactivity;
+uint16_t power_management_inactivity;
 
 #define ONE_SECOND 1000000
 
@@ -30,7 +30,7 @@ static void timer_cb(void *arg)
 }
 
 void
-power_management_power_down_init(uint8_t inactivity_timeout,
+power_management_power_down_init(uint16_t inactivity_timeout,
 				 void (*on_sleep)(void *arg), void *arg)
 {
 	pwr_mgr_sleep_timeout = inactivity_timeout;
