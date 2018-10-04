@@ -8,12 +8,12 @@
 
 extern const uint32_t rf_enc_defkey[4];
 
-static inline uint8_t module_to_addr(uint8_t module)
+static inline uint8_t module_id_to_addr(uint8_t module)
 {
 	return RF_MOD0_HW_ADDR + module;
 }
 
-static inline uint8_t addr_to_module(uint8_t addr)
+static inline uint8_t addr_to_module_id(uint8_t addr)
 {
 	return addr - RF_MOD0_HW_ADDR;
 }
@@ -22,8 +22,11 @@ void module_init_iface(iface_t *iface, uint8_t *addr);
 
 void module_init_op_queues(void);
 void module_add_op(uint8_t op, uint8_t urgent);
+int __module_add_op(ring_t *queue, uint8_t op);
 int module_get_op(uint8_t *op);
+int __module_get_op(ring_t *queue, uint8_t *op);
 void module_skip_op(void);
+void __module_skip_op(ring_t *queue);
 int
 send_rf_msg(swen_l3_assoc_t *assoc, uint8_t cmd, const void *data, int len);
 

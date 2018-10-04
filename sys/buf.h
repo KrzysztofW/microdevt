@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <alloca.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include "log.h"
 #include "utils.h"
 
@@ -31,11 +32,7 @@ typedef struct buf buf_t;
 			.data = (void *)(sbuf)->data,	\
 			.size = (sbuf)->len }
 
-#define SBUF_INITS(str)							\
-	{								\
-		.data = (uint8_t *)str, .len = sizeof(str) - 1		\
-	}
-#define SBUF_INITS_V(str) (sbuf_t)					\
+#define SBUF_INITS(str) (sbuf_t)					\
 	{								\
 		.data = (uint8_t *)str, .len = sizeof(str) - 1		\
 	}
@@ -43,9 +40,9 @@ typedef struct buf buf_t;
 	{								\
 		.data = (uint8_t *)str, .len = sizeof(str)		\
 	}
-#define SBUF_INIT(data, len) (sbuf_t)					\
+#define SBUF_INIT(__data, __len) (sbuf_t)				\
 	{								\
-		.data = (uint8_t *)data, .len = len			\
+		.data = (uint8_t *)__data, .len = __len			\
 	}
 #define BUF_INIT(__data, __len) (buf_t)					\
 	{								\
@@ -283,6 +280,12 @@ static inline int buf_skip(buf_t *buf, int len)
 	return 0;
 }
 
+static inline void buf_skip_spaces(buf_t *buf)
+{
+	while (buf_len(buf) && isspace(buf_data(buf)[0]))
+	       __buf_skip(buf, 1);
+}
+
 static inline void *__memmem(const void *haystack, unsigned haystacklen,
 			     const void *needle, unsigned needlelen)
 {
@@ -300,6 +303,9 @@ static inline void *__memmem(const void *haystack, unsigned haystacklen,
 	}
 	return NULL;
 }
+
+static inline void buf_print(const buf_t *buf);
+static inline void sbuf_print(const sbuf_t *buf);
 
 static inline int
 __buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s, int skip)

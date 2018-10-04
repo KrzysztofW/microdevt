@@ -30,17 +30,29 @@ void module_init_op_queues(void)
 	urgent_tx_queue = ring_create(TX_QUEUE_SIZE);
 }
 
+static void module_task_cb(void *arg)
+{
+	uint8_t op = (uintptr_t)arg;
+
+	module_add_op(op, 1);
+}
+
+int __module_add_op(ring_t *queue, uint8_t op)
+{
+	return ring_addc(queue, op);
+}
+
 void module_add_op(uint8_t op, uint8_t urgent)
 {
 	ring_t *queue = urgent ? urgent_tx_queue : tx_queue;
 
-	if (ring_addc(queue, op) < 0) {
-		/* ignore in prod */
+	if (__module_add_op(queue, op) < 0) {
 		assert(0);
+		schedule_task(module_task_cb, (void *)(uintptr_t)op);
 	}
 }
 
-static int __module_get_op(ring_t *queue, uint8_t *op)
+int __module_get_op(ring_t *queue, uint8_t *op)
 {
 	if (ring_is_empty(queue))
 		return -1;
@@ -55,12 +67,20 @@ int module_get_op(uint8_t *op)
 	return 0;
 }
 
+void __module_skip_op(ring_t *queue)
+{
+	__ring_skip(queue, 1);
+}
+
 void module_skip_op(void)
 {
+	ring_t *ring;
+
 	if (!ring_is_empty(urgent_tx_queue))
-		__ring_skip(urgent_tx_queue, 1);
+		ring = urgent_tx_queue;
 	else
-		__ring_skip(tx_queue, 1);
+		ring = tx_queue;
+	__module_skip_op(ring);
 }
 
 int

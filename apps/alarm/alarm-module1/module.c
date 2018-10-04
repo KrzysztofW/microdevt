@@ -33,8 +33,7 @@ static iface_t rf_iface;
 iface_t *rf_debug_iface2 = &rf_iface;
 #endif
 
-static uint8_t state;
-static uint8_t fan_sensor_off = 1;
+static module_cfg_t module_cfg;
 static uint8_t fan_off_hour_cnt = FAN_ON_DURATION_H;
 
 static tim_t fan_timer;
@@ -43,16 +42,9 @@ static tim_t timer_1sec;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint8_t humidity_sampling_update;
-static uint16_t humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
 static swen_l3_assoc_t mod1_assoc;
-static uint8_t connected;
 
-typedef struct __attribute__((__packed__)) persistent_data {
-	uint8_t armed : 1;
-	uint8_t fan_enabled : 1;
-	uint16_t humidity_threshold;
-} persistent_data_t;
-static persistent_data_t EEMEM persistent_data;
+static module_cfg_t EEMEM persistent_data;
 
 typedef enum tendency {
 	STABLE,
@@ -109,7 +101,6 @@ static void pwr_mgr_on_sleep(void *arg)
 static void timer_1sec_cb(void *arg)
 {
 	timer_reschedule(&timer_1sec, ONE_SECOND);
-
 	/* skip sampling when the siren is on */
 	if (!timer_is_pending(&siren_timer)
 	    && humidity_sampling_update++ >= HUMIDITY_SAMPLING)
@@ -164,13 +155,13 @@ static void set_siren_on(uint8_t force)
 {
 	if (PORTB & (1 << PB0))
 		return;
-	if (state != MODULE_STATE_ARMED && !force)
+	if (module_cfg.state != MODULE_STATE_ARMED && !force)
 		return;
 
 	PORTB |= 1 << PB0;
 	timer_del(&siren_timer);
 	timer_add(&siren_timer, SIREN_ON_DURATION, siren_tim_cb, NULL);
-	if (state == MODULE_STATE_ARMED && !force) {
+	if (module_cfg.state == MODULE_STATE_ARMED || force) {
 		module_add_op(CMD_NOTIF_ALARM_ON, 1);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 	}
@@ -222,7 +213,7 @@ static void humidity_sampling_task_cb(void *arg)
 
 	humidity_sampling_update = 0;
 	get_humidity(&info);
-	if (fan_sensor_off || global_humidity_array[0] == 0)
+	if (!module_cfg.fan_enabled || global_humidity_array[0] == 0)
 		return;
 	if (info.tendency == RISING ||
 	    global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
@@ -244,45 +235,24 @@ static void get_status(module_status_t *status)
 		array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH);
 
 	status->humidity_tendency = get_hum_tendency();
-	status->state = state;
 	status->fan_on = !!(PORTD & 1 << PD3);
 	status->siren_on = !!(PORTB & 1 << PB0);
-	status->fan_enabled = !fan_sensor_off;
-	status->rf_up = connected;
-	status->humidity_threshold = humidity_threshold;
+	status->cfg = module_cfg;
+	status->rf_up = swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED;
 }
 
 static void update_storage(void)
 {
-	persistent_data_t data = {
-		.armed = (state == MODULE_STATE_ARMED),
-		.fan_enabled = !fan_sensor_off,
-		.humidity_threshold = humidity_threshold,
-	};
-	eeprom_write_block(&data , &persistent_data, sizeof(persistent_data_t));
+	eeprom_write_block(&module_cfg , &persistent_data, sizeof(module_cfg_t));
 }
 
 static void reload_cfg_from_storage(void)
 {
-	persistent_data_t data;
-	uint8_t i;
-	uint8_t invalid = 1;
-	uint8_t *bytes = (uint8_t *)&data;
-
-	eeprom_read_block(&data, &persistent_data, sizeof(persistent_data_t));
-	for (i = 0; i < sizeof(data); i++) {
-		if (bytes[i] != 0xFF) {
-			invalid = 0;
-			break;
-		}
-	}
-	if (invalid)
-		return;
-
-	if (data.armed)
-		state = MODULE_STATE_ARMED;
-	fan_sensor_off = !data.fan_enabled;
-	humidity_threshold = data.humidity_threshold;
+	eeprom_read_block(&module_cfg, &persistent_data, sizeof(module_cfg_t));
+	if (module_cfg.humidity_threshold == 0xFFFF)
+		module_cfg.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
+	if (module_cfg.state == 0)
+		module_cfg.state = MODULE_STATE_DISARMED;
 }
 
 static void handle_rx_commands(uint8_t cmd, uint16_t value);
@@ -334,9 +304,9 @@ static void arm_cb(void *arg)
 static void module_arm(uint8_t on)
 {
 	if (on)
-		state = MODULE_STATE_ARMED;
+		module_cfg.state = MODULE_STATE_ARMED;
 	else {
-		state = MODULE_STATE_DISARMED;
+		module_cfg.state = MODULE_STATE_DISARMED;
 		set_siren_off();
 	}
 	update_storage();
@@ -349,12 +319,16 @@ static int handle_tx_commands(uint8_t cmd)
 	module_status_t status;
 	void *data;
 	int len;
+	void *data = NULL;
+	int len = 0;
 
 	switch (cmd) {
 	case CMD_STATUS:
 		get_status(&status);
 		data = &status;
 		len = sizeof(module_status_t);
+		break;
+	case CMD_NOTIF_ALARM_ON:
 		break;
 	default:
 		return 0;
@@ -383,11 +357,11 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		set_fan_off();
 		return;
 	case CMD_DISABLE_FAN:
-		fan_sensor_off = 1;
+		module_cfg.fan_enabled = 0;
 		update_storage();
 		return;
 	case CMD_ENABLE_FAN:
-		fan_sensor_off = 0;
+		module_cfg.fan_enabled = 1;
 		update_storage();
 		return;
 	case CMD_SIREN_ON:
@@ -398,12 +372,12 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		return;
 	case CMD_SET_HUM_TH:
 		if (value) {
-			humidity_threshold = value;
+			module_cfg.humidity_threshold = value;
 			update_storage();
 		}
 		return;
 	case CMD_GET_STATUS:
-		module_add_op(cmd, CMD_STATUS);
+		module_add_op(CMD_STATUS, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
 	}
@@ -432,7 +406,7 @@ static void module_print_status(void)
 
 	LOG("\nStatus:\n");
 	LOG(" State:  %s\n",
-	    state == MODULE_STATE_ARMED ? "armed" : "disarmed");
+	    module_cfg.state == MODULE_STATE_ARMED ? "armed" : "disarmed");
 	LOG(" Humidity value:  %ld%%\n"
 	    " Global humidity value:  %d\n"
 	    " Humidity tendency:  %u\n"
@@ -440,11 +414,12 @@ static void module_print_status(void)
 	    hval > 100 ? 0 : hval,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
 	    get_hum_tendency(),
-	    humidity_threshold);
+	    module_cfg.humidity_threshold);
 	LOG(" Fan: %d\n Fan enabled: %d\n", !!(PORTD & 1 << PD3),
-	    !fan_sensor_off);
+	    module_cfg.fan_enabled);
 	LOG(" Siren:  %d\n", !!(PORTB & 1 << PB0));
-	LOG(" RF:  %d\n", connected);
+	LOG(" RF:  %s\n",
+	    swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED ? "on" : "off");
 }
 
 void module1_parse_uart_commands(buf_t *buf)
@@ -480,9 +455,8 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 {
 	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
 #ifdef DEBUG
-	uint8_t m_nb = addr_to_module(assoc->dst);
+	uint8_t id = addr_to_module_id(assoc->dst);
 #endif
-	DEBUG_LOG("from:%X ev:0x%X\n", assoc->dst, events);
 
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_pwr_down_reset();
@@ -491,13 +465,13 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 	if (events & EV_READ) {
 		pkt_t *pkt = swen_l3_get_pkt(assoc);
 
-		DEBUG_LOG("got pkt:%p from mod%d\n", pkt, m_nb);
+		DEBUG_LOG("got pkt of len:%d from mod%d\n", buf_len(&pkt->buf),
+			  id);
 		module1_parse_commands(&pkt->buf);
 		pkt_free(pkt);
 	}
 	if (events & (EV_ERROR | EV_HUNGUP)) {
-		DEBUG_LOG("mod%d disconnected\n", m_nb);
-		connected = 0;
+		DEBUG_LOG("mod%d disconnected\n", id);
 		swen_l3_event_unregister(assoc);
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 	}
@@ -508,7 +482,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			swen_l3_event_set_mask(assoc, EV_READ);
 			return;
 		}
-		DEBUG_LOG("mod1: sending op:0x%X to mod%d\n", op, m_nb);
+		DEBUG_LOG("mod1: sending op:0x%X to mod%d\n", op, id);
 		if (handle_tx_commands(op) >= 0)
 			module_skip_op();
 	}
@@ -518,17 +492,16 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 {
 	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
 #ifdef DEBUG
-	uint8_t m_nb = addr_to_module(assoc->dst);
+	uint8_t id = addr_to_module_id(assoc->dst);
 #endif
 	if (events & EV_ERROR) {
-		DEBUG_LOG("failed to connect to mod%d\n", m_nb);
-		connected = 0;
+		DEBUG_LOG("failed to connect to mod%d\n", id);
+		swen_l3_event_unregister(assoc);
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 		return;
 	}
 	if (events & EV_WRITE) {
-		DEBUG_LOG("connected to mod%d\n", m_nb);
-		connected = 1;
+		DEBUG_LOG("connected to mod%d\n", id);
 		swen_l3_event_register(assoc, EV_READ, rf_event_cb);
 	}
 }
@@ -538,6 +511,9 @@ void module1_init(void)
 #ifdef CONFIG_RF_CHECKS
 	if (rf_checks(&rf_iface) < 0)
 		__abort();
+#endif
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
 	reload_cfg_from_storage();
 	module_init_op_queues();
@@ -550,11 +526,10 @@ void module1_init(void)
 	swen_l3_assoc_init(&mod1_assoc, rf_enc_defkey);
 	swen_l3_assoc_bind(&mod1_assoc, RF_MOD0_HW_ADDR, &rf_iface);
 	swen_l3_event_register(&mod1_assoc, EV_WRITE, rf_connecting_on_event);
+	if (module_cfg.state == MODULE_STATE_DISABLED)
+		return;
 #ifndef RF_DEBUG
 	if (swen_l3_associate(&mod1_assoc) < 0)
 		__abort();
-#endif
-#ifdef CONFIG_RF_GENERIC_COMMANDS
-	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
 }

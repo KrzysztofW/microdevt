@@ -5,26 +5,30 @@
 #include "features.h"
 
 typedef enum module_state {
+	MODULE_STATE_DISABLED = 1, /* 1 => default blank eeprom value */
 	MODULE_STATE_DISARMED,
 	MODULE_STATE_ARMED,
 } module_state_t;
 
-typedef struct __attribute__((__packed__)) module_status {
+typedef struct __attribute__((__packed__)) module_cfg {
+	uint8_t  state : 2;
+	uint8_t  fan_enabled : 1;
 	uint16_t humidity_threshold;
+} module_cfg_t;
+
+typedef struct __attribute__((__packed__)) module_status {
+	module_cfg_t cfg;
 	uint16_t humidity_val;
 	uint16_t global_humidity_val;
 	int8_t  temperature;
 	uint8_t humidity_tendency : 1;
 	uint8_t fan_on : 1;
-	uint8_t fan_enabled : 1;
 	uint8_t siren_on : 1;
-	uint8_t state : 2;
 	uint8_t lan_up : 1;
 	uint8_t rf_up : 1;
 } module_status_t;
 
 typedef struct module {
-	module_status_t status;
 	const module_features_t *features;
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	swen_rc_ctx_t rc_ctx;
@@ -33,7 +37,9 @@ typedef struct module {
 #else
 	swen_l3_assoc_t assoc;
 #endif
-	char name[6];
+#define OP_QUEUE_SIZE 4
+	ring_t  op_queue;
+	uint8_t op_queue_data[OP_QUEUE_SIZE];
 } module_t;
 
 typedef enum commands {
