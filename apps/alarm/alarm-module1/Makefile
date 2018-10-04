@@ -47,6 +47,7 @@ $(EXE)_optimized: $(OBJ) $(STATIC_LIBS) config
 clean:
 	make -C ../../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec $(ARCH_DIR)/$(ARCH)/*.o
+	@rm -f $(EXE).a
 
 run: all
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
