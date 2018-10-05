@@ -14,22 +14,22 @@
 INIT_ADC_DECL(f, DDRF, PORTF, 3)
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
-#define UART_RING_SIZE 64
+#define UART_RING_SIZE 32
 static ring_t *uart_ring;
 
 static void uart_task(void *arg)
 {
-	buf_t buf;
-	int rlen = ring_len(uart_ring);
+	buf_t buf = BUF(UART_RING_SIZE);
+	uint8_t c;
 
-	if (rlen > UART_RING_SIZE) {
-		ring_reset(uart_ring);
-		return;
+	while (ring_getc(uart_ring, &c) >= 0) {
+		if (buf_addc(&buf, c) < 0)
+			__abort();
+		if  (c == '\0')
+			break;
 	}
-	buf= BUF(rlen + 1);
-	__ring_get(uart_ring, &buf, rlen);
-	__buf_addc(&buf, '\0');
-	alarm_parse_uart_commands(&buf);
+	if (buf.len)
+		alarm_parse_uart_commands(&buf);
 }
 
 ISR(USART0_RX_vect)
@@ -39,9 +39,11 @@ ISR(USART0_RX_vect)
 	if (c == '\r')
 		return;
 	if (c == '\n') {
+		c = '\0';
 		schedule_task(uart_task, NULL);
-	} else
-		ring_addc(uart_ring, c);
+	}
+	if (ring_addc(uart_ring, c) < 0)
+		ring_reset(uart_ring);
 }
 #endif
 
