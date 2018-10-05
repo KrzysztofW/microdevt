@@ -488,7 +488,8 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 			break;
 		swen_l3_retrn_ack_pkts(assoc, hdr->ack);
 
-		if (swen_l3_in_window(assoc->ack, hdr->seq_id)) {
+		if (swen_l3_in_window(assoc->ack + assoc->ack_needed,
+				      hdr->seq_id)) {
 			__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 			return;
 		}
@@ -509,7 +510,8 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 			__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 			return;
 		}
-		if (swen_l3_in_window(assoc->ack, hdr->seq_id)) {
+		if (swen_l3_in_window(assoc->ack + assoc->ack_needed,
+				      hdr->seq_id)) {
 			__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 			return;
 		}
