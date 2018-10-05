@@ -176,11 +176,13 @@ static void print_status(uint8_t id, module_status_t *status)
 		LOG(" Humidity value:  %u%%\n"
 		    " Global humidity value:  %u%%\n"
 		    " Humidity tendency:  %s\n"
-		    " Humidity threshold:  %u%%\n",
+		    " Humidity threshold:  %u%%\n"
+		    " Humidity report interval: %u secs\n",
 		    status->humidity_val,
 		    status->global_humidity_val,
 		    humidity_tendency_to_str(status->humidity_tendency),
-		    status->cfg.humidity_threshold);
+		    status->cfg.humidity_threshold,
+		    status->cfg.humidity_report_interval);
 	}
 	if (features->temperature)
 		LOG(" Temp:  %u\n", analog_read(3));
