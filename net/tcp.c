@@ -345,10 +345,12 @@ tcp_send_pkt(const ip_hdr_t *ip_hdr, const tcp_hdr_t *tcp_hdr, uint8_t flags,
 {
 	pkt_t *out;
 
-	if ((out = pkt_alloc()) == NULL &&
-	    (out = pkt_alloc_emergency()) == NULL) {
+	if ((out = pkt_alloc()) == NULL
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
+	    && (out = pkt_alloc_emergency()) == NULL
+#endif
+	    )
 		return -1;
-	}
 
 	__tcp_adj_out_pkt(out);
 	return __tcp_output(out, ip_hdr->src, flags, tcp_hdr->dst_port,
@@ -574,7 +576,8 @@ void tcp_input(pkt_t *pkt)
 		pkt_adj(pkt, -(tcp_hdr_len + ip_hdr_len));
 		socket_append_pkt(&tcp_conn->pkt_list_head, pkt);
 #ifdef CONFIG_EVENT
-		event_schedule_event(&tcp_conn->sock_info->event, EV_READ | EV_WRITE);
+		event_schedule_event(&tcp_conn->sock_info->event,
+				     EV_READ | EV_WRITE);
 #endif
 		return;
 	}
