@@ -190,7 +190,12 @@ ISR(PCINT2_vect) {
 
 static uint8_t get_hum_tendency(void)
 {
-	int val = global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
+	int val;
+
+	if (global_humidity_array[0] == 0)
+		return HUMIDITY_TENDENCY_STABLE;
+
+	val = global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
 		- global_humidity_array[0];
 
 	if (abs(val) < DEFAULT_HUMIDITY_THRESHOLD)
