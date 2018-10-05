@@ -33,6 +33,13 @@ static inline void ring_reset(ring_t *ring)
 
 static inline void ring_init(ring_t *ring, int size)
 {
+#ifdef CONFIG_AVR_MCU
+	if (size > 256)
+		__abort();
+#endif
+	if (!POWEROF2(size))
+		__abort();
+	ring->head = 0;
 	ring->mask = size - 1;
 	ring_reset(ring);
 }
@@ -41,17 +48,9 @@ static inline ring_t *ring_create(int size)
 {
 	ring_t *ring;
 
-#ifdef CONFIG_AVR_MCU
-	if (size > 256)
-		__abort();
-#endif
-	if (!POWEROF2(size))
-		__abort();
-
 	if ((ring = malloc(sizeof(ring_t) + size)) == NULL)
 		__abort();
 
-	ring->head = 0;
 	ring_init(ring, size);
 	return ring;
 }

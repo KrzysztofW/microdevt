@@ -316,7 +316,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, const buf_t *args)
 		return;
 	}
 
-	__module_add_op(modules[id].op_queue, cmd);
+	__module_add_op(&modules[id].op_queue, cmd);
 	swen_l3_event_set_mask(assoc, EV_READ | EV_WRITE);
 }
 
@@ -545,14 +545,14 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 	if (events & EV_WRITE) {
 		uint8_t op;
 
-		if (__module_get_op(module->op_queue, &op) < 0) {
+		if (__module_get_op(&module->op_queue, &op) < 0) {
 			swen_l3_event_set_mask(assoc, EV_READ);
 			return;
 		}
 
 		DEBUG_LOG("mod0: sending op:0x%X to mod%d\n", op, id);
 		if (handle_tx_commands(module, op) >= 0)
-			__module_skip_op(module->op_queue);
+			__module_skip_op(&module->op_queue);
 	}
 }
 
@@ -597,7 +597,7 @@ void master_module_init(void)
 			continue;
 
 		cfg_load(&cfg, i);
-		module->op_queue = ring_create(OP_QUEUE_SIZE);
+		ring_init(&module->op_queue, OP_QUEUE_SIZE);
 		addr = module_id_to_addr(i);
 		swen_l3_assoc_init(&module->assoc, rf_enc_defkey);
 		if (cfg.state == MODULE_STATE_DISABLED)
