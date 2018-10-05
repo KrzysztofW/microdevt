@@ -16,7 +16,7 @@
 #define ONE_SECOND 1000000
 #define ONE_HOUR (3600 * 1000000U)
 #define HUMIDITY_ANALOG_PIN 1
-#define FAN_ON_DURATION_H 4 /* max 4h of activity */
+#define FAN_ON_DURATION (4 * 3600) /* max 4h of activity */
 #define HUMIDITY_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define DEFAULT_HUMIDITY_THRESHOLD 3
@@ -34,9 +34,7 @@ iface_t *rf_debug_iface2 = &rf_iface;
 #endif
 
 static module_cfg_t module_cfg;
-static uint8_t fan_off_hour_cnt = FAN_ON_DURATION_H;
-
-static tim_t fan_timer;
+static uint16_t fan_sec_cnt;
 static tim_t siren_timer;
 static tim_t timer_1sec;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
@@ -84,6 +82,8 @@ void watchdog_on_wakeup(void *arg)
 	} else
 		sampling_cnt++;
 
+	if (fan_sec_cnt > 8)
+		fan_sec_cnt -= 8;
 	/* stay active for 2 seconds in order to catch incoming RF packets */
 	power_management_set_inactivity(INACTIVITY_TIMEOUT - 2);
 }
@@ -112,6 +112,17 @@ static void report_hum_value(void)
 		report_hval_elapsed_secs++;
 }
 
+static inline void set_fan_off(void)
+{
+	PORTD &= ~(1 << PD3);
+}
+
+static void set_fan_on(void)
+{
+	PORTD |= 1 << PD3;
+	fan_sec_cnt = FAN_ON_DURATION;
+}
+
 static void timer_1sec_cb(void *arg)
 {
 	timer_reschedule(&timer_1sec, ONE_SECOND);
@@ -129,31 +140,11 @@ static void timer_1sec_cb(void *arg)
 		power_management_pwr_down_reset();
 #endif
 	report_hum_value();
-}
-
-static inline void set_fan_off(void)
-{
-	PORTD &= ~(1 << PD3);
-	timer_del(&fan_timer);
-	fan_off_hour_cnt = FAN_ON_DURATION_H;
-}
-
-static void fan_off_cb(void *arg)
-{
-	if (fan_off_hour_cnt) {
-		fan_off_hour_cnt--;
-		timer_reschedule(&fan_timer, ONE_HOUR);
-		return;
+	if (fan_sec_cnt) {
+		if (fan_sec_cnt == 1)
+			set_fan_off();
+		fan_sec_cnt--;
 	}
-	set_fan_off();
-	fan_off_hour_cnt = FAN_ON_DURATION_H;
-}
-
-static void set_fan_on(void)
-{
-	PORTD |= 1 << PD3;
-	timer_del(&fan_timer);
-	timer_add(&fan_timer, ONE_HOUR, fan_off_cb, NULL);
 }
 
 static void set_siren_off(void)
