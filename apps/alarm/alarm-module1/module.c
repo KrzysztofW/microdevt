@@ -7,6 +7,7 @@
 #include <sys/array.h>
 #include <power-management.h>
 #include <watchdog.h>
+#include <drivers/sensors.h>
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
 #include "../module.h"
@@ -21,7 +22,6 @@
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define DEFAULT_HUMIDITY_THRESHOLD 3
 #define MAX_HUMIDITY_VALUE 80
-#define HIH_4000_TO_RH(mv_val) (((mv_val) - 826) / 31)
 
 #define SIREN_ON_DURATION (1 * 60 * 1000000U) /* 1 minute */
 /* inactivity timeout in seconds */
