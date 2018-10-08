@@ -107,11 +107,7 @@ static void report_hum_value(void)
 		return;
 	if (report_hval_elapsed_secs >=
 	    module_cfg.humidity_report_interval) {
-		uint8_t cur_op;
-
 		report_hval_elapsed_secs = 0;
-		if (module_get_op(&cur_op) >= 0 && cur_op == CMD_REPORT_HUM_VAL)
-			return;
 		module_add_op(CMD_REPORT_HUM_VAL, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 	} else
@@ -549,8 +545,13 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 		return;
 	}
 	if (events & EV_WRITE) {
+		uint8_t flags = EV_READ;
+		uint8_t op;
+
 		DEBUG_LOG("connected to mod%d\n", id);
-		swen_l3_event_register(assoc, EV_READ, rf_event_cb);
+		if (module_get_op(&op))
+			flags |= EV_WRITE;
+		swen_l3_event_register(assoc, flags, rf_event_cb);
 	}
 }
 

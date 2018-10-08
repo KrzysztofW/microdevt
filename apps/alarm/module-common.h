@@ -27,6 +27,10 @@ int module_get_op(uint8_t *op);
 int __module_get_op(ring_t *queue, uint8_t *op);
 void module_skip_op(void);
 void __module_skip_op(ring_t *queue);
+static inline int __module_op_pending(ring_t *queue)
+{
+	return !ring_is_empty(queue);
+}
 int
 send_rf_msg(swen_l3_assoc_t *assoc, uint8_t cmd, const void *data, int len);
 

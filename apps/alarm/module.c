@@ -584,6 +584,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 static void rf_connecting_on_event(event_t *ev, uint8_t events)
 {
 	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
+	module_t *module = container_of(assoc, module_t, assoc);
 #ifdef DEBUG
 	uint8_t id = addr_to_module_id(assoc->dst);
 #endif
@@ -594,12 +595,15 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 		return;
 	}
 	if (events & EV_WRITE) {
-		DEBUG_LOG("connected to mod%d\n", id);
+		uint8_t flags = EV_READ;
 
+		DEBUG_LOG("connected to mod%d\n", id);
 		/* get slave statuses */
 		if (module_send_cmd(assoc, CMD_GET_STATUS) < 0)
 			return;
-		swen_l3_event_register(assoc, EV_READ, rf_event_cb);
+		if (__module_op_pending(&module->op_queue))
+			flags |= EV_WRITE;
+		swen_l3_event_register(assoc, flags, rf_event_cb);
 	}
 }
 
