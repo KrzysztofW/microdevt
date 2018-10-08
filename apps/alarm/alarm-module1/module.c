@@ -185,9 +185,6 @@ static void pir_on_action(void *arg)
 }
 
 ISR(PCINT2_vect) {
-#ifdef CONFIG_POWER_MANAGEMENT
-	power_management_pwr_down_reset();
-#endif
 	if (PIND & (1 << PD1))
 		schedule_task(pir_on_action, NULL);
 }
