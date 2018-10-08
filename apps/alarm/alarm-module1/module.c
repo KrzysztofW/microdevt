@@ -7,9 +7,9 @@
 #include <sys/array.h>
 #include <power-management.h>
 #include <watchdog.h>
+#include <interrupts.h>
 #include <drivers/sensors.h>
 #include <avr/eeprom.h>
-#include <avr/interrupt.h>
 #include "../module.h"
 #include "../rf-common.h"
 #include "../module-common.h"
@@ -254,7 +254,9 @@ static void get_status(module_status_t *status)
 
 static void update_storage(void)
 {
-	eeprom_write_block(&module_cfg , &persistent_data, sizeof(module_cfg_t));
+	irq_disable();
+	eeprom_update_block(&module_cfg , &persistent_data, sizeof(module_cfg_t));
+	irq_enable();
 }
 
 static void reload_cfg_from_storage(void)

@@ -6,6 +6,7 @@
 #include <net/swen-cmds.h>
 #include <adc.h>
 #include <avr/eeprom.h>
+#include <interrupts.h>
 #include "module.h"
 #include "rf-common.h"
 #include "module-common.h"
@@ -91,7 +92,9 @@ static void cfg_load(module_cfg_t *cfg, uint8_t id)
 static void cfg_update(module_cfg_t *cfg, uint8_t id)
 {
 	assert(id < NB_MODULES);
-	eeprom_write_block(cfg, &persistent_data[id], sizeof(module_cfg_t));
+	irq_disable();
+	eeprom_update_block(cfg, &persistent_data[id], sizeof(module_cfg_t));
+	irq_enable();
 }
 
 static inline void cfg_load_master(void)
