@@ -14,7 +14,7 @@
 
 /* #define RF_DEBUG */
 
-#define SIREN_ON_DURATION (15 * 60 * 1000000UL)
+#define SIREN_ON_DURATION (15 * 60)
 
 #if defined (CONFIG_RF_RECEIVER) || defined (CONFIG_RF_SENDER)
 static uint8_t rf_addr = RF_MOD0_HW_ADDR;
@@ -39,6 +39,7 @@ static sbuf_t s_fan_disable = SBUF_INITS("fan disable");
 static sbuf_t s_fan_enable = SBUF_INITS("fan enable");
 static sbuf_t s_siren_on = SBUF_INITS("siren on");
 static sbuf_t s_siren_off = SBUF_INITS("siren off");
+static sbuf_t s_siren_duration = SBUF_INITS("siren duration");
 static sbuf_t s_humidity_th = SBUF_INITS("humidity th");
 static sbuf_t s_report_hum_val = SBUF_INITS("report hum");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
@@ -74,6 +75,8 @@ static cmd_t cmds[] = {
 	  .cmd = CMD_SET_HUM_TH },
 	{ .s = &s_report_hum_val, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
 	  .cmd = CMD_GET_REPORT_HUM_VAL },
+	{ .s = &s_siren_duration, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
+	  .cmd = CMD_SET_SIREN_DURATION },
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 };
@@ -103,6 +106,7 @@ static inline void cfg_load_master(void)
 	/* master module cannot be disabled */
 	if (master_cfg.state == MODULE_STATE_DISABLED) {
 		master_cfg.state = MODULE_STATE_DISARMED;
+		master_cfg.siren_duration = SIREN_ON_DURATION;
 	}
 }
 
@@ -126,7 +130,8 @@ static void set_siren_on(uint8_t force)
 	if (master_cfg.state == MODULE_STATE_ARMED || force) {
 		PORTB |= 1 << PB0;
 		timer_del(&siren_timer);
-		timer_add(&siren_timer, SIREN_ON_DURATION, siren_tim_cb, NULL);
+		timer_add(&siren_timer, master_cfg.siren_duration * 1000000,
+			  siren_tim_cb, NULL);
 	}
 }
 
@@ -197,8 +202,10 @@ static void print_status(uint8_t id, module_status_t *status)
 	if (features->fan)
 		LOG(" Fan:  %s\n Fan enabled:  %s\n",
 		    on_off(status->fan_on), yes_no(status->cfg.fan_enabled));
-	if (features->siren)
+	if (features->siren) {
 		LOG(" Siren:  %s\n", on_off(status->siren_on));
+		LOG(" Siren duration:  %u secs\n", status->cfg.siren_duration);
+	}
 	if (features->lan)
 		LOG(" LAN:  %s\n", on_off(status->lan_up));
 	if (features->rf) {
@@ -243,7 +250,8 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	     && (cmd == CMD_RUN_FAN || cmd == CMD_STOP_FAN ||
 		 cmd == CMD_DISABLE_FAN || cmd == CMD_ENABLE_FAN)) ||
 	    (!modules[id].features->siren
-	     && (cmd == CMD_SIREN_ON || cmd == CMD_SIREN_OFF)) ||
+	     && (cmd == CMD_SIREN_ON || cmd == CMD_SIREN_OFF ||
+		 cmd == CMD_SET_SIREN_DURATION)) ||
 	    (!modules[id].features->humidity && cmd == CMD_SET_HUM_TH)) {
 		LOG("unsupported feature\n");
 		return;
@@ -270,6 +278,8 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	case CMD_GET_REPORT_HUM_VAL:
 		__buf_get_u16(args, &cfg->humidity_report_interval);
 		break;
+	case CMD_SET_SIREN_DURATION:
+		__buf_get_u16(args, &cfg->siren_duration);
 		break;
 	case CMD_ENABLE_FAN:
 		cfg->fan_enabled = 1;
@@ -523,6 +533,10 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 	} else if (cmd == CMD_GET_REPORT_HUM_VAL) {
 		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
 		data = &cfg.humidity_report_interval;
+		len = sizeof(uint16_t);
+	} else if (cmd == CMD_SET_SIREN_DURATION) {
+		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
+		data = &cfg.siren_duration;
 		len = sizeof(uint16_t);
 	}
 

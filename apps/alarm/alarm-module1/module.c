@@ -25,7 +25,8 @@
 #define INIT_TIME 60 /* seconds */
 #define WD_TIMEOUT 8 /* watchdog timeout set in main.c */
 
-#define SIREN_ON_DURATION (1 * 60 * 1000000U) /* 1 minute */
+#define SIREN_ON_DURATION 60 /* 1 minute */
+
 /* inactivity timeout in seconds */
 #define INACTIVITY_TIMEOUT 15
 
@@ -173,7 +174,8 @@ static void set_siren_on(uint8_t force)
 
 	PORTB |= 1 << PB0;
 	timer_del(&siren_timer);
-	timer_add(&siren_timer, SIREN_ON_DURATION, siren_tim_cb, NULL);
+	timer_add(&siren_timer, module_cfg.siren_duration * 1000000,
+		  siren_tim_cb, NULL);
 	if (module_cfg.state == MODULE_STATE_ARMED || force) {
 		module_add_op(CMD_NOTIF_ALARM_ON, 1);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
@@ -273,12 +275,14 @@ static void reload_cfg_from_storage(void)
 #ifdef CONFIG_AVR_SIMU
 	if (module_cfg.state == 0) {
 		module_cfg.state = MODULE_STATE_DISARMED;
+		module_cfg.siren_duration = SIREN_ON_DURATION;
 	}
 #endif
 	/* check if EEPROM is blank */
 	if (module_cfg.humidity_threshold == 0xFF) {
 		module_cfg.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
 		module_cfg.humidity_report_interval = 0;
+		module_cfg.siren_duration = SIREN_ON_DURATION;
 		update_storage();
 	}
 }
@@ -408,6 +412,12 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 			update_storage();
 		}
 		return;
+	case CMD_SET_SIREN_DURATION:
+		if (value) {
+			module_cfg.siren_duration = value;
+			update_storage();
+		}
+		return;
 	case CMD_GET_STATUS:
 		module_add_op(CMD_STATUS, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
@@ -455,6 +465,7 @@ static void module_print_status(void)
 	LOG(" Fan: %d\n Fan enabled: %d\n", !!(PORTD & 1 << PD3),
 	    module_cfg.fan_enabled);
 	LOG(" Siren:  %d\n", !!(PORTB & 1 << PB0));
+	LOG(" Siren duration:  %u secs\n", module_cfg.siren_duration);
 	LOG(" RF:  %s\n",
 	    swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED ? "on" : "off");
 }

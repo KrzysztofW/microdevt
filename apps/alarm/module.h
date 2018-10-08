@@ -13,6 +13,7 @@ typedef enum module_state {
 typedef struct __attribute__((__packed__)) module_cfg {
 	uint8_t  state : 2;
 	uint8_t  fan_enabled : 1;
+	uint16_t siren_duration;
 	uint16_t humidity_report_interval;
 	uint8_t  humidity_threshold;
 } module_cfg_t;
@@ -72,6 +73,7 @@ typedef enum commands {
 	CMD_ENABLE_FAN,
 	CMD_SIREN_ON,
 	CMD_SIREN_OFF,
+	CMD_SET_SIREN_DURATION,
 	CMD_GET_STATUS,
 	CMD_STATUS,
 	CMD_SET_HUM_TH,
