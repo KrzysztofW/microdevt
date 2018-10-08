@@ -22,6 +22,10 @@ typedef struct __attribute__((__packed__)) task {
 static ring_t *ring;
 static ring_t *ring_irq;
 
+#ifdef CONFIG_POWER_MANAGEMENT
+static uint8_t idle;
+#endif
+
 void schedule_task(void (*cb)(void *arg), void *arg)
 {
 	task_t task = {
@@ -37,34 +41,36 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 	}
 }
 
-void scheduler_run_tasks(void)
+static void __scheduler_run_tasks(ring_t *r)
 {
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));
-	int irq_rlen = ring_len(ring_irq);
+
+	assert(ring_len(r) >= sizeof(task_t));
+	__ring_get_buf(r, &buf);
+	task.cb(task.arg);
 #ifdef CONFIG_POWER_MANAGEMENT
-	uint8_t idle = 1;
+	idle = 0;
 #endif
-	if (irq_rlen < sizeof(task_t))
-		irq_enable();
-	else {
+}
+
+void scheduler_run_tasks(void)
+{
+	int irq_rlen = ring_len(ring_irq);
+
+#ifdef CONFIG_POWER_MANAGEMENT
+	idle = 1;
+#endif
+	if (irq_rlen) {
 		if (irq_rlen >= SCHEDULER_TASK_WATER_MARK)
 			irq_disable();
-		__ring_get_buf(ring_irq, &buf);
-		task.cb(task.arg);
-#ifdef CONFIG_POWER_MANAGEMENT
-		idle = 0;
-#endif
-	}
+		__scheduler_run_tasks(ring_irq);
+	} else
+		irq_enable();
 
-	if (ring_len(ring) >= sizeof(task_t)) {
-		buf_reset(&buf);
-		__ring_get_buf(ring, &buf);
-		task.cb(task.arg);
-#ifdef CONFIG_POWER_MANAGEMENT
-		idle = 0;
-#endif
-	}
+	if (ring_len(ring))
+		__scheduler_run_tasks(ring);
+
 #ifdef CONFIG_POWER_MANAGEMENT
 	if (idle) {
 		power_management_set_mode(PWR_MGR_SLEEP_MODE_IDLE);
