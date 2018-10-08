@@ -72,7 +72,7 @@ static cmd_t cmds[] = {
 	{ .s = &s_siren_off, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_OFF },
 	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_HUM_TH },
-	{ .s = &s_report_hum_val, .args = { ARG_TYPE_INT16 },
+	{ .s = &s_report_hum_val, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
 	  .cmd = CMD_GET_REPORT_HUM_VAL },
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
@@ -100,6 +100,10 @@ static void cfg_update(module_cfg_t *cfg, uint8_t id)
 static inline void cfg_load_master(void)
 {
 	cfg_load(&master_cfg, 0);
+	/* master module cannot be disabled */
+	if (master_cfg.state == MODULE_STATE_DISABLED) {
+		master_cfg.state = MODULE_STATE_DISARMED;
+	}
 }
 
 static inline void cfg_update_master(void)
@@ -191,7 +195,7 @@ static void print_status(uint8_t id, module_status_t *status)
 		LOG(" Temp:  %u\n", analog_read(3));
 
 	if (features->fan)
-		LOG(" Fan: %s\n Fan enabled:  %s\n",
+		LOG(" Fan:  %s\n Fan enabled:  %s\n",
 		    on_off(status->fan_on), yes_no(status->cfg.fan_enabled));
 	if (features->siren)
 		LOG(" Siren:  %s\n", on_off(status->siren_on));
@@ -229,7 +233,7 @@ static void module_get_master_status(module_status_t *status)
 	status->rf_up = 1;
 }
 
-static void handle_rx_commands(uint8_t id, uint8_t cmd, const buf_t *args)
+static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 {
 	module_cfg_t c;
 	module_cfg_t *cfg;
@@ -265,6 +269,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, const buf_t *args)
 		break;
 	case CMD_GET_REPORT_HUM_VAL:
 		cfg->humidity_report_interval = *(uint16_t *)args->data;
+		break;
 		break;
 	case CMD_ENABLE_FAN:
 		cfg->fan_enabled = 1;
@@ -555,9 +560,10 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			return;
 		}
 
-		DEBUG_LOG("mod0: sending op:0x%X to mod%d\n", op, id);
-		if (handle_tx_commands(module, op) >= 0)
+		if (handle_tx_commands(module, op) >= 0) {
+			DEBUG_LOG("mod0: sending op:0x%X to mod%d\n", op, id);
 			__module_skip_op(&module->op_queue);
+		}
 	}
 }
 
@@ -605,11 +611,11 @@ void master_module_init(void)
 		ring_init(&module->op_queue, OP_QUEUE_SIZE);
 		addr = module_id_to_addr(i);
 		swen_l3_assoc_init(&module->assoc, rf_enc_defkey);
-		if (cfg.state == MODULE_STATE_DISABLED)
-			continue;
 		swen_l3_assoc_bind(&module->assoc, addr, &rf_iface);
 		swen_l3_event_register(&module->assoc, EV_WRITE,
 				       rf_connecting_on_event);
+		if (cfg.state == MODULE_STATE_DISABLED)
+			continue;
 		if (swen_l3_associate(&module->assoc) < 0)
 			__abort();
 	}

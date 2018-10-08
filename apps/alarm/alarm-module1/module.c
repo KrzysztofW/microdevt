@@ -22,6 +22,8 @@
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define DEFAULT_HUMIDITY_THRESHOLD 3
 #define MAX_HUMIDITY_VALUE 80
+#define INIT_TIME 60 /* seconds */
+#define WD_TIMEOUT 8 /* watchdog timeout set in main.c */
 
 #define SIREN_ON_DURATION (1 * 60 * 1000000U) /* 1 minute */
 /* inactivity timeout in seconds */
@@ -41,9 +43,8 @@ static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint8_t humidity_sampling_update;
 static swen_l3_assoc_t mod1_assoc;
-static uint16_t report_hval_interval;
 static uint16_t report_hval_elapsed_secs;
-
+static uint8_t init_time;
 static module_cfg_t EEMEM persistent_data;
 
 typedef struct humidity_info {
@@ -82,8 +83,11 @@ void watchdog_on_wakeup(void *arg)
 	} else
 		sampling_cnt++;
 
-	if (fan_sec_cnt > 8)
-		fan_sec_cnt -= 8;
+	if (fan_sec_cnt > WD_TIMEOUT)
+		fan_sec_cnt -= WD_TIMEOUT;
+	report_hval_elapsed_secs += WD_TIMEOUT;
+	if (init_time < INIT_TIME)
+		init_time += WD_TIMEOUT;
 	/* stay active for 2 seconds in order to catch incoming RF packets */
 	power_management_set_inactivity(INACTIVITY_TIMEOUT - 2);
 }
@@ -98,9 +102,10 @@ static void pwr_mgr_on_sleep(void *arg)
 
 static void report_hum_value(void)
 {
-	if (report_hval_interval == 0)
+	if (module_cfg.humidity_report_interval == 0)
 		return;
-	if (report_hval_elapsed_secs >= report_hval_interval) {
+	if (report_hval_elapsed_secs >=
+	    module_cfg.humidity_report_interval) {
 		uint8_t cur_op;
 
 		report_hval_elapsed_secs = 0;
@@ -145,6 +150,8 @@ static void timer_1sec_cb(void *arg)
 			set_fan_off();
 		fan_sec_cnt--;
 	}
+	if (init_time < INIT_TIME)
+		init_time++;
 }
 
 static void set_siren_off(void)
@@ -159,7 +166,7 @@ static void siren_tim_cb(void *arg)
 
 static void set_siren_on(uint8_t force)
 {
-	if (PORTB & (1 << PB0))
+	if (PORTB & (1 << PB0) || init_time < INIT_TIME)
 		return;
 	if (module_cfg.state != MODULE_STATE_ARMED && !force)
 		return;
@@ -262,11 +269,18 @@ static void update_storage(void)
 static void reload_cfg_from_storage(void)
 {
 	eeprom_read_block(&module_cfg, &persistent_data, sizeof(module_cfg_t));
-	if (module_cfg.humidity_threshold == 0xFF ||
-	    module_cfg.humidity_threshold == 0)
-		module_cfg.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
-	if (module_cfg.state == 0)
+
+#ifdef CONFIG_AVR_SIMU
+	if (module_cfg.state == 0) {
 		module_cfg.state = MODULE_STATE_DISARMED;
+	}
+#endif
+	/* check if EEPROM is blank */
+	if (module_cfg.humidity_threshold == 0xFF) {
+		module_cfg.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
+		module_cfg.humidity_report_interval = 0;
+		update_storage();
+	}
 }
 
 static void handle_rx_commands(uint8_t cmd, uint16_t value);
@@ -401,28 +415,26 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 	case CMD_GET_REPORT_HUM_VAL:
 		module_cfg.humidity_report_interval = value;
 		update_storage();
-		report_hval_interval = value;
 		return;
 	}
 }
 
 static void module1_parse_commands(buf_t *buf)
 {
-	uint8_t cmd;
-	uint16_t value;
+       uint8_t cmd;
+       uint16_t value;
 
-	if (buf_len(buf) == 0)
-		return;
+       if (buf_len(buf) == 0)
+	       return;
+       cmd = buf_data(buf)[0];
+       if (buf_len(buf) >= 3)
+	       value = *(uint16_t *)(buf_data(buf) + 1);
+       else if (buf_len(buf) == 2)
+	       value = *(uint8_t *)(buf_data(buf) + 1);
+       else
+	       value = 0;
 
-	cmd = buf_data(buf)[0];
-	if (buf_len(buf) >= 3)
-		value = *(uint16_t *)(buf_data(buf) + 1);
-	else if (buf_len(buf) == 2)
-		value = *(uint8_t *)(buf_data(buf) + 1);
-	else
-		value = 0;
-
-	handle_rx_commands(cmd, value);
+       handle_rx_commands(cmd, value);
 }
 
 #ifdef DEBUG
@@ -443,8 +455,7 @@ static void module_print_status(void)
 	    " Humidity threshold:  %u%%\n",
 	    hval > 100 ? 0 : hval,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
-	    get_hum_tendency(),
-	    module_cfg.humidity_threshold);
+	    get_hum_tendency(), module_cfg.humidity_threshold);
 	LOG(" Fan: %d\n Fan enabled: %d\n", !!(PORTD & 1 << PD3),
 	    module_cfg.fan_enabled);
 	LOG(" Siren:  %d\n", !!(PORTB & 1 << PB0));
