@@ -14,6 +14,8 @@ typedef struct __attribute__((__packed__)) task {
 #ifndef CONFIG_SCHEDULER_TASK_WATER_MARK
 #define CONFIG_SCHEDULER_TASK_WATER_MARK 14
 #endif
+#define SCHEDULER_TASK_WATER_MARK				\
+	(CONFIG_SCHEDULER_TASK_WATER_MARK * sizeof(task_t))
 
 #define RING_SIZE (CONFIG_SCHEDULER_MAX_TASKS * sizeof(task_t))
 
@@ -26,10 +28,13 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 		.cb = cb,
 		.arg = arg,
 	};
-	ring_t *r = IRQ_CHECK() ? ring_irq : ring;
+	ring_t *r = IRQ_CHECK() ? ring : ring_irq;
 
-	if (ring_add(r, &task, sizeof(task_t)) < 0)
-		__abort();
+	while (ring_add(r, &task, sizeof(task_t)) < 0) {
+		if (r == ring_irq)
+			__abort();
+		scheduler_run_tasks();
+	}
 }
 
 void scheduler_run_tasks(void)
@@ -43,7 +48,7 @@ void scheduler_run_tasks(void)
 	if (irq_rlen < sizeof(task_t))
 		irq_enable();
 	else {
-		if (irq_rlen / sizeof(task_t) >= CONFIG_SCHEDULER_TASK_WATER_MARK)
+		if (irq_rlen >= SCHEDULER_TASK_WATER_MARK)
 			irq_disable();
 		__ring_get_buf(ring_irq, &buf);
 		task.cb(task.arg);
