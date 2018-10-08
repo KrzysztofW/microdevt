@@ -219,11 +219,9 @@ static void print_status(uint8_t id, module_status_t *status)
 
 static int module_send_cmd(swen_l3_assoc_t *assoc, uint8_t cmd)
 {
-	buf_t buf = BUF(1);
-	sbuf_t sbuf;
+	sbuf_t sbuf = SBUF_INIT(&cmd, 1);
 
-	__buf_addc(&buf, cmd);
-	sbuf = buf2sbuf(&buf);
+	LOG("sending cmd:%X\n", cmd);
 	return swen_l3_send(assoc, &sbuf);
 }
 
