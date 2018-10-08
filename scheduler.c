@@ -53,6 +53,7 @@ void scheduler_run_tasks(void)
 	}
 
 	if (ring_len(ring) >= sizeof(task_t)) {
+		buf_reset(&buf);
 		__ring_get_buf(ring, &buf);
 		task.cb(task.arg);
 #ifdef CONFIG_POWER_MANAGEMENT
