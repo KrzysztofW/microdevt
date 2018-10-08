@@ -40,6 +40,9 @@ void pkt_mempool_shutdown(void);
 void pkt_mempool_init(unsigned nb_pkts, unsigned pkt_size);
 
 #ifdef PKT_DEBUG
+#ifndef DEBUG
+#error "DEBUG must be defined"
+#endif
 pkt_t *__pkt_get(ring_t *ring, const char *func, int line);
 int __pkt_put(ring_t *ring, pkt_t *pkt, const char *func, int line);
 #define pkt_get(ring) __pkt_get(ring, __func__, __LINE__)

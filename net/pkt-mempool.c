@@ -73,9 +73,14 @@ int __pkt_put(ring_t *ring, pkt_t *pkt, const char *func, int line)
 
 pkt_t *__pkt_alloc(const char *func, int line)
 {
-	pkt_t *pkt;
+	pkt_t *pkt = pkt_get(pkt_pool);
 
-	pkt = pkt_get(pkt_pool);
+	if (pkt == NULL)
+		return NULL;
+	/* detect double free */
+	assert(pkt->refcnt == 0);
+
+	pkt->refcnt++;
 	DEBUG_LOG("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
 	return pkt;
 }
@@ -83,10 +88,13 @@ pkt_t *__pkt_alloc(const char *func, int line)
 
 void __pkt_free(pkt_t *pkt, const char *func, int line)
 {
-	if (pkt->refcnt) {
-		pkt->refcnt--;
+	/* detect double free */
+	assert(pkt->refcnt);
+
+	pkt->refcnt--;
+	if (pkt->refcnt)
 		return;
-	}
+
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
 		assert(emergency_pkt);
@@ -95,6 +103,7 @@ void __pkt_free(pkt_t *pkt, const char *func, int line)
 		return;
 	}
 #endif
+	DEBUG_LOG("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
 	buf_reset(&pkt->buf);
 	if (pkt_put(pkt_pool, pkt) < 0)
 		__abort();
@@ -124,15 +133,36 @@ int pkt_put(ring_t *ring, pkt_t *pkt)
 
 pkt_t *pkt_alloc(void)
 {
+#ifdef DEBUG
+	pkt_t *pkt = pkt_get(pkt_pool);
+
+	if (pkt == NULL)
+		return NULL;
+	/* detect double free */
+	assert(pkt->refcnt == 0);
+
+	pkt->refcnt++;
+	return pkt;
+#else
 	return pkt_get(pkt_pool);
+#endif
 }
 
 void pkt_free(pkt_t *pkt)
 {
+#ifdef DEBUG
+	/* detect double free */
+	assert(pkt->refcnt);
+
+	pkt->refcnt--;
+	if (pkt->refcnt)
+		return;
+#else
 	if (pkt->refcnt) {
 		pkt->refcnt--;
 		return;
 	}
+#endif
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
