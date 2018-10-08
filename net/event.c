@@ -19,7 +19,7 @@ static void event_cb(void *arg)
 			ev->available &= ~EV_WRITE;
 		else if (pkt_pool_get_nb_free() == 0) {
 			ev->available &= ~EV_WRITE;
-			if (ev->wanted & EV_WRITE)
+			if ((ev->wanted & EV_WRITE) && list_empty(&ev->list))
 				list_add_tail(&ev->list, &retry_list);
 		} else
 			ev->available |= EV_WRITE;
