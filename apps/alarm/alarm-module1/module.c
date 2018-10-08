@@ -504,18 +504,17 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 #endif
 
 	if (events & EV_READ) {
-		pkt_t *pkt = swen_l3_get_pkt(assoc);
+		pkt_t *pkt;
+		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
+			DEBUG_LOG("got pkt of len:%d from mod%d\n",
+				  buf_len(&pkt->buf), id);
+			module1_parse_commands(&pkt->buf);
+			pkt_free(pkt);
+		}
+	}
+	if (events & (EV_ERROR | EV_HUNGUP))
+		goto error;
 
-		DEBUG_LOG("got pkt of len:%d from mod%d\n", buf_len(&pkt->buf),
-			  id);
-		module1_parse_commands(&pkt->buf);
-		pkt_free(pkt);
-	}
-	if (events & (EV_ERROR | EV_HUNGUP)) {
-		DEBUG_LOG("mod%d disconnected\n", id);
-		swen_l3_event_unregister(assoc);
-		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
-	}
 	if (events & EV_WRITE) {
 		uint8_t op;
 
@@ -524,9 +523,19 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			return;
 		}
 		DEBUG_LOG("mod1: sending op:0x%X to mod%d\n", op, id);
-		if (handle_tx_commands(op) >= 0)
+		if (handle_tx_commands(op) >= 0) {
 			module_skip_op();
+			return;
+		}
+		if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
+			goto error;
+		goto error;
 	}
+	return;
+ error:
+	DEBUG_LOG("mod%d disconnected\n", id);
+	swen_l3_event_unregister(assoc);
+	swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 }
 
 static void rf_connecting_on_event(event_t *ev, uint8_t events)
@@ -535,7 +544,7 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 #ifdef DEBUG
 	uint8_t id = addr_to_module_id(assoc->dst);
 #endif
-	if (events & EV_ERROR) {
+	if (events & (EV_ERROR | EV_HUNGUP)) {
 		DEBUG_LOG("failed to connect to mod%d\n", id);
 		swen_l3_event_unregister(assoc);
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);

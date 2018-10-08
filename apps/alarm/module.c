@@ -550,19 +550,20 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 	module_t *module = container_of(assoc, module_t, assoc);
 
 	if (events & EV_READ) {
-		pkt_t *pkt = swen_l3_get_pkt(assoc);
+		pkt_t *pkt;
 
-		DEBUG_LOG("got pkt of len:%d from mod%d\n", buf_len(&pkt->buf),
-			  id);
-		module0_parse_commands(assoc->dst, &pkt->buf);
-		pkt_free(pkt);
+		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
+			DEBUG_LOG("got pkt of len:%d from mod%d\n",
+				  buf_len(&pkt->buf), id);
+			module0_parse_commands(assoc->dst, &pkt->buf);
+			pkt_free(pkt);
+		}
 	}
 	if (events & (EV_ERROR | EV_HUNGUP)) {
 		DEBUG_LOG("mod%d disconnected\n", id);
-		swen_l3_event_unregister(assoc);
-		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 		if ((events & EV_ERROR) && swen_l3_associate(&module->assoc) < 0)
 			__abort();
+		goto error;
 	}
 	if (events & EV_WRITE) {
 		uint8_t op;
@@ -575,8 +576,13 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		if (handle_tx_commands(module, op) >= 0) {
 			DEBUG_LOG("mod0: sending op:0x%X to mod%d\n", op, id);
 			__module_skip_op(&module->op_queue);
-		}
+		} else if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
+			goto error;
 	}
+	return;
+ error:
+	swen_l3_event_unregister(assoc);
+	swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 }
 
 static void rf_connecting_on_event(event_t *ev, uint8_t events)
@@ -586,23 +592,28 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 #ifdef DEBUG
 	uint8_t id = addr_to_module_id(assoc->dst);
 #endif
-	if (events & (EV_ERROR | EV_HUNGUP)) {
-		DEBUG_LOG("failed to connect to mod%d\n", id);
-		swen_l3_event_unregister(assoc);
-		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
-		return;
-	}
+	if (events & (EV_ERROR | EV_HUNGUP))
+		goto error;
+
 	if (events & EV_WRITE) {
 		uint8_t flags = EV_READ;
 
 		DEBUG_LOG("connected to mod%d\n", id);
 		/* get slave statuses */
-		if (module_send_cmd(assoc, CMD_GET_STATUS) < 0)
+		if (module_send_cmd(assoc, CMD_GET_STATUS) < 0) {
+			if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
+				goto error;
 			return;
+		}
 		if (__module_op_pending(&module->op_queue))
 			flags |= EV_WRITE;
 		swen_l3_event_register(assoc, flags, rf_event_cb);
 	}
+	return;
+ error:
+	DEBUG_LOG("failed to connect to mod%d\n", id);
+	swen_l3_event_unregister(assoc);
+	swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 }
 
 void master_module_init(void)
