@@ -1,3 +1,4 @@
+#include <avr/interrupt.h>
 #include <_stdio.h>
 #include <sys/buf.h>
 #include <timer.h>
