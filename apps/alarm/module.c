@@ -265,10 +265,10 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 			set_siren_off();
 		break;
 	case CMD_SET_HUM_TH:
-		cfg->humidity_threshold = args->data[0];
+		__buf_getc(args, &cfg->humidity_threshold);
 		break;
 	case CMD_GET_REPORT_HUM_VAL:
-		cfg->humidity_report_interval = *(uint16_t *)args->data;
+		__buf_get_u16(args, &cfg->humidity_report_interval);
 		break;
 		break;
 	case CMD_ENABLE_FAN:

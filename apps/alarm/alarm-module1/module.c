@@ -421,20 +421,16 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 
 static void module1_parse_commands(buf_t *buf)
 {
-       uint8_t cmd;
-       uint16_t value;
+	uint8_t cmd;
+	uint8_t v8;
+	uint16_t v16 = 0;
 
-       if (buf_len(buf) == 0)
-	       return;
-       cmd = buf_data(buf)[0];
-       if (buf_len(buf) >= 3)
-	       value = *(uint16_t *)(buf_data(buf) + 1);
-       else if (buf_len(buf) == 2)
-	       value = *(uint8_t *)(buf_data(buf) + 1);
-       else
-	       value = 0;
-
-       handle_rx_commands(cmd, value);
+	if (buf_getc(buf, &cmd) < 0)
+		return;
+	if (buf_get_u16(buf, &v16) < 0)
+		if (buf_getc(buf, &v8) >= 0)
+			v16 = v8;
+	handle_rx_commands(cmd, v16);
 }
 
 #ifdef DEBUG

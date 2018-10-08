@@ -280,6 +280,20 @@ static inline int buf_skip(buf_t *buf, int len)
 	return 0;
 }
 
+static inline void __buf_get_u16(buf_t *buf, uint16_t *val)
+{
+	*val = *(uint16_t *)buf->data;
+	__buf_skip(buf, sizeof(uint16_t));
+}
+
+static inline int buf_get_u16(buf_t *buf, uint16_t *val)
+{
+	if (buf_len(buf) < sizeof(uint16_t))
+		return -1;
+	__buf_get_u16(buf, val);
+	return 0;
+}
+
 static inline void buf_skip_spaces(buf_t *buf)
 {
 	while (buf_len(buf) && isspace(buf_data(buf)[0]))
