@@ -149,7 +149,8 @@ static void swen_l3_task_cb(void *arg)
 		assoc->iface->send(assoc->iface, pkt);
 		break;
 	}
-	timer_reschedule(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY);
+	if (!timer_is_pending(&assoc->timer))
+	    timer_reschedule(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY);
 }
 
 #ifdef TEST
