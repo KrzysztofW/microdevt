@@ -572,7 +572,11 @@ void module1_init(void)
 #endif
 	reload_cfg_from_storage();
 	module_init_op_queues();
+
+	timer_init(&siren_timer);
+	timer_init(&timer_1sec);
 	timer_add(&timer_1sec, ONE_SECOND, timer_1sec_cb, NULL);
+
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_power_down_init(INACTIVITY_TIMEOUT, pwr_mgr_on_sleep,
 					 NULL);

@@ -41,5 +41,6 @@ void alarm_gsm_init(void)
 {
 	init_stream1(&gsm_in, &gsm_out, 1);
 	gsm_init(gsm_in, gsm_out, gsm_cb);
+	timer_init(&timer);
 	timer_add(&timer, 30000000, gsm_tim_cb, NULL);
 }

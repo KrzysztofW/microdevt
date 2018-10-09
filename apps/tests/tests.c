@@ -477,6 +477,7 @@ static int timer_check(void)
 		timer_el_t *tim_el = &timer_els[i];
 
 		tim_el->val = i;
+		timer_init(&tim_el->timer);
 		timer_add(&tim_el->timer, i, timer_cb, tim_el);
 	}
 

@@ -7,7 +7,7 @@
 #include <common.h>
 #include "timer.h"
 
-#define TIMER_TABLE_SIZE 8
+#define TIMER_TABLE_SIZE 16
 #define TIMER_TABLE_MASK (TIMER_TABLE_SIZE - 1)
 
 struct timer_state {
@@ -16,52 +16,72 @@ struct timer_state {
 } __attribute__((__packed__));
 struct timer_state timer_state;
 
+#ifdef TIMER_DEBUG
+void timer_dump(void)
+{
+	uint8_t i;
+
+	for (i = 0; i < TIMER_TABLE_SIZE; i++) {
+		uint8_t first = 1;
+		tim_t *timer;
+		list_t *head = &timer_state.timer_list[i];
+		uint8_t flags;
+
+		irq_save(flags);
+		list_for_each_entry(timer, head, list) {
+			if (first) {
+				LOG("idx[%d]: ", i);
+				LOG("head:%p (p:%p n:%p) ", head,
+				    head->prev, head->next);
+				first = 0;
+			}
+			LOG("tim:%p (prev:%p next:%p) ", timer,
+			    timer->list.prev, timer->list.next);
+		}
+		irq_restore(flags);
+		if (!first)
+			LOG("\n");
+	}
+	LOG("\n");
+}
+#endif
+
+static unsigned ticks_to_idx(uint32_t *delta_ticks)
+{
+	unsigned idx;
+
+	if (*delta_ticks >= TIMER_TABLE_SIZE) {
+		idx = timer_state.current_idx - 1;
+		*delta_ticks -= TIMER_TABLE_MASK;
+	} else {
+		idx = timer_state.current_idx + *delta_ticks;
+		*delta_ticks = 0;
+	}
+	idx &= TIMER_TABLE_MASK;
+	return idx;
+}
+
 void timer_process(void)
 {
 	unsigned int idx;
-	list_t *pos, *n, *last_timer = NULL;
-	uint8_t process_again = 0;
 
 	idx = (timer_state.current_idx + 1) & TIMER_TABLE_MASK;
 	timer_state.current_idx = idx;
 
- again:
-	list_for_each_safe(pos, n, &timer_state.timer_list[idx]) {
-		tim_t *timer = list_entry(pos, tim_t, list);
+	while (!list_empty(&timer_state.timer_list[idx])) {
+		tim_t *timer = list_first_entry(&timer_state.timer_list[idx],
+						tim_t, list);
 
-		/* If the next entry is removed by the callback here,
-		 * the list has to be processed again from the begining as
-		 * 'n' will point to the deleted entry's next value.
-		 */
-		if (n == LIST_POISON1) {
-			process_again = 1;
-			goto again;
-		}
-		if (process_again && last_timer) {
-			if (last_timer == pos) {
-				process_again = 0;
-				last_timer = NULL;
-			}
-			continue;
-		}
-
-		assert(timer->status == TIMER_SCHEDULED);
-
-		if (timer->remaining_loops > 0) {
-			timer->remaining_loops--;
-			last_timer = pos;
-			continue;
-		}
-		timer->status = TIMER_RUNNING;
-
-		/* we are in a timer interrupt, interrups are disabled */
 		list_del_init(&timer->list);
+		if (timer->ticks > 0) {
+			unsigned i;
+
+			i = ticks_to_idx(&timer->ticks);
+			list_add_tail(&timer->list, &timer_state.timer_list[i]);
+			continue;
+		}
 
 		(*timer->cb)(timer->arg);
-
-		/* the timer has been rescheduled */
-		if (timer->status != TIMER_SCHEDULED)
-			timer->status = TIMER_STOPPED;
 	}
 }
 
@@ -83,7 +103,7 @@ void timer_subsystem_shutdown(void)
 
 void timer_init(tim_t *timer)
 {
-	memset(timer, 0, sizeof(tim_t));
+	INIT_LIST_HEAD(&timer->list);
 }
 
 /* set the tick duration to the current timer resolution */
@@ -96,22 +116,20 @@ void timer_init(tim_t *timer)
 void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 {
 	unsigned int idx;
-	uint32_t ticks = expiry / TIMER_RESOLUTION;
 	uint8_t flags;
 
-	/* don't schedule at current idx */
-	if (ticks == 0)
-		ticks = 1;
+	assert(!timer_is_pending(timer));
+	timer->ticks = expiry / TIMER_RESOLUTION;
 
-	assert(timer->status == TIMER_STOPPED || timer->status == TIMER_RUNNING);
+	/* don't schedule at current idx */
+	if (timer->ticks == 0)
+		timer->ticks = 1;
 
 	timer->cb = cb;
 	timer->arg = arg;
-	timer->remaining_loops = ticks / TIMER_TABLE_SIZE;
-	timer->status = TIMER_SCHEDULED;
 
 	irq_save(flags);
-	idx = (timer_state.current_idx + ticks) & TIMER_TABLE_MASK;
+	idx = ticks_to_idx(&timer->ticks);
 	list_add_tail(&timer->list, &timer_state.timer_list[idx]);
 	irq_restore(flags);
 }
@@ -124,10 +142,7 @@ void timer_del(tim_t *timer)
 		return;
 
 	irq_save(flags);
-	if (timer_is_pending(timer)) {
-		list_del(&timer->list);
-		timer->status = TIMER_STOPPED;
-	}
+	list_del_init(&timer->list);
 	irq_restore(flags);
 }
 
@@ -233,6 +248,9 @@ static void check_subsequent_deletion(void)
 void timer_checks(void)
 {
 	int i;
+
+	for (i = 0; i < TIM_CNT; i++)
+		timer_init(&timers[i]);
 
 	LOG("\n=== starting timer tests ===\n\n");
 

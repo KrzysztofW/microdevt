@@ -219,6 +219,7 @@ gsm_init(FILE *in, FILE *out, void (*cb)(uint8_t status, const sbuf_t *from,
 #if DEBUG_GSM
 	ring_dbg = ring_create(RING_SIZE);
 #endif
+	timer_init(&timer);
 	gsm_in = in;
 	gsm_out = out;
 	gsm_cb = cb;

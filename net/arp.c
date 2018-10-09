@@ -294,6 +294,7 @@ void arp_resolve(pkt_t *pkt, const uint32_t *ip_dst, const iface_t *iface)
 	memset(&arp_res->tim, 0, sizeof(tim_t));
 	INIT_LIST_HEAD(&arp_res->list);
 	INIT_LIST_HEAD(&arp_res->pkt_list);
+	timer_init(&arp_res->tim);
 	list_add_tail(&pkt->list, &arp_res->pkt_list);
 	arp_res->retries = 0;
 	arp_res->iface = iface;

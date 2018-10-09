@@ -577,6 +577,7 @@ void rf_init(iface_t *iface, uint8_t burst)
 
 	if ((ctx = calloc(1, sizeof(rf_ctx_t))) == NULL)
 		__abort();
+	timer_init(&ctx->timer);
 #ifdef CONFIG_RF_RECEIVER
 #ifndef X86
 	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);

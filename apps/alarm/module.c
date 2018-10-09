@@ -622,6 +622,7 @@ void master_module_init(void)
 
 	cfg_load_master();
 	module_init_iface(&rf_iface, &rf_addr);
+	timer_init(&siren_timer);
 #ifdef RF_DEBUG
 	module1_init();
 #endif
