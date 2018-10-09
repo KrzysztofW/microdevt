@@ -67,11 +67,12 @@ int main(void)
 	DEBUG_LOG("KW alarm module 1\n");
 #endif
 	timer_subsystem_init();
+	irq_enable();
+
 	scheduler_init();
 
 #ifdef CONFIG_TIMER_CHECKS
 	watchdog_shutdown();
-	irq_enable();
 	timer_checks();
 #endif
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);
@@ -99,10 +100,8 @@ int main(void)
 #endif
 	timer_init(&wd_timer);
 	timer_add(&wd_timer, TIMER_WD_TIMEOUT, wd_timer_cb, NULL);
-	irq_enable();
 
 	/* interruptible functions */
-
 	while (1) {
 		scheduler_run_tasks();
 		watchdog_reset();

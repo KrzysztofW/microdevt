@@ -68,9 +68,10 @@ int main(void)
 #endif
 	init_adc_f();
 	timer_subsystem_init();
+	irq_enable();
+
 #ifdef CONFIG_TIMER_CHECKS
 	watchdog_shutdown();
-	irq_enable();
 	timer_checks();
 #endif
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER	\
@@ -101,7 +102,6 @@ int main(void)
 	master_module_init();
 #endif
 #endif
-	irq_enable();
 
 	/* interruptible functions */
 	while (1) {
