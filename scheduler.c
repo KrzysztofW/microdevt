@@ -67,9 +67,10 @@ void scheduler_run_tasks(void)
 	if (irq_rlen) {
 		if (irq_rlen >= SCHEDULER_TASK_WATER_MARK)
 			irq_disable();
+		else
+			irq_enable();
 		__scheduler_run_tasks(ring_irq);
-	} else
-		irq_enable();
+	}
 
 	if (ring_len(ring))
 		__scheduler_run_tasks(ring);
