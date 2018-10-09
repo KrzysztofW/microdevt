@@ -12,7 +12,7 @@ typedef struct __attribute__((__packed__)) task {
 #define CONFIG_SCHEDULER_MAX_TASKS 16
 #endif
 #ifndef CONFIG_SCHEDULER_TASK_WATER_MARK
-#define CONFIG_SCHEDULER_TASK_WATER_MARK 14
+#define CONFIG_SCHEDULER_TASK_WATER_MARK 8
 #endif
 #define SCHEDULER_TASK_WATER_MARK				\
 	(CONFIG_SCHEDULER_TASK_WATER_MARK * sizeof(task_t))
@@ -35,8 +35,11 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 	ring_t *r = IRQ_CHECK() ? ring : ring_irq;
 
 	while (ring_add(r, &task, sizeof(task_t)) < 0) {
-		if (r == ring_irq)
+		if (r == ring_irq) {
+			DEBUG_LOG("cannot schedule: lower TASK_WATER_MARK "
+				  "option\n");
 			__abort();
+		}
 		scheduler_run_tasks();
 	}
 }
