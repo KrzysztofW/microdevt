@@ -10,11 +10,12 @@ uint16_t power_management_inactivity;
 
 #define ONE_SECOND 1000000
 
-static void enter_sleep_mode_cb(void *arg)
+static void enter_power_down_mode_cb(void *arg)
 {
 	if (on_sleep_cb)
 		on_sleep_cb(on_sleep_arg);
 	power_management_set_mode(PWR_MGR_SLEEP_MODE_PWR_DOWN);
+	power_management_disable_bod();
 	power_management_sleep();
 }
 
@@ -26,7 +27,7 @@ static void timer_cb(void *arg)
 	if (power_management_inactivity < pwr_mgr_sleep_timeout)
 		return;
 	/* interrupts must be enabled when entering sleep mode */
-	schedule_task(enter_sleep_mode_cb, NULL);
+	schedule_task(enter_power_down_mode_cb, NULL);
 }
 
 void
