@@ -26,6 +26,39 @@ struct ring {
 typedef struct ring ring_t;
 #undef TYPE
 
+/*
+ * Note: a static ring declaration must always be done within a struct.
+ * The following static ring declaration can be used for declaring a ring
+ * as a global variable in a C file.
+ * The size of a ring MUST be a power of 2.
+ */
+#define RING_DECL(name, size)			\
+	struct  {				\
+		ring_t ring;			\
+		uint8_t ring_data[size];	\
+	} ring_##name = {			\
+		.ring.mask = size - 1,		\
+	};					\
+	ring_t *name = &ring_##name.ring
+
+/*
+ * Use this macro to declare rings in C structures
+ *
+ * Example of usage:
+ *  struct {
+ *	RING_DECL_IN_STRUCT(my_ring, 4);
+ *   } a = {
+ *	.my_ring = RING_INIT(a.my_ring),
+ * };
+ */
+#define RING_DECL_IN_STRUCT(name, size)		\
+	ring_t name;				\
+	uint8_t name##_data[size];
+
+#define RING_INIT(name) {				\
+		.mask = sizeof(name##_data) - 1,	\
+	}
+
 static inline void ring_reset(ring_t *ring)
 {
 	ring->tail = ring->head;
@@ -39,9 +72,8 @@ static inline void ring_init(ring_t *ring, int size)
 #endif
 	if (!POWEROF2(size))
 		__abort();
-	ring->head = 0;
+	ring->head = ring->tail = 0;
 	ring->mask = size - 1;
-	ring_reset(ring);
 }
 
 static inline ring_t *ring_create(int size)
