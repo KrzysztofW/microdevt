@@ -294,6 +294,20 @@ static inline int buf_get_u16(buf_t *buf, uint16_t *val)
 	return 0;
 }
 
+static inline void __buf_get(buf_t *buf, void *data, int len)
+{
+	memcpy(data, buf->data, len);
+	__buf_skip(buf, len);
+}
+
+static inline int buf_get(buf_t *buf, void *data, int len)
+{
+	if (buf_len(buf) < len)
+		return -1;
+	__buf_get(buf, data, len);
+	return 0;
+}
+
 static inline void buf_skip_spaces(buf_t *buf)
 {
 	while (buf_len(buf) && isspace(buf_data(buf)[0]))
