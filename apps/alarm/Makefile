@@ -4,7 +4,7 @@ EXE = alarm
 CFLAGS = -Wall -Werror -Os -g -c
 
 SOURCES = main.c $(ARCH_DIR)/$(ARCH)/adc.c
-SOURCES += ../../crypto/xtea.c ../../scheduler.c features.c
+SOURCES += ../../crypto/xtea.c ../../scheduler.c
 
 include config
 include build.mk

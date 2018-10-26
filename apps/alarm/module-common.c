@@ -1,12 +1,17 @@
+#include <eeprom.h>
+#include "module.h"
 #include "module-common.h"
 
 const uint32_t rf_enc_defkey[4] = {
 	0xab9d6f04, 0xe6c82b9d, 0xefa78f03, 0xbc96f19c
 };
 
+#define MAGIC 0xA2
+static uint8_t EEMEM eeprom_magic;
+
 #define TX_QUEUE_SIZE 4
-static ring_t *tx_queue;
-static ring_t *urgent_tx_queue;
+static RING_DECL(tx_queue, TX_QUEUE_SIZE);
+static RING_DECL(urgent_tx_queue, TX_QUEUE_SIZE);
 
 void module_init_iface(iface_t *iface, uint8_t *addr)
 {
@@ -24,10 +29,19 @@ void module_init_iface(iface_t *iface, uint8_t *addr)
 	rf_init(iface, 1);
 }
 
-void module_init_op_queues(void)
+int module_check_magic(void)
 {
-	tx_queue = ring_create(TX_QUEUE_SIZE);
-	urgent_tx_queue = ring_create(TX_QUEUE_SIZE);
+	uint8_t magic;
+
+	eeprom_load(&eeprom_magic, &magic, sizeof(magic));
+	return magic == MAGIC;
+}
+
+void module_update_magic(void)
+{
+	uint8_t magic = MAGIC;
+
+	eeprom_update(&eeprom_magic, &magic, sizeof(magic));
 }
 
 static void module_task_cb(void *arg)
@@ -74,6 +88,17 @@ int module_get_op(uint8_t *op)
 void __module_skip_op(ring_t *queue)
 {
 	__ring_skip(queue, 1);
+}
+
+void __module_reset_op_queue(ring_t *queue)
+{
+	ring_reset(queue);
+}
+
+void module_reset_op_queues(void)
+{
+	ring_reset(urgent_tx_queue);
+	ring_reset(tx_queue);
 }
 
 void module_skip_op(void)

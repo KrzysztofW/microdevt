@@ -2,15 +2,18 @@
 #define _MODULE_H_
 #include <net/swen-l3.h>
 #include <net/swen-rc.h>
-#include "features.h"
+#include <interrupts.h>
+#include "module-common.h"
 
 typedef enum module_state {
-	MODULE_STATE_DISARMED = 1,
+	MODULE_STATE_DISARMED,
 	MODULE_STATE_ARMED,
-	MODULE_STATE_DISABLED = 3, /* 0xFF => default blank eeprom value */
+	MODULE_STATE_DISABLED,
+	MODULE_STATE_UNINITIALIZED,
 } module_state_t;
 
 typedef struct __attribute__((__packed__)) module_cfg {
+	features_t features;
 	uint8_t  state : 2;
 	uint8_t  fan_enabled : 1;
 	uint16_t siren_duration;
@@ -38,20 +41,43 @@ static inline const char *humidity_tendency_to_str(uint8_t tendency)
 	}
 }
 
+typedef enum status_flags {
+	STATUS_STATE_CONN_LAN_UP = 1,
+	STATUS_STATE_CONN_RF_UP  = (1 << 1),
+	STATUS_STATE_FAN_ON      = (1 << 2),
+	STATUS_STATE_FAN_ENABLED = (1 << 3),
+	STATUS_STATE_SIREN_ON = (1 << 5),
+} status_flags_t;
+
+typedef struct __attribute__((__packed__)) humidity_status {
+	uint16_t report_interval;
+	uint8_t  threshold;
+	uint8_t  val;
+	uint8_t  global_val;
+	uint8_t  tendency;
+} humidity_status_t;
+
 typedef struct __attribute__((__packed__)) module_status {
-	module_cfg_t cfg;
-	uint8_t humidity_val;
-	uint8_t global_humidity_val;
-	int8_t  temperature;
-	uint8_t humidity_tendency : 2;
-	uint8_t fan_on : 1;
-	uint8_t siren_on : 1;
-	uint8_t lan_up : 1;
-	uint8_t rf_up : 1;
+	uint8_t  flags;
+	uint8_t  state;
+	humidity_status_t humidity;
+	int8_t   temperature;
+	uint16_t siren_duration;
 } module_status_t;
 
+typedef struct __attribute__((__packed__)) module_register {
+	uint8_t cmd;
+	uint8_t features;
+	uint16_t req_id;
+} module_register_t;
+
+typedef struct __attribute__((__packed__)) module_addr_t {
+	uint8_t cmd;
+	uint8_t addr;
+	uint16_t req_id;
+} module_addr_t;
+
 typedef struct module {
-	const module_features_t *features;
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	swen_rc_ctx_t rc_ctx;
 	uint32_t local_counter;
@@ -65,6 +91,8 @@ typedef struct module {
 } module_t;
 
 typedef enum commands {
+	CMD_REGISTER_DEVICE,
+	CMD_SET_ADDR,
 	CMD_ARM,
 	CMD_DISARM,
 	CMD_RUN_FAN,

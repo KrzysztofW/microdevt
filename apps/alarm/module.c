@@ -5,24 +5,27 @@
 #include <net/swen-l3.h>
 #include <net/swen-cmds.h>
 #include <adc.h>
-#include <avr/eeprom.h>
+#include <eeprom.h>
 #include <interrupts.h>
 #include "module.h"
-#include "rf-common.h"
 #include "module-common.h"
-#include "features.h"
 
 /* #define RF_DEBUG */
 
 #define SIREN_ON_DURATION (15 * 60)
 
+#define THIS_MODULE_FEATURES MODULE_FEATURE_TEMPERATURE |		\
+	MODULE_FEATURE_SIREN | MODULE_FEATURE_LAN | MODULE_FEATURE_RF
+
 #if defined (CONFIG_RF_RECEIVER) || defined (CONFIG_RF_SENDER)
-static uint8_t rf_addr = RF_MOD0_HW_ADDR;
+static uint8_t rf_addr = RF_MASTER_MOD_HW_ADDR;
 static iface_t rf_iface;
 #ifdef RF_DEBUG
 iface_t *rf_debug_iface1 = &rf_iface;
 #endif
 #endif
+static uint8_t tmp_rf_addr;
+static uint8_t tmp_features;
 
 #ifdef CONFIG_NETWORKING
 extern iface_t eth_iface;
@@ -84,30 +87,18 @@ static cmd_t cmds[] = {
 #define NB_MODULES 2
 static module_t modules[NB_MODULES];
 static module_cfg_t master_cfg;
-static module_cfg_t EEMEM persistent_data[NB_MODULES];
+static module_cfg_t EEMEM module_cfgs[NB_MODULES];
 
 static void cfg_load(module_cfg_t *cfg, uint8_t id)
 {
 	assert(id < NB_MODULES);
-	eeprom_read_block(cfg, &persistent_data[id], sizeof(module_cfg_t));
+	eeprom_load(cfg, &module_cfgs[id], sizeof(module_cfg_t));
 }
 
 static void cfg_update(module_cfg_t *cfg, uint8_t id)
 {
 	assert(id < NB_MODULES);
-	irq_disable();
-	eeprom_update_block(cfg, &persistent_data[id], sizeof(module_cfg_t));
-	irq_enable();
-}
-
-static inline void cfg_load_master(void)
-{
-	cfg_load(&master_cfg, 0);
-	/* master module cannot be disabled */
-	if (master_cfg.state == MODULE_STATE_DISABLED) {
-		master_cfg.state = MODULE_STATE_DISARMED;
-		master_cfg.siren_duration = SIREN_ON_DURATION;
-	}
+	eeprom_update(&module_cfgs[id], cfg, sizeof(module_cfg_t));
 }
 
 static inline void cfg_update_master(void)
@@ -172,48 +163,54 @@ static uint8_t get_connected_rf_devices(void)
 {
 	uint8_t i, connected = 0;
 
-	for (i = 0; i < NB_MODULES; i++)
+	for (i = 1; i < NB_MODULES; i++)
 		if (swen_l3_get_state(&modules[i].assoc) == S_STATE_CONNECTED)
 			connected++;
 	return connected;
 }
 
-static void print_status(uint8_t id, module_status_t *status)
+static void print_status(const module_cfg_t *cfg, uint8_t id,
+			 const module_status_t *status)
 {
-	const module_features_t *features = modules[id].features;
+	uint8_t features = cfg->features;
 
 	LOG("\nModule %d:\n", id);
-	LOG(" State:  %s\n", state_to_string(status->cfg.state));
-	if (features->humidity) {
+	LOG(" State:  %s\n", state_to_string(status->state));
+	if (features & MODULE_FEATURE_HUMIDITY) {
 		LOG(" Humidity value:  %u%%\n"
 		    " Global humidity value:  %u%%\n"
 		    " Humidity tendency:  %s\n"
 		    " Humidity threshold:  %u%%\n"
 		    " Humidity report interval: %u secs\n",
-		    status->humidity_val,
-		    status->global_humidity_val,
-		    humidity_tendency_to_str(status->humidity_tendency),
-		    status->cfg.humidity_threshold,
-		    status->cfg.humidity_report_interval);
+		    status->humidity.val,
+		    status->humidity.global_val,
+		    humidity_tendency_to_str(status->humidity.tendency),
+		    status->humidity.threshold,
+		    status->humidity.report_interval);
 	}
-	if (features->temperature)
-		LOG(" Temp:  %u\n", analog_read(3));
+	if (features & MODULE_FEATURE_TEMPERATURE)
+		LOG(" Temperatue:  %u\n", status->temperature);
 
-	if (features->fan)
+	if (features & MODULE_FEATURE_FAN)
 		LOG(" Fan:  %s\n Fan enabled:  %s\n",
-		    on_off(status->fan_on), yes_no(status->cfg.fan_enabled));
-	if (features->siren) {
-		LOG(" Siren:  %s\n", on_off(status->siren_on));
-		LOG(" Siren duration:  %u secs\n", status->cfg.siren_duration);
+		    on_off(!!(status->flags & STATUS_STATE_FAN_ON)),
+		    yes_no(!!(status->flags & STATUS_STATE_FAN_ENABLED)));
+	if (features & MODULE_FEATURE_SIREN) {
+		LOG(" Siren:  %s\n",
+		    on_off(!!(status->flags & STATUS_STATE_SIREN_ON)));
+		LOG(" Siren duration:  %u secs\n", status->siren_duration);
 	}
-	if (features->lan)
-		LOG(" LAN:  %s\n", on_off(status->lan_up));
-	if (features->rf) {
+	if (features & MODULE_FEATURE_LAN)
+		LOG(" LAN:  %s\n",
+		    on_off(!!(status->flags & STATUS_STATE_CONN_LAN_UP)));
+	if (features & MODULE_FEATURE_RF) {
 		if (id == 0)
 			LOG(" RF connected devices: %u\n",
 			    get_connected_rf_devices());
 		else
-			LOG(" RF:  %s\n", on_off(status->rf_up));
+			LOG(" RF:  %s\n",
+			    on_off(!!(status->flags &
+				      STATUS_STATE_CONN_RF_UP)));
 	}
 }
 
@@ -231,11 +228,11 @@ static void module_get_master_status(module_status_t *status)
 {
 	if (master_cfg.state == 0)
 		master_cfg.state = MODULE_STATE_DISARMED;
-	status->cfg = master_cfg;
-	status->temperature = 0;
-	status->siren_on = !!(PORTB & (1 << PB0));
-	status->lan_up = 0;
-	status->rf_up = 1;
+	status->siren_duration = master_cfg.siren_duration;
+	status->state = master_cfg.state;
+	status->temperature = analog_read(3);
+	status->flags = STATUS_STATE_CONN_RF_UP |
+		(PORTB & (1 << PB0)) ? STATUS_STATE_SIREN_ON : 0;
 }
 
 static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
@@ -243,22 +240,30 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	module_cfg_t c;
 	module_cfg_t *cfg;
 	swen_l3_assoc_t *assoc;
+	/* uint8_t op; */
 
-	if ((!modules[id].features->fan
-	     && (cmd == CMD_RUN_FAN || cmd == CMD_STOP_FAN ||
-		 cmd == CMD_DISABLE_FAN || cmd == CMD_ENABLE_FAN)) ||
-	    (!modules[id].features->siren
-	     && (cmd == CMD_SIREN_ON || cmd == CMD_SIREN_OFF ||
-		 cmd == CMD_SET_SIREN_DURATION)) ||
-	    (!modules[id].features->humidity && cmd == CMD_SET_HUM_TH)) {
-		LOG("unsupported feature\n");
-		return;
-	}
 	if (id == 0)
 		cfg = &master_cfg;
 	else {
 		cfg = &c;
 		cfg_load(cfg, id);
+		if (cfg->state == MODULE_STATE_UNINITIALIZED) {
+			LOG("module %d not initilized\n", id);
+			return;
+		}
+	}
+
+	if ((!(cfg->features & MODULE_FEATURE_FAN)
+	     && (cmd == CMD_RUN_FAN || cmd == CMD_STOP_FAN ||
+		 cmd == CMD_DISABLE_FAN || cmd == CMD_ENABLE_FAN)) ||
+	    (!(cfg->features & MODULE_FEATURE_SIREN)
+	     && (cmd == CMD_SIREN_ON || cmd == CMD_SIREN_OFF ||
+		 cmd == CMD_SET_SIREN_DURATION || cmd == CMD_ARM ||
+		 cmd == CMD_DISARM)) ||
+	    (!(cfg->features & MODULE_FEATURE_HUMIDITY)
+	     && cmd == CMD_SET_HUM_TH)) {
+		LOG("unsupported feature\n");
+		return;
 	}
 
 	switch (cmd) {
@@ -290,7 +295,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 			module_status_t master_status;
 
 			module_get_master_status(&master_status);
-			print_status(0, &master_status);
+			print_status(cfg, 0, &master_status);
 			return;
 		}
 		break;
@@ -305,15 +310,15 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	default:
 		break;
 	}
+
 	cfg_update(cfg, id);
 	if (id == 0)
 		return;
 
-	if (!modules[id].features->rf) {
+	if (!(cfg->features & MODULE_FEATURE_RF)) {
 		LOG("module does not support RF commands\n");
 		return;
 	}
-
 	assoc = &modules[id].assoc;
 
 	if (cmd == CMD_CONNECT) {
@@ -471,37 +476,62 @@ void alarm_parse_uart_commands(buf_t *buf)
 	LOG("usage: [help] | mod[0-%d] command\n", NB_MODULES - 1);
 }
 
+static int module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
+			       module_status_t *status)
+{
+	uint8_t features = cfg->features;
+	uint8_t u8;
+
+	if (buf_getc(buf, &status->flags) < 0 || buf_getc(buf, &u8) < 0)
+		return -1;
+	status->state = u8;
+
+	if (features & MODULE_FEATURE_HUMIDITY) {
+		if (buf_get(buf, &status->humidity,
+			    sizeof(status->humidity)) < 0)
+			return -1;
+	}
+
+	if ((features & MODULE_FEATURE_TEMPERATURE)
+	    && buf_getc(buf, (uint8_t *)&status->temperature) < 0)
+		return -1;
+
+	if (features & MODULE_FEATURE_SIREN) {
+		if (buf_get_u16(buf, &status->siren_duration) < 0)
+			return -1;
+	}
+	return 0;
+}
+
 static void module0_parse_commands(uint8_t addr, buf_t *buf)
 {
 	uint8_t cmd;
 	uint8_t id = addr_to_module_id(addr);
 	uint8_t val;
-	module_status_t *status;
+	module_status_t status;
+	module_cfg_t cfg;
 
-	if (buf == NULL || buf_getc(buf, &cmd) < 0)
+	if (addr < RF_MASTER_MOD_HW_ADDR || id > NB_MODULES) {
+		DEBUG_LOG("Address 0x%X not handled\n", addr);
+		return;
+	}
+	cfg_load(&cfg, id);
+	if (cfg.state == MODULE_STATE_DISABLED || buf == NULL
+	    || buf_getc(buf, &cmd) < 0)
 		return;
 
 	switch (cmd) {
 	case CMD_STATUS:
-		if (buf_len(buf) < sizeof(module_status_t))
+		if (module_parse_status(&cfg, id, buf, &status) < 0)
 			goto error;
-
-		if (addr < RF_MOD0_HW_ADDR ||
-		    addr - RF_MOD0_HW_ADDR > NB_MODULES) {
-			LOG("Address 0x%X not handled\n", addr);
-			return;
-		}
-		status = (module_status_t *)buf_data(buf);
-		print_status(id, status);
+		print_status(&cfg, id, &status);
 		return;
 	case CMD_NOTIF_ALARM_ON:
-		LOG("mod%d: alarm on\n", id);
 		return;
 	case CMD_REPORT_HUM_VAL:
 		if (buf_len(buf) < sizeof(uint8_t))
 			goto error;
 		val = buf_data(buf)[0];
-		LOG("humidity value: %u\n", val);
 		return;
 	default:
 		return;
@@ -592,13 +622,18 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 #ifdef DEBUG
 	uint8_t id = addr_to_module_id(assoc->dst);
 #endif
-	if (events & (EV_ERROR | EV_HUNGUP))
+	if (events & EV_ERROR) {
+		swen_l3_associate(assoc);
+		goto error;
+	}
+	if (events & EV_HUNGUP)
 		goto error;
 
 	if (events & EV_WRITE) {
 		uint8_t flags = EV_READ;
 
 		DEBUG_LOG("connected to mod%d\n", id);
+
 		/* get slave statuses */
 		if (module_send_cmd(assoc, CMD_GET_STATUS) < 0) {
 			if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
@@ -616,38 +651,155 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 	swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 }
 
-void master_module_init(void)
+static int module_get_available_addr(uint8_t *addr)
 {
 	uint8_t i;
 
-	cfg_load_master();
+	for (i = 1; i < NB_MODULES; i++) {
+		module_cfg_t cfg;
+
+		cfg_load(&cfg, i);
+		if (cfg.state == MODULE_STATE_UNINITIALIZED) {
+			*addr = module_id_to_addr(i);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+static void module_register_new_device(uint8_t addr, uint8_t features)
+{
+	module_cfg_t cfg = {
+		.features = features,
+		.state = MODULE_STATE_DISARMED,
+	};
+	uint8_t id = addr_to_module_id(addr);
+	module_t *module;
+
+	cfg_update(&cfg, id);
+	module = &modules[id];
+
+	swen_l3_assoc_bind(&module->assoc, addr, &rf_iface);
+	swen_l3_event_register(&module->assoc, EV_WRITE, rf_connecting_on_event);
+}
+
+static void module_configure_new_device(swen_l3_assoc_t *assoc, buf_t *buf)
+{
+	sbuf_t sbuf;
+	buf_t out = BUF(sizeof(module_addr_t));
+	module_register_t reg;
+	module_addr_t maddr;
+
+	if (buf_get(buf, &reg, sizeof(reg)) < 0
+	    || reg.cmd != CMD_REGISTER_DEVICE)
+		goto error;
+
+	if (module_get_available_addr(&maddr.addr) < 0) {
+		DEBUG_LOG("no more available adresses for new modules\n");
+		goto error;
+	}
+
+	maddr.cmd = CMD_SET_ADDR;
+	maddr.req_id = reg.req_id;
+	__buf_add(&out, &maddr, sizeof(maddr));
+	sbuf = buf2sbuf(&out);
+	if (swen_l3_send(assoc, &sbuf) < 0)
+		goto error;
+
+	tmp_rf_addr = maddr.addr;
+	tmp_features = reg.features;
+	return;
+ error:
+	DEBUG_LOG("failed configuring new device\n");
+}
+
+static void rf_register_new_device_on_event(event_t *ev, uint8_t events)
+{
+	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
+	pkt_t *pkt;
+
+	if (events & EV_READ) {
+		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
+			if (assoc->dst == RF_INIT_ADDR)
+				module_configure_new_device(assoc, &pkt->buf);
+			pkt_free(pkt);
+		}
+	}
+
+	if (events & EV_ERROR)
+		goto end;
+	if ((events & EV_HUNGUP) && tmp_rf_addr) {
+		module_register_new_device(tmp_rf_addr, tmp_features);
+		DEBUG_LOG("registered new device id:%d\n",
+			  addr_to_module_id(tmp_rf_addr));
+		tmp_rf_addr = 0;
+		goto end;
+	}
+	return;
+ end:
+	DEBUG_LOG("addr: 0x%X %s\n", assoc->dst,
+		  !(events & EV_HUNGUP) ? "failed" : "disconnected");
+	swen_l3_event_unregister(assoc);
+	swen_l3_event_register(assoc, EV_READ, rf_register_new_device_on_event);
+}
+
+void master_module_init(void)
+{
+	uint8_t i;
+	uint8_t initialized = module_check_magic();
+
+	/* load master module configuration */
+	cfg_load(&master_cfg, 0);
+	if (!initialized) {
+		master_cfg.state = MODULE_STATE_DISARMED;
+		master_cfg.siren_duration = SIREN_ON_DURATION;
+		master_cfg.features = THIS_MODULE_FEATURES;
+		cfg_update_master();
+		module_update_magic();
+	}
+
 	module_init_iface(&rf_iface, &rf_addr);
 	timer_init(&siren_timer);
+
 #ifdef RF_DEBUG
 	module1_init();
 #endif
+
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
+#endif
+
 	for (i = 0; i < NB_MODULES; i++) {
 		uint8_t addr;
 		module_t *module = &modules[i];
 		module_cfg_t cfg;
 
-		module->features = &module_features[i];
-		if (i == 0)
-			continue;
-
-		cfg_load(&cfg, i);
 		ring_init(&module->op_queue, OP_QUEUE_SIZE);
-		addr = module_id_to_addr(i);
+		cfg_load(&cfg, i);
 		swen_l3_assoc_init(&module->assoc, rf_enc_defkey);
+
+		if (i > 0) {
+			if (cfg.state == MODULE_STATE_UNINITIALIZED)
+				continue;
+			if (!initialized) {
+				cfg.state = MODULE_STATE_UNINITIALIZED;
+				cfg_update(&cfg, i);
+				continue;
+			}
+			addr = module_id_to_addr(i);
+			swen_l3_event_register(&module->assoc, EV_WRITE,
+					       rf_connecting_on_event);
+		} else {
+			addr = RF_INIT_ADDR;
+			cfg.state = MODULE_STATE_DISABLED;
+			swen_l3_event_register(&module->assoc, EV_READ,
+					       rf_register_new_device_on_event);
+		}
+
 		swen_l3_assoc_bind(&module->assoc, addr, &rf_iface);
-		swen_l3_event_register(&module->assoc, EV_WRITE,
-				       rf_connecting_on_event);
 		if (cfg.state == MODULE_STATE_DISABLED)
 			continue;
 		if (swen_l3_associate(&module->assoc) < 0)
 			__abort();
 	}
-#ifdef CONFIG_RF_GENERIC_COMMANDS
-	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
-#endif
 }

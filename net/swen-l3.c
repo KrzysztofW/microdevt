@@ -140,7 +140,6 @@ static void swen_l3_task_cb(void *arg)
 #ifdef CONFIG_EVENT
 			event_schedule_event(&assoc->event, EV_ERROR);
 #endif
-			swen_l3_associate(assoc);
 			return;
 		}
 		retries--;

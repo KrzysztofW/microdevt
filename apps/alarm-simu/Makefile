@@ -8,7 +8,7 @@ CFLAGS = -Wall -Werror -Os -g -c -DRF_DEBUG
 CFLAGS += -DUSART0_RX_vect=USART_RX_vect -DDDRF=DDRD -DPORTF=PORTD -DPF1=PD1
 
 SOURCES = main.c $(ARCH_DIR)/$(ARCH)/adc.c
-SOURCES += ../../scheduler.c features.c
+SOURCES += ../../scheduler.c
 SOURCES += ../alarm/alarm-module1/module.c ../../sys/array.c
 
 include config
