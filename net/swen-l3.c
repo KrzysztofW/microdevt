@@ -219,9 +219,9 @@ static int __swen_l3_output(pkt_t *pkt, swen_l3_assoc_t *assoc, uint8_t op,
 	}
 
 #ifdef SWEN_L3_DEBUG
-	DEBUG_LOG("%s: to:0x%X pkt:%p iface:%p op:%s seqid:0x%02X ack:0x%02X "
+	DEBUG_LOG("%s: to:0x%X iface:%p op:%s seqid:0x%02X ack:0x%02X "
 		  "(assoc seqid:0x%02X assoc->ack:0x%02X) one_shot:%d\n\n",
-		  __func__, assoc->dst, pkt, assoc->iface, swen_l3_print_op(hdr->op),
+		  __func__, assoc->dst, assoc->iface, swen_l3_print_op(hdr->op),
 		  hdr->seq_id, hdr->ack, assoc->seq_id, assoc->ack, one_shot);
 #endif
 	if (assoc->enc_key) {
@@ -279,7 +279,8 @@ swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc, const sbuf_t *sbuf)
 
 void swen_l3_disassociate(swen_l3_assoc_t *assoc)
 {
-	swen_l3_output(S_OP_DISASSOC, assoc, NULL);
+	if (swen_l3_get_state(assoc) == S_STATE_CONNECTED)
+		swen_l3_output(S_OP_DISASSOC, assoc, NULL);
 	assoc->state = S_STATE_CLOSING;
 }
 
@@ -413,10 +414,10 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 	pkt_adj(pkt, hdr_len);
 
 #ifdef SWEN_L3_DEBUG
-	DEBUG_LOG("%s: pkt:%p iface:%p op:%s seqid:0x%02X ack:0x%02X "
+	DEBUG_LOG("%s: from:0x%X iface:%p op:%s seqid:0x%02X ack:0x%02X "
 		  "(assoc seqid:0x%02X assoc->ack:0x%02X)\n\n",
-		  __func__, pkt, iface, swen_l3_print_op(hdr->op), hdr->seq_id,
-		  hdr->ack, assoc->seq_id, assoc->ack);
+		  __func__, from, iface, swen_l3_print_op(hdr->op),
+		  hdr->seq_id, hdr->ack, assoc->seq_id, assoc->ack);
 #endif
 
 	switch (hdr->op) {
