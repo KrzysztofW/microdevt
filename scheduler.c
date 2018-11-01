@@ -26,7 +26,12 @@ static ring_t *ring_irq;
 static uint8_t idle;
 #endif
 
+#ifdef DEBUG
+void __schedule_task(void (*cb)(void *arg), void *arg,
+		     const char *func, int line)
+#else
 void schedule_task(void (*cb)(void *arg), void *arg)
+#endif
 {
 	task_t task = {
 		.cb = cb,
@@ -36,8 +41,8 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 
 	while (ring_add(r, &task, sizeof(task_t)) < 0) {
 		if (r == ring_irq) {
-			DEBUG_LOG("cannot schedule: lower TASK_WATER_MARK "
-				  "option\n");
+			DEBUG_LOG("Too many scheduled tasks from %s:%d (task:%p). "
+				  "Lower TASK_WATER_MARK option\n", func, line, cb);
 			__abort();
 		}
 		scheduler_run_tasks();
@@ -48,8 +53,11 @@ static void __scheduler_run_tasks(ring_t *r)
 {
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));
+	int rlen = ring_len(r);
 
-	assert(ring_len(r) >= sizeof(task_t));
+	assert(rlen > 0);
+	assert(rlen % sizeof(task_t) == 0);
+
 	__ring_get_buf(r, &buf);
 	task.cb(task.arg);
 #ifdef CONFIG_POWER_MANAGEMENT
