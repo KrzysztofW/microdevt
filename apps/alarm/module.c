@@ -189,7 +189,7 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 		    status->humidity.report_interval);
 	}
 	if (features & MODULE_FEATURE_TEMPERATURE)
-		LOG(" Temperatue:  %u\n", status->temperature);
+		LOG(" Temperatue:  %d\n", status->temperature);
 
 	if (features & MODULE_FEATURE_FAN)
 		LOG(" Fan:  %s\n Fan enabled:  %s\n",

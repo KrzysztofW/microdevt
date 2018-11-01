@@ -10,6 +10,7 @@
 #include <interrupts.h>
 #include <drivers/sensors.h>
 #include <eeprom.h>
+#include "gpio.h"
 #include "../module.h"
 #include "../module-common.h"
 
@@ -21,6 +22,7 @@
 #define ONE_HOUR (3600 * 1000000U)
 #define HUMIDITY_ANALOG_PIN 1
 #define FAN_ON_DURATION (4 * 3600) /* max 4h of activity */
+#define TEMPERATURE_ANALOG_PIN 3
 #define HUMIDITY_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define DEFAULT_HUMIDITY_THRESHOLD 3
@@ -54,6 +56,7 @@ static uint16_t report_hval_elapsed_secs;
 static uint8_t init_time;
 
 static uint8_t initialized;
+static uint8_t pwr_state;
 
 static module_cfg_t EEMEM persistent_data;
 
@@ -62,20 +65,19 @@ typedef struct humidity_info {
 	uint8_t tendency;
 } humidity_info_t;
 
-#define ARRAY_LENGTH 20
-static uint8_t get_humidity_cur_value(void)
+static inline uint8_t get_humidity_cur_value(void)
 {
-	uint8_t i;
-	int arr[ARRAY_LENGTH];
-	unsigned val;
+	int val = analog_read(HUMIDITY_ANALOG_PIN);
 
-	/* get rid of the extrem values */
-	for (i = 0; i < ARRAY_LENGTH; i++)
-		arr[i] = analog_read(HUMIDITY_ANALOG_PIN);
-	val = array_get_median(arr, ARRAY_LENGTH);
 	return HIH_4000_TO_RH(analog_to_millivolt(val));
 }
-#undef ARRAY_LENGTH
+
+static inline int8_t get_temperature_cur_value(void)
+{
+	int val = analog_read(TEMPERATURE_ANALOG_PIN);
+
+	return TMP36GZ_TO_C_DEGREES(analog_to_millivolt(val));
+}
 
 static void humidity_sampling_task_cb(void *arg);
 
@@ -105,7 +107,7 @@ void watchdog_on_wakeup(void *arg)
 static void pwr_mgr_on_sleep(void *arg)
 {
 	DEBUG_LOG("sleeping...\n");
-	PORTD &= ~(1 << PD4);
+	gpio_led_off();
 	watchdog_enable_interrupt(watchdog_on_wakeup, NULL);
 }
 #endif
@@ -125,25 +127,25 @@ static void report_hum_value(void)
 
 static inline void set_fan_off(void)
 {
-	PORTD &= ~(1 << PD3);
+	gpio_fan_off();
 }
 
 static void set_fan_on(void)
 {
-	PORTD |= 1 << PD3;
+	gpio_fan_on();
 	fan_sec_cnt = FAN_ON_DURATION;
 }
 
 static void timer_1sec_cb(void *arg)
 {
 	timer_reschedule(&timer_1sec, ONE_SECOND);
+
 	/* skip sampling when the siren is on */
 	if (!timer_is_pending(&siren_timer)
 	    && humidity_sampling_update++ >= HUMIDITY_SAMPLING)
 		schedule_task(humidity_sampling_task_cb, NULL);
 
-	/* toggle the LED */
-	PORTD ^= 1 << PD4;
+	gpio_led_toggle();
 
 #ifdef CONFIG_POWER_MANAGEMENT
 	/* do not sleep if the siren is on */
@@ -162,22 +164,22 @@ static void timer_1sec_cb(void *arg)
 
 static void set_siren_off(void)
 {
-	PORTB &= ~(1 << PB0);
+	gpio_siren_off();
 }
 
 static void siren_tim_cb(void *arg)
 {
-	set_siren_off();
+	gpio_siren_off();
 }
 
 static void set_siren_on(uint8_t force)
 {
-	if (PORTB & (1 << PB0) || init_time < INIT_TIME)
+	if (gpio_is_siren_on() || init_time < INIT_TIME)
 		return;
 	if (module_cfg.state != MODULE_STATE_ARMED && !force)
 		return;
 
-	PORTB |= 1 << PB0;
+	gpio_siren_on();
 	timer_del(&siren_timer);
 	timer_add(&siren_timer, module_cfg.siren_duration * 1000000,
 		  siren_tim_cb, NULL);
@@ -193,9 +195,35 @@ static void pir_on_action(void *arg)
 	set_siren_on(0);
 }
 
-ISR(PCINT2_vect) {
-	if (PIND & (1 << PD1))
-		schedule_task(pir_on_action, NULL);
+ISR(PCINT0_vect)
+{
+	uint8_t pwr_on;
+
+	if (module_cfg.state == MODULE_STATE_DISABLED)
+		return;
+	pwr_on = gpio_is_main_pwr_on();
+	if (pwr_on && !pwr_state) {
+		module_add_op(CMD_NOTIF_MAIN_PWR_UP, 1);
+		pwr_state = 1;
+	} else if (!pwr_on && pwr_state) {
+		module_add_op(CMD_NOTIF_MAIN_PWR_DOWN, 0);
+		pwr_state = 0;
+	} else
+		return;
+	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+#ifdef CONFIG_POWER_MANAGEMENT
+	power_management_pwr_down_reset();
+#endif
+}
+
+ISR(PCINT2_vect)
+{
+	if (module_cfg.state == MODULE_STATE_DISABLED || !gpio_is_pir_on())
+		return;
+	schedule_task(pir_on_action, NULL);
+#ifdef CONFIG_POWER_MANAGEMENT
+	power_management_pwr_down_reset();
+#endif
 }
 #endif
 
@@ -259,16 +287,18 @@ static void get_status(module_status_t *status)
 	status->humidity.tendency = get_hum_tendency();
 
 	status->flags = 0;
-	if (PORTD & 1 << PD3)
+	if (gpio_is_fan_on())
 		status->flags = STATUS_STATE_FAN_ON;
-	if (PORTB & 1 << PB0)
+	if (module_cfg.fan_enabled)
+		status->flags |= STATUS_STATE_FAN_ENABLED;
+	if (gpio_is_siren_on())
 		status->flags |= STATUS_STATE_SIREN_ON;
 
 	status->state = module_cfg.state;
 	if (swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED)
 		status->flags |= STATUS_STATE_CONN_RF_UP;
 	status->siren_duration = module_cfg.siren_duration;
-	//status->temperature = analog_read();
+	status->temperature = get_temperature_cur_value();
 }
 
 static inline void update_storage(void)
@@ -330,13 +360,13 @@ static void arm_cb(void *arg)
 	static uint8_t on;
 
 	if (on == 0) {
-		if (PORTB & (1 << PB0))
+		if (gpio_is_siren_on())
 			return;
-		PORTB |= 1 << PB0;
+		gpio_siren_on();
 		timer_reschedule(&siren_timer, 10000);
 		on = 1;
 	} else {
-		PORTB &= ~(1 << PB0);
+		gpio_siren_off();
 		on = 0;
 	}
 }
@@ -375,6 +405,8 @@ static int handle_tx_commands(uint8_t cmd)
 		len = sizeof(hum_val);
 		break;
 	case CMD_NOTIF_ALARM_ON:
+	case CMD_NOTIF_MAIN_PWR_DOWN:
+	case CMD_NOTIF_MAIN_PWR_UP:
 		break;
 	case CMD_REGISTER_DEVICE:
 		reg.cmd = CMD_REGISTER_DEVICE;
@@ -495,10 +527,10 @@ static void module_print_status(void)
 	    hval > 100 ? 0 : hval,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
 	    get_hum_tendency(), module_cfg.humidity_threshold);
-	LOG(" Temperature:  %d\n", analog_read(3));
-	LOG(" Fan: %d\n Fan enabled: %d\n", !!(PORTD & 1 << PD3),
+	LOG(" Temperature:  %d\n", get_temperature_cur_value());
+	LOG(" Fan: %d\n Fan enabled: %d\n", gpio_is_fan_on(),
 	    module_cfg.fan_enabled);
-	LOG(" Siren:  %d\n", !!(PORTB & 1 << PB0));
+	LOG(" Siren:  %d\n", gpio_is_siren_on()),
 	LOG(" Siren duration:  %u secs\n", module_cfg.siren_duration);
 	LOG(" RF:  %s\n",
 	    swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED ? "on" : "off");
@@ -541,9 +573,9 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_pwr_down_reset();
 #endif
-
 	if (events & EV_READ) {
 		pkt_t *pkt;
+
 		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
 			DEBUG_LOG("got pkt of len:%d from mod%d\n",
 				  buf_len(&pkt->buf), id);
@@ -623,6 +655,7 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 void module1_init(void)
 {
 	initialized = module_check_magic();
+	pwr_state = gpio_is_main_pwr_on();
 
 	req_id = rand();
 #ifdef CONFIG_RF_CHECKS

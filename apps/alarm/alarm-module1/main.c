@@ -9,6 +9,7 @@
 #include <scheduler.h>
 #include <interrupts.h>
 #include "alarm-module1.h"
+#include "gpio.h"
 #include "../module.h"
 
 #define UART_RING_SIZE 16
@@ -48,7 +49,6 @@ ISR(USART_RX_vect)
 
 int main(void)
 {
-	analog_init();
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 1);
 	uart_ring = ring_create(UART_RING_SIZE);
@@ -63,23 +63,7 @@ int main(void)
 	timer_checks();
 #endif
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);
-
-	/* port D used by the LED and RF sender */
-	DDRD = (1 << PD2);
-
-	DDRB = (1 << PB0);
-
-	/* port D used by PIR, set as input */
-	DDRD &= ~(1 << PD1);
-
-	/* enable pull-up resistor */
-	/* PORTD |= (1 << PD1); */
-
-#ifndef CONFIG_AVR_SIMU
-	/* PCINT17 enabled (PIR) */
-	PCMSK2 = 1 << PCINT17;
-	PCICR = 1 << PCIE2;
-#endif
+	gpio_init();
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
