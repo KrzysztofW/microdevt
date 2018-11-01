@@ -89,9 +89,8 @@ static int tun_receive_pkt(const iface_t *iface)
 		return -1;
 #if 0
 	printf("read: %ld\n", nread);
-	for (i = 0; i < nread; i++) {
+	for (int i = 0; i < nread; i++)
 		printf(" 0x%X", buf[i]);
-	}
 	puts("");
 #endif
 	/* Writes have higher priority.
