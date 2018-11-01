@@ -52,6 +52,7 @@ static swen_l3_assoc_t mod1_assoc;
 static uint16_t report_hval_elapsed_secs;
 static uint8_t init_time;
 static uint8_t pwr_state;
+static uint8_t pwr_state_report;
 
 static module_cfg_t EEMEM persistent_data;
 
@@ -135,6 +136,15 @@ static void timer_1sec_cb(void *arg)
 {
 	timer_reschedule(&timer_1sec, ONE_SECOND);
 
+	if (pwr_state_report) {
+		uint8_t cmd = pwr_state ? CMD_NOTIF_MAIN_PWR_UP
+			: CMD_NOTIF_MAIN_PWR_DOWN;
+
+		module_add_op(cmd, 1);
+		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		pwr_state_report = 0;
+	}
+
 	/* skip sampling when the siren is on */
 	if (!timer_is_pending(&siren_timer)
 	    && humidity_sampling_update++ >= HUMIDITY_SAMPLING)
@@ -197,15 +207,13 @@ ISR(PCINT0_vect)
 	if (module_cfg.state == MODULE_STATE_DISABLED)
 		return;
 	pwr_on = gpio_is_main_pwr_on();
-	if (pwr_on && !pwr_state) {
-		module_add_op(CMD_NOTIF_MAIN_PWR_UP, 1);
+	if (pwr_on && !pwr_state)
 		pwr_state = 1;
-	} else if (!pwr_on && pwr_state) {
-		module_add_op(CMD_NOTIF_MAIN_PWR_DOWN, 0);
+	else if (!pwr_on && pwr_state)
 		pwr_state = 0;
-	} else
+	else
 		return;
-	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+	pwr_state_report = 1;
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_pwr_down_reset();
 #endif
