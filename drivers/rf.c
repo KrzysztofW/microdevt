@@ -172,13 +172,6 @@ static void rf_rcv_tim_cb(void *arg)
 #endif
 	timer_reschedule(&ctx->timer, RF_SAMPLING_US);
 
-#ifdef RF_DEBUG
-	if (ctx->rcv_data.pkt && pkt_len(ctx->rcv_data.pkt)) {
-		if_schedule_receive(iface, ctx->rcv_data.pkt);
-		ctx->rcv_data.pkt = NULL;
-		return;
-	}
-#endif
 #ifdef RF_ANALOG_SAMPLING
 	v_analog = analog_read(RF_RCV_PIN_NB);
 
@@ -221,12 +214,13 @@ static int rf_debug_send(rf_ctx_t *src, uint8_t byte)
 
 	if (dst->rcv_data.pkt == NULL) {
 		if ((dst->rcv_data.pkt = pkt_get(iface->pkt_pool)) == NULL) {
-			printf("%s no pkts\n", __func__);
+			LOG("%s no pkts\n", __func__);
+			if_schedule_receive(iface, NULL);
 			return -1;
 		}
 	}
 	if (buf_addc(&dst->rcv_data.pkt->buf, byte) < 0) {
-		printf("%s: buf len:%d\n", __func__, dst->rcv_data.pkt->buf.len);
+		LOG("%s: buf len:%d\n", __func__, dst->rcv_data.pkt->buf.len);
 		return -1;
 	}
 	return 0;
@@ -279,7 +273,7 @@ static int rf_snd(rf_ctx_t *ctx)
 		byte_init(&ctx->snd_data.byte, c);
 #ifdef RF_DEBUG
 		if (rf_debug_send(ctx, c) < 0)
-			LOG("%s: failed sending byte 0x%02X\n", __func__, c);
+			return -1;
 #endif
 	}
 
@@ -306,14 +300,6 @@ static void rf_start_sending(const iface_t *iface)
 	if (ctx->rcv.receiving)
 		return;
 	timer_del(&ctx->timer);
-#ifdef RF_DEBUG
-	{
-		rf_ctx_t *debug_ctx = rf_debug_iface2->priv;
-		rf_ctx_t *rf_ctx = rf_debug_iface1->priv;
-		timer_del(&debug_ctx->timer);
-		timer_del(&rf_ctx->timer);
-	}
-#endif
 	timer_add(&ctx->timer, RF_SAMPLING_US * 2, rf_snd_tim_cb,
 		  (void *)iface);
 }
@@ -337,12 +323,11 @@ static void rf_snd_tim_cb(void *arg)
 	rf_ctx_t *debug_ctx2 = rf_debug_iface2->priv;
 #endif
 	while (1) {
-		if (ctx->snd_data.pkt == NULL &&
-		    (ctx->snd_data.pkt = pkt_get(iface->tx)))
+		if (ctx->snd_data.pkt == NULL) {
+			if ((ctx->snd_data.pkt = pkt_get(iface->tx)) == NULL)
+				break;
 			ctx->snd_data.buf = ctx->snd_data.pkt->buf;
-
-		if (ctx->snd_data.pkt == NULL)
-			break;
+		}
 		if (rf_snd(ctx) >= 0) {
 			timer_add(&ctx->timer, RF_SAMPLING_US * 2,
 				  rf_snd_tim_cb, arg);
@@ -367,14 +352,7 @@ static void rf_snd_tim_cb(void *arg)
 	}
 	ctx->snd.frame_pos = 0;
 #ifdef CONFIG_RF_RECEIVER
-#ifdef RF_DEBUG
-	if (ctx == debug_ctx1)
-		timer_add(&debug_ctx2->timer, RF_SAMPLING_US, rf_rcv_tim_cb,
-			  rf_debug_iface2);
-	else
-		timer_add(&debug_ctx1->timer, RF_SAMPLING_US, rf_rcv_tim_cb,
-			  rf_debug_iface1);
-#else
+#ifndef RF_DEBUG
 	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, arg);
 #endif
 #endif
@@ -579,7 +557,7 @@ void rf_init(iface_t *iface, uint8_t burst)
 		__abort();
 	timer_init(&ctx->timer);
 #ifdef CONFIG_RF_RECEIVER
-#ifndef X86
+#if !defined(X86) && !defined(RF_DEBUG)
 	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);
 #else
 	(void)rf_rcv_tim_cb;
