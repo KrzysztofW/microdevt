@@ -66,7 +66,9 @@ static inline void __list_del_entry(list_t *entry)
 #ifdef LIST_DEBUG
 #define list_del(e)							\
 	DEBUG_LOG("%s:%d del:%p\n", __func__, __LINE__, e);		\
-	__list_del_entry(e); (e)->next = LIST_POISON1; (e)->prev = LIST_POISON2
+	__list_del_entry(e);						\
+	(e)->next = LIST_POISON1;					\
+	(e)->prev = LIST_POISON2
 #else
 static inline void list_del(list_t *entry)
 {
@@ -79,7 +81,8 @@ static inline void list_del(list_t *entry)
 #ifdef LIST_DEBUG
 #define list_del_init(e)						\
 	DEBUG_LOG("%s:%d del:%p\n", __func__, __LINE__, e);		\
-	__list_del_entry(e);INIT_LIST_HEAD(e)
+	__list_del_entry(e);						\
+	INIT_LIST_HEAD(e)
 #else
 static inline void list_del_init(list_t *entry)
 {
