@@ -24,8 +24,6 @@ static iface_t rf_iface;
 iface_t *rf_debug_iface1 = &rf_iface;
 #endif
 #endif
-static uint8_t tmp_rf_addr;
-static uint8_t tmp_features;
 
 #ifdef CONFIG_NETWORKING
 extern iface_t eth_iface;
@@ -47,6 +45,7 @@ static sbuf_t s_humidity_th = SBUF_INITS("humidity th");
 static sbuf_t s_report_hum_val = SBUF_INITS("report hum");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
 static sbuf_t s_connect = SBUF_INITS("connect");
+static sbuf_t s_disable = SBUF_INITS("disable");
 
 #define MAX_ARGS 8
 typedef enum arg_type {
@@ -82,6 +81,7 @@ static cmd_t cmds[] = {
 	  .cmd = CMD_SET_SIREN_DURATION },
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
+	{ .s = &s_disable, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISABLE },
 };
 
 #define NB_MODULES 2
@@ -226,8 +226,6 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events);
 
 static void module_get_master_status(module_status_t *status)
 {
-	if (master_cfg.state == 0)
-		master_cfg.state = MODULE_STATE_DISARMED;
 	status->siren_duration = master_cfg.siren_duration;
 	status->state = master_cfg.state;
 	status->temperature = analog_read(3);
@@ -244,13 +242,14 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 
 	if (id == 0)
 		cfg = &master_cfg;
-	else {
+	else
 		cfg = &c;
-		cfg_load(cfg, id);
-		if (cfg->state == MODULE_STATE_UNINITIALIZED) {
-			LOG("module %d not initilized\n", id);
-			return;
-		}
+	cfg_load(cfg, id);
+
+	if (cmd != CMD_CONNECT &&
+	    cfg->state == MODULE_STATE_UNINITIALIZED) {
+		LOG("module %d not initilized\n", id);
+		return;
 	}
 
 	if ((!(cfg->features & MODULE_FEATURE_FAN)
@@ -307,6 +306,11 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		if (id == 0)
 			set_siren_off();
 		break;
+	case CMD_DISABLE:
+		if (id == 0)
+			return;
+		cfg->state = MODULE_STATE_DISABLED;
+		cmd = CMD_DISCONNECT;
 	default:
 		break;
 	}
@@ -316,8 +320,14 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		return;
 
 	if (!(cfg->features & MODULE_FEATURE_RF)) {
-		LOG("module does not support RF commands\n");
-		return;
+		if (cfg->features == 0 && cmd == CMD_CONNECT) {
+			LOG("enabling module\n");
+			cfg->state = MODULE_STATE_DISARMED;
+			cfg_update(cfg, id);
+		} else {
+			LOG("module does not support RF commands\n");
+			return;
+		}
 	}
 	assoc = &modules[id].assoc;
 
@@ -327,15 +337,17 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 			return;
 		}
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
+		if (!swen_l3_is_assoc_bound(assoc))
+			swen_l3_assoc_bind(assoc, module_id_to_addr(id), &rf_iface);
 		swen_l3_associate(&modules[id].assoc);
-		return;
-	}
-	if (cmd == CMD_DISCONNECT) {
-		swen_l3_disassociate(assoc);
 		return;
 	}
 	if (swen_l3_get_state(assoc) != S_STATE_CONNECTED) {
 		LOG("module not connected\n");
+		return;
+	}
+	if (cmd == CMD_DISCONNECT) {
+		swen_l3_disassociate(assoc);
 		return;
 	}
 
@@ -449,6 +461,7 @@ void alarm_parse_uart_commands(buf_t *buf)
 	id = atoi((char *)tmp.data);
 	if (id >= NB_MODULES)
 		goto usage;
+
 	buf_reset(&tmp);
 
 	for (i = 0; i < sizeof(cmds) / sizeof(cmd_t); i++) {
@@ -476,8 +489,9 @@ void alarm_parse_uart_commands(buf_t *buf)
 	LOG("usage: [help] | mod[0-%d] command\n", NB_MODULES - 1);
 }
 
-static int module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
-			       module_status_t *status)
+static int
+module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
+		    module_status_t *status)
 {
 	uint8_t features = cfg->features;
 	uint8_t u8;
@@ -511,10 +525,9 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 	module_status_t status;
 	module_cfg_t cfg;
 
-	if (addr < RF_MASTER_MOD_HW_ADDR || id > NB_MODULES) {
-		DEBUG_LOG("Address 0x%X not handled\n", addr);
+	if (addr < RF_MASTER_MOD_HW_ADDR || id > NB_MODULES)
 		return;
-	}
+
 	cfg_load(&cfg, id);
 	if (cfg.state == MODULE_STATE_DISABLED || buf == NULL
 	    || buf_getc(buf, &cmd) < 0)
@@ -527,11 +540,25 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		print_status(&cfg, id, &status);
 		return;
 	case CMD_NOTIF_ALARM_ON:
+		LOG("mod%d: alarm on\n", id);
+		return;
+	case CMD_NOTIF_MAIN_PWR_DOWN:
+	case CMD_NOTIF_MAIN_PWR_UP:
+		LOG("mod%d: power %s\n", id, cmd == CMD_NOTIF_MAIN_PWR_UP ? "up" : "down");
 		return;
 	case CMD_REPORT_HUM_VAL:
 		if (buf_len(buf) < sizeof(uint8_t))
 			goto error;
 		val = buf_data(buf)[0];
+		LOG("humidity value: %u\n", val);
+		return;
+	case CMD_FEATURES:
+		if (buf_len(buf) < sizeof(uint8_t))
+			goto error;
+		if (cfg.features == 0)
+			__module_add_op(&modules[id].op_queue, CMD_GET_STATUS);
+		cfg.features = buf_data(buf)[0];
+		cfg_update(&cfg, id);
 		return;
 	default:
 		return;
@@ -574,9 +601,7 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 static void rf_event_cb(event_t *ev, uint8_t events)
 {
 	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
-#ifdef DEBUG
 	uint8_t id = addr_to_module_id(assoc->dst);
-#endif
 	module_t *module = container_of(assoc, module_t, assoc);
 
 	if (events & EV_READ) {
@@ -588,11 +613,24 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			module0_parse_commands(assoc->dst, &pkt->buf);
 			pkt_free(pkt);
 		}
+		if (__module_op_pending(&module->op_queue))
+			swen_l3_event_set_mask(assoc, EV_READ|EV_WRITE);
 	}
 	if (events & (EV_ERROR | EV_HUNGUP)) {
+		module_cfg_t cfg;
+
 		DEBUG_LOG("mod%d disconnected\n", id);
-		if ((events & EV_ERROR) && swen_l3_associate(&module->assoc) < 0)
-			__abort();
+		if ((events & EV_ERROR)) {
+			swen_l3_associate(&module->assoc);
+			goto error;
+		}
+		cfg_load(&cfg, id);
+		if (cfg.state == MODULE_STATE_UNINITIALIZED ||
+		    cfg.state == MODULE_STATE_DISABLED) {
+			swen_l3_event_unregister(assoc);
+			swen_l3_assoc_shutdown(assoc);
+			return;
+		}
 		goto error;
 	}
 	if (events & EV_WRITE) {
@@ -618,10 +656,8 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 static void rf_connecting_on_event(event_t *ev, uint8_t events)
 {
 	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
-	module_t *module = container_of(assoc, module_t, assoc);
-#ifdef DEBUG
 	uint8_t id = addr_to_module_id(assoc->dst);
-#endif
+
 	if (events & EV_ERROR) {
 		swen_l3_associate(assoc);
 		goto error;
@@ -630,117 +666,29 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 		goto error;
 
 	if (events & EV_WRITE) {
-		uint8_t flags = EV_READ;
+		module_cfg_t cfg;
+		uint8_t op;
 
+		cfg_load(&cfg, id);
 		DEBUG_LOG("connected to mod%d\n", id);
 
 		/* get slave statuses */
-		if (module_send_cmd(assoc, CMD_GET_STATUS) < 0) {
+		if (cfg.features == 0)
+			op = CMD_GET_FEATURES;
+		else
+			op = CMD_GET_STATUS;
+		if (module_send_cmd(assoc, op) < 0) {
 			if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
 				goto error;
 			return;
 		}
-		if (__module_op_pending(&module->op_queue))
-			flags |= EV_WRITE;
-		swen_l3_event_register(assoc, flags, rf_event_cb);
+		swen_l3_event_register(assoc, EV_READ|EV_WRITE, rf_event_cb);
 	}
 	return;
  error:
-	DEBUG_LOG("failed to connect to mod%d\n", id);
+	DEBUG_LOG("connection to mod%d failed\n", id);
 	swen_l3_event_unregister(assoc);
 	swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
-}
-
-static int module_get_available_addr(uint8_t *addr)
-{
-	uint8_t i;
-
-	for (i = 1; i < NB_MODULES; i++) {
-		module_cfg_t cfg;
-
-		cfg_load(&cfg, i);
-		if (cfg.state == MODULE_STATE_UNINITIALIZED) {
-			*addr = module_id_to_addr(i);
-			return 0;
-		}
-	}
-	return -1;
-}
-
-static void module_register_new_device(uint8_t addr, uint8_t features)
-{
-	module_cfg_t cfg = {
-		.features = features,
-		.state = MODULE_STATE_DISARMED,
-	};
-	uint8_t id = addr_to_module_id(addr);
-	module_t *module;
-
-	cfg_update(&cfg, id);
-	module = &modules[id];
-
-	swen_l3_assoc_bind(&module->assoc, addr, &rf_iface);
-	swen_l3_event_register(&module->assoc, EV_WRITE, rf_connecting_on_event);
-}
-
-static void module_configure_new_device(swen_l3_assoc_t *assoc, buf_t *buf)
-{
-	sbuf_t sbuf;
-	buf_t out = BUF(sizeof(module_addr_t));
-	module_register_t reg;
-	module_addr_t maddr;
-
-	if (buf_get(buf, &reg, sizeof(reg)) < 0
-	    || reg.cmd != CMD_REGISTER_DEVICE)
-		goto error;
-
-	if (module_get_available_addr(&maddr.addr) < 0) {
-		DEBUG_LOG("no more available adresses for new modules\n");
-		goto error;
-	}
-
-	maddr.cmd = CMD_SET_ADDR;
-	maddr.req_id = reg.req_id;
-	__buf_add(&out, &maddr, sizeof(maddr));
-	sbuf = buf2sbuf(&out);
-	if (swen_l3_send(assoc, &sbuf) < 0)
-		goto error;
-
-	tmp_rf_addr = maddr.addr;
-	tmp_features = reg.features;
-	return;
- error:
-	DEBUG_LOG("failed configuring new device\n");
-}
-
-static void rf_register_new_device_on_event(event_t *ev, uint8_t events)
-{
-	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
-	pkt_t *pkt;
-
-	if (events & EV_READ) {
-		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
-			if (assoc->dst == RF_INIT_ADDR)
-				module_configure_new_device(assoc, &pkt->buf);
-			pkt_free(pkt);
-		}
-	}
-
-	if (events & EV_ERROR)
-		goto end;
-	if ((events & EV_HUNGUP) && tmp_rf_addr) {
-		module_register_new_device(tmp_rf_addr, tmp_features);
-		DEBUG_LOG("registered new device id:%d\n",
-			  addr_to_module_id(tmp_rf_addr));
-		tmp_rf_addr = 0;
-		goto end;
-	}
-	return;
- end:
-	DEBUG_LOG("addr: 0x%X %s\n", assoc->dst,
-		  !(events & EV_HUNGUP) ? "failed" : "disconnected");
-	swen_l3_event_unregister(assoc);
-	swen_l3_event_register(assoc, EV_READ, rf_register_new_device_on_event);
 }
 
 void master_module_init(void)
@@ -750,6 +698,7 @@ void master_module_init(void)
 
 	/* load master module configuration */
 	cfg_load(&master_cfg, 0);
+
 	if (!initialized) {
 		master_cfg.state = MODULE_STATE_DISARMED;
 		master_cfg.siren_duration = SIREN_ON_DURATION;
@@ -757,7 +706,6 @@ void master_module_init(void)
 		cfg_update_master();
 		module_update_magic();
 	}
-
 	module_init_iface(&rf_iface, &rf_addr);
 	timer_init(&siren_timer);
 
@@ -768,9 +716,7 @@ void master_module_init(void)
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
-
 	for (i = 0; i < NB_MODULES; i++) {
-		uint8_t addr;
 		module_t *module = &modules[i];
 		module_cfg_t cfg;
 
@@ -778,27 +724,20 @@ void master_module_init(void)
 		cfg_load(&cfg, i);
 		swen_l3_assoc_init(&module->assoc, rf_enc_defkey);
 
-		if (i > 0) {
-			if (cfg.state == MODULE_STATE_UNINITIALIZED)
-				continue;
-			if (!initialized) {
-				cfg.state = MODULE_STATE_UNINITIALIZED;
-				cfg_update(&cfg, i);
-				continue;
-			}
-			addr = module_id_to_addr(i);
-			swen_l3_event_register(&module->assoc, EV_WRITE,
-					       rf_connecting_on_event);
-		} else {
-			addr = RF_INIT_ADDR;
-			cfg.state = MODULE_STATE_DISABLED;
-			swen_l3_event_register(&module->assoc, EV_READ,
-					       rf_register_new_device_on_event);
-		}
-
-		swen_l3_assoc_bind(&module->assoc, addr, &rf_iface);
-		if (cfg.state == MODULE_STATE_DISABLED)
+		if (i == 0)
 			continue;
+		if (!initialized) {
+			memset(&cfg, 0, sizeof(cfg));
+			cfg.state = MODULE_STATE_UNINITIALIZED;
+			cfg_update(&cfg, i);
+		}
+		if (cfg.state == MODULE_STATE_DISABLED ||
+		    cfg.state == MODULE_STATE_UNINITIALIZED)
+			continue;
+		swen_l3_event_register(&module->assoc, EV_WRITE,
+				       rf_connecting_on_event);
+		swen_l3_assoc_bind(&module->assoc, module_id_to_addr(i),
+				   &rf_iface);
 		if (swen_l3_associate(&module->assoc) < 0)
 			__abort();
 	}

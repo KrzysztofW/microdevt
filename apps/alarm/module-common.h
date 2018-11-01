@@ -8,6 +8,7 @@
 #define RF_BURST_NUMBER 1
 
 #define RF_MASTER_MOD_HW_ADDR 0x01
+#define RF_GENERIC_MOD_HW_ADDR 0x02
 #define RF_INIT_ADDR 0xFE
 
 enum features {

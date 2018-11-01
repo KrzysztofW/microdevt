@@ -33,7 +33,7 @@ int module_check_magic(void)
 {
 	uint8_t magic;
 
-	eeprom_load(&eeprom_magic, &magic, sizeof(magic));
+	eeprom_load(&magic, &eeprom_magic, sizeof(magic));
 	return magic == MAGIC;
 }
 

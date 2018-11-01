@@ -65,18 +65,6 @@ typedef struct __attribute__((__packed__)) module_status {
 	uint16_t siren_duration;
 } module_status_t;
 
-typedef struct __attribute__((__packed__)) module_register {
-	uint8_t cmd;
-	uint8_t features;
-	uint16_t req_id;
-} module_register_t;
-
-typedef struct __attribute__((__packed__)) module_addr_t {
-	uint8_t cmd;
-	uint8_t addr;
-	uint16_t req_id;
-} module_addr_t;
-
 typedef struct module {
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	swen_rc_ctx_t rc_ctx;
@@ -91,8 +79,8 @@ typedef struct module {
 } module_t;
 
 typedef enum commands {
-	CMD_REGISTER_DEVICE,
-	CMD_SET_ADDR,
+	CMD_GET_FEATURES,
+	CMD_FEATURES,
 	CMD_ARM,
 	CMD_DISARM,
 	CMD_RUN_FAN,
@@ -108,8 +96,11 @@ typedef enum commands {
 	CMD_NOTIF_ALARM_ON,
 	CMD_DISCONNECT,
 	CMD_CONNECT,
+	CMD_DISABLE,
 	CMD_GET_REPORT_HUM_VAL,
 	CMD_REPORT_HUM_VAL,
+	CMD_NOTIF_MAIN_PWR_DOWN,
+	CMD_NOTIF_MAIN_PWR_UP,
 } commands_t;
 
 void master_module_init(void);

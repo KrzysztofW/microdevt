@@ -35,10 +35,7 @@
 /* inactivity timeout in seconds */
 #define INACTIVITY_TIMEOUT 15
 
-static uint8_t EEMEM eeprom_rf_addr;
-static uint8_t rf_addr;
-static uint8_t tmp_rf_addr;
-static uint16_t req_id;
+static uint8_t rf_addr = RF_GENERIC_MOD_HW_ADDR;
 static iface_t rf_iface;
 #ifdef RF_DEBUG
 iface_t *rf_debug_iface2 = &rf_iface;
@@ -54,8 +51,6 @@ static uint8_t humidity_sampling_update;
 static swen_l3_assoc_t mod1_assoc;
 static uint16_t report_hval_elapsed_secs;
 static uint8_t init_time;
-
-static uint8_t initialized;
 static uint8_t pwr_state;
 
 static module_cfg_t EEMEM persistent_data;
@@ -306,23 +301,18 @@ static inline void update_storage(void)
 	eeprom_update(&persistent_data, &module_cfg, sizeof(module_cfg_t));
 }
 
-static void reload_cfg_from_storage(void)
+static void load_cfg_from_storage(void)
 {
-	eeprom_load(&module_cfg, &persistent_data, sizeof(module_cfg_t));
-
-#ifdef CONFIG_AVR_SIMU
-	if (module_cfg.state == 0) {
-		module_cfg.state = MODULE_STATE_DISARMED;
-		module_cfg.siren_duration = SIREN_ON_DURATION;
-	}
-#endif
-	/* check if EEPROM is blank */
-	if (module_cfg.humidity_threshold == 0xFF) {
+	if (!module_check_magic()) {
+		module_cfg.state = MODULE_STATE_DISABLED;
 		module_cfg.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
 		module_cfg.humidity_report_interval = 0;
 		module_cfg.siren_duration = SIREN_ON_DURATION;
 		update_storage();
-	}
+		module_update_magic();
+	} else
+		eeprom_load(&module_cfg, &persistent_data,
+			    sizeof(module_cfg_t));
 }
 
 static void handle_rx_commands(uint8_t cmd, uint16_t value);
@@ -390,8 +380,7 @@ static int handle_tx_commands(uint8_t cmd)
 	void *data = NULL;
 	int len = 0;
 	uint8_t hum_val;
-	module_register_t reg;
-	sbuf_t sbuf;
+	uint8_t features;
 
 	switch (cmd) {
 	case CMD_STATUS:
@@ -408,15 +397,12 @@ static int handle_tx_commands(uint8_t cmd)
 	case CMD_NOTIF_MAIN_PWR_DOWN:
 	case CMD_NOTIF_MAIN_PWR_UP:
 		break;
-	case CMD_REGISTER_DEVICE:
-		reg.cmd = CMD_REGISTER_DEVICE;
-		reg.features = THIS_MODULE_FEATURES;
-		reg.req_id = req_id;
-		sbuf = SBUF_INIT(&reg, sizeof(reg));
-		if (swen_l3_send(&mod1_assoc, &sbuf) < 0)
-			return -1;
-		module_update_magic();
-		/* fall through */
+	case CMD_FEATURES:
+		cmd = CMD_FEATURES;
+		features = THIS_MODULE_FEATURES;
+		data = &features;
+		len = sizeof(features);
+		break;
 	default:
 		return 0;
 	}
@@ -427,6 +413,10 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 {
 	DEBUG_LOG("mod1: got cmd:0x%X\n", cmd);
 	switch (cmd) {
+	case CMD_GET_FEATURES:
+		module_add_op(CMD_FEATURES, 1);
+		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		return;
 	case CMD_ARM:
 		module_arm(1);
 		return;
@@ -490,18 +480,7 @@ static void module1_parse_commands(buf_t *buf)
 
 	if (buf_getc(buf, &cmd) < 0)
 		return;
-	if (cmd == CMD_SET_ADDR) {
-		uint8_t addr;
-		uint16_t request_id;
 
-		if (buf_getc(buf, &addr) < 0
-		    || buf_get_u16(buf, &request_id) < 0
-		    || request_id != req_id)
-			return;
-		tmp_rf_addr = addr;
-		swen_l3_disassociate(&mod1_assoc);
-		return;
-	}
 	if (buf_get_u16(buf, &v16) < 0)
 		if (buf_getc(buf, &v8) >= 0)
 			v16 = v8;
@@ -587,18 +566,8 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		swen_l3_associate(assoc);
 		goto error;
 	}
-	if (events & EV_HUNGUP) {
-		if (!initialized) {
-			initialized = 1;
-			rf_addr = tmp_rf_addr;
-			rf_iface.hw_addr = &rf_addr;
-			eeprom_update(&eeprom_rf_addr, &rf_addr,
-				      sizeof(rf_addr));
-			if (swen_l3_associate(&mod1_assoc) < 0)
-				__abort();
-		}
+	if (events & EV_HUNGUP)
 		goto error;
-	}
 
 	if (events & EV_WRITE) {
 		uint8_t op;
@@ -634,12 +603,8 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 	if (events & (EV_ERROR | EV_HUNGUP)) {
 		DEBUG_LOG("failed to connect to mod%d\n", id);
 		swen_l3_event_unregister(assoc);
+		swen_l3_associate(assoc);
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
-		if (!initialized) {
-			module_reset_op_queues();
-			op = CMD_REGISTER_DEVICE;
-			module_add_op(op, 1);
-		}
 		return;
 	}
 	if (events & EV_WRITE) {
@@ -654,10 +619,8 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 
 void module1_init(void)
 {
-	initialized = module_check_magic();
 	pwr_state = gpio_is_main_pwr_on();
 
-	req_id = rand();
 #ifdef CONFIG_RF_CHECKS
 	if (rf_checks(&rf_iface) < 0)
 		__abort();
@@ -665,8 +628,7 @@ void module1_init(void)
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
-
-	reload_cfg_from_storage();
+	load_cfg_from_storage();
 
 	timer_init(&siren_timer);
 	timer_init(&timer_1sec);
@@ -676,21 +638,13 @@ void module1_init(void)
 	power_management_power_down_init(INACTIVITY_TIMEOUT, pwr_mgr_on_sleep,
 					 NULL);
 #endif
-	if (!initialized) {
-		uint8_t op = CMD_REGISTER_DEVICE;
-
-		module_add_op(op, 1);
-		rf_addr = RF_INIT_ADDR;
-	} else
-		eeprom_load(&rf_addr, &eeprom_rf_addr, sizeof(rf_addr));
-
 	module_init_iface(&rf_iface, &rf_addr);
 	swen_l3_assoc_init(&mod1_assoc, rf_enc_defkey);
 	swen_l3_assoc_bind(&mod1_assoc, RF_MASTER_MOD_HW_ADDR, &rf_iface);
 	swen_l3_event_register(&mod1_assoc, EV_WRITE, rf_connecting_on_event);
+
 	if (module_cfg.state == MODULE_STATE_DISABLED)
 		return;
-
 	if (swen_l3_associate(&mod1_assoc) < 0)
 		__abort();
 }
