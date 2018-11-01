@@ -11,8 +11,6 @@
 #include "alarm.h"
 #include "module.h"
 
-INIT_ADC_DECL(f, DDRF, PORTF, 3)
-
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 #define UART_RING_SIZE 32
 static ring_t *uart_ring;
@@ -66,7 +64,7 @@ int main(void)
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 	uart_ring = ring_create(UART_RING_SIZE);
 #endif
-	init_adc_f();
+	analog_init();
 	timer_subsystem_init();
 	irq_enable();
 

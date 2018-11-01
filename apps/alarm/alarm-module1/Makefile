@@ -3,7 +3,7 @@
 EXE = alarm-module1
 CFLAGS = -Wall -Werror -Os -g -c
 
-SOURCES = main.c $(ARCH_DIR)/$(ARCH)/adc.c ../../../scheduler.c
+SOURCES = main.c ../../../scheduler.c
 SOURCES += $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config

@@ -11,8 +11,6 @@
 #include "alarm-module1.h"
 #include "../module.h"
 
-INIT_ADC_DECL(c, DDRC, PORTC, 0);
-
 #define UART_RING_SIZE 16
 
 #ifdef DEBUG
@@ -60,7 +58,7 @@ ISR(USART_RX_vect)
 
 int main(void)
 {
-	init_adc_c();
+	analog_init();
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 1);
 	uart_ring = ring_create(UART_RING_SIZE);
