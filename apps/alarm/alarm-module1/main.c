@@ -17,16 +17,6 @@
 static ring_t *uart_ring;
 #endif
 
-static tim_t wd_timer;
-static uint16_t timer_watchdog;
-#define TIMER_WD_TIMEOUT 500000U
-
-static void wd_timer_cb(void *arg)
-{
-	timer_watchdog = 0;
-	timer_reschedule(&wd_timer, TIMER_WD_TIMEOUT);
-}
-
 #ifdef DEBUG
 static void uart_task(void *arg)
 {
@@ -66,7 +56,6 @@ int main(void)
 #endif
 	timer_subsystem_init();
 	irq_enable();
-
 	scheduler_init();
 
 #ifdef CONFIG_TIMER_CHECKS
@@ -96,17 +85,11 @@ int main(void)
 	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
 	module1_init();
 #endif
-	timer_init(&wd_timer);
-	timer_add(&wd_timer, TIMER_WD_TIMEOUT, wd_timer_cb, NULL);
 
 	/* interruptible functions */
 	while (1) {
 		scheduler_run_tasks();
 		watchdog_reset();
-		if (timer_watchdog++ == 0xFFFF) {
-			DEBUG_LOG("timer watchdog expired\n");
-			__abort();
-		}
 	}
 	return 0;
 }
