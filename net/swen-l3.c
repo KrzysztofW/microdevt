@@ -106,6 +106,8 @@ static void swen_l3_free_assoc_pkts(swen_l3_assoc_t *assoc)
 
 int swen_l3_associate(swen_l3_assoc_t *assoc)
 {
+	if (assoc->state == S_STATE_CONNECTED)
+		return 0;
 	assoc->state = S_STATE_CONNECTING;
 	assoc->ack = 0;
 	return swen_l3_output(S_OP_ASSOC_SYN, assoc, NULL);
@@ -137,6 +139,7 @@ static void swen_l3_task_cb(void *arg)
 		retries = swen_l3_get_pkt_retries(pkt);
 		if (retries == 0) {
 			swen_l3_free_assoc_pkts(assoc);
+			assoc->state = S_STATE_CLOSED;
 #ifdef CONFIG_EVENT
 			event_schedule_event(&assoc->event, EV_ERROR);
 #endif
@@ -441,9 +444,13 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 				if (assoc->state != S_STATE_CONNECTED) {
 					assoc->state = S_STATE_CONNECTED;
 #ifdef CONFIG_EVENT
-					event_schedule_event(&assoc->event, EV_WRITE);
-#endif
+				} else {
+					/* inform the application about
+					 * the re-connection */
+					assoc->event.cb(&assoc->event, EV_ERROR);
 				}
+				event_schedule_event(&assoc->event, EV_WRITE);
+#endif
 				__swen_l3_output_reuse_pkt(pkt, assoc, S_OP_ACK);
 				return;
 			}
