@@ -9,7 +9,7 @@
 #include <net/pkt-mempool.h>
 #include <interrupts.h>
 #include "alarm.h"
-#include "module.h"
+#include "module-common.h"
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 #define UART_RING_SIZE 32

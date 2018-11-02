@@ -7,12 +7,9 @@
 #include <adc.h>
 #include <eeprom.h>
 #include <interrupts.h>
-#include "module.h"
 #include "module-common.h"
 
 /* #define RF_DEBUG */
-
-#define SIREN_ON_DURATION (15 * 60)
 
 #define THIS_MODULE_FEATURES MODULE_FEATURE_TEMPERATURE |		\
 	MODULE_FEATURE_SIREN | MODULE_FEATURE_LAN | MODULE_FEATURE_RF
@@ -496,6 +493,7 @@ module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
 	uint8_t features = cfg->features;
 	uint8_t u8;
 
+	memset(status, 0, sizeof(module_status_t));
 	if (buf_getc(buf, &status->flags) < 0 || buf_getc(buf, &u8) < 0)
 		return -1;
 	status->state = u8;
@@ -515,6 +513,65 @@ module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
 			return -1;
 	}
 	return 0;
+}
+
+static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
+				      const module_status_t *status)
+{
+	uint8_t op;
+	ring_t *op_queue = &modules[id].op_queue;
+	swen_l3_assoc_t *assoc = &modules[id].assoc;
+
+	if (cfg->state != status->state) {
+		switch (cfg->state) {
+		case MODULE_STATE_DISARMED:
+			op = CMD_DISARM;
+			break;
+		case MODULE_STATE_ARMED:
+			op = CMD_ARM;
+			break;
+		case MODULE_STATE_DISABLED:
+			op = CMD_DISABLE;
+			break;
+		default:
+			/* should never happen */
+			assert(0);
+			swen_l3_disassociate(assoc);
+			return;
+		}
+		if (__module_add_op(op_queue, op) < 0)
+			goto error;
+
+	}
+	if (cfg->humidity_report_interval != status->humidity.report_interval
+	    && __module_add_op(op_queue, CMD_GET_REPORT_HUM_VAL) < 0)
+		goto error;
+	if (cfg->humidity_threshold != status->humidity.threshold &&
+	    __module_add_op(op_queue, CMD_SET_HUM_TH) < 0)
+		goto error;
+	if (!cfg->fan_enabled && (status->flags & STATUS_STATE_FAN_ENABLED) &&
+	    __module_add_op(op_queue, CMD_DISABLE_FAN) < 0)
+		goto error;
+	if (cfg->fan_enabled && !(status->flags & STATUS_STATE_FAN_ENABLED) &&
+	    __module_add_op(op_queue, CMD_ENABLE_FAN) < 0)
+		goto error;
+
+	if (cfg->siren_duration != status->siren_duration &&
+	    __module_add_op(op_queue, CMD_SET_SIREN_DURATION) < 0)
+		goto error;
+	if (ring_len(op_queue)) {
+		DEBUG_LOG("wrong status, updating...\n");
+		swen_l3_event_set_mask(assoc, EV_READ|EV_WRITE);
+		return;
+	}
+	DEBUG_LOG("status OK\n");
+	return;
+ error:
+	DEBUG_LOG("failed checking mod%d status\n", id);
+	swen_l3_assoc_shutdown(assoc);
+	swen_l3_event_unregister(assoc);
+	swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
+	swen_l3_associate(assoc);
 }
 
 static void module0_parse_commands(uint8_t addr, buf_t *buf)
@@ -538,13 +595,15 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		if (module_parse_status(&cfg, id, buf, &status) < 0)
 			goto error;
 		print_status(&cfg, id, &status);
+		module_check_slave_status(id, &cfg, &status);
 		return;
 	case CMD_NOTIF_ALARM_ON:
 		LOG("mod%d: alarm on\n", id);
 		return;
 	case CMD_NOTIF_MAIN_PWR_DOWN:
 	case CMD_NOTIF_MAIN_PWR_UP:
-		LOG("mod%d: power %s\n", id, cmd == CMD_NOTIF_MAIN_PWR_UP ? "up" : "down");
+		LOG("mod%d: power %s\n", id,
+		    cmd == CMD_NOTIF_MAIN_PWR_UP ? "up" : "down");
 		return;
 	case CMD_REPORT_HUM_VAL:
 		if (buf_len(buf) < sizeof(uint8_t))
@@ -581,18 +640,23 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 	uint8_t len = 0;
 	module_cfg_t cfg;
 
-	if (cmd == CMD_SET_HUM_TH) {
-		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
+	cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
+
+	switch (cmd) {
+	case CMD_SET_HUM_TH:
 		data = &cfg.humidity_threshold;
 		len = sizeof(uint8_t);
-	} else if (cmd == CMD_GET_REPORT_HUM_VAL) {
-		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
+		break;
+	case CMD_GET_REPORT_HUM_VAL:
 		data = &cfg.humidity_report_interval;
 		len = sizeof(uint16_t);
-	} else if (cmd == CMD_SET_SIREN_DURATION) {
-		cfg_load(&cfg, addr_to_module_id(module->assoc.dst));
+		break;
+	case CMD_SET_SIREN_DURATION:
 		data = &cfg.siren_duration;
 		len = sizeof(uint16_t);
+		break;
+	default:
+		break;
 	}
 
 	return send_rf_msg(&module->assoc, cmd, data, len);
@@ -640,7 +704,6 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			swen_l3_event_set_mask(assoc, EV_READ);
 			return;
 		}
-
 		if (handle_tx_commands(module, op) >= 0) {
 			DEBUG_LOG("mod0: sending op:0x%X to mod%d\n", op, id);
 			__module_skip_op(&module->op_queue);
@@ -700,8 +763,8 @@ void master_module_init(void)
 	cfg_load(&master_cfg, 0);
 
 	if (!initialized) {
+		module_set_default_cfg(&master_cfg);
 		master_cfg.state = MODULE_STATE_DISARMED;
-		master_cfg.siren_duration = SIREN_ON_DURATION;
 		master_cfg.features = THIS_MODULE_FEATURES;
 		cfg_update_master();
 		module_update_magic();
@@ -727,10 +790,11 @@ void master_module_init(void)
 		if (i == 0)
 			continue;
 		if (!initialized) {
-			memset(&cfg, 0, sizeof(cfg));
+			module_set_default_cfg(&cfg);
 			cfg.state = MODULE_STATE_UNINITIALIZED;
 			cfg_update(&cfg, i);
 		}
+
 		if (cfg.state == MODULE_STATE_DISABLED ||
 		    cfg.state == MODULE_STATE_UNINITIALIZED)
 			continue;

@@ -11,7 +11,6 @@
 #include <drivers/sensors.h>
 #include <eeprom.h>
 #include "gpio.h"
-#include "../module.h"
 #include "../module-common.h"
 
 #define THIS_MODULE_FEATURES MODULE_FEATURE_HUMIDITY |	  \
@@ -25,12 +24,9 @@
 #define TEMPERATURE_ANALOG_PIN 3
 #define HUMIDITY_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
-#define DEFAULT_HUMIDITY_THRESHOLD 3
 #define MAX_HUMIDITY_VALUE 80
 #define INIT_TIME 60 /* seconds */
 #define WD_TIMEOUT 8 /* watchdog timeout set in main.c */
-
-#define SIREN_ON_DURATION 60 /* 1 minute */
 
 /* inactivity timeout in seconds */
 #define INACTIVITY_TIMEOUT 15
@@ -312,15 +308,12 @@ static inline void update_storage(void)
 static void load_cfg_from_storage(void)
 {
 	if (!module_check_magic()) {
-		module_cfg.state = MODULE_STATE_DISABLED;
-		module_cfg.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
-		module_cfg.humidity_report_interval = 0;
-		module_cfg.siren_duration = SIREN_ON_DURATION;
+		module_set_default_cfg(&module_cfg);
 		update_storage();
 		module_update_magic();
-	} else
-		eeprom_load(&module_cfg, &persistent_data,
-			    sizeof(module_cfg_t));
+		return;
+	}
+	eeprom_load(&module_cfg, &persistent_data, sizeof(module_cfg_t));
 }
 
 static void handle_rx_commands(uint8_t cmd, uint16_t value);
@@ -443,12 +436,10 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		return;
 	case CMD_DISABLE_FAN:
 		module_cfg.fan_enabled = 0;
-		update_storage();
-		return;
+		break;
 	case CMD_ENABLE_FAN:
 		module_cfg.fan_enabled = 1;
-		update_storage();
-		return;
+		break;
 	case CMD_SIREN_ON:
 		set_siren_on(1);
 		return;
@@ -458,13 +449,13 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 	case CMD_SET_HUM_TH:
 		if (value && value <= 100) {
 			module_cfg.humidity_threshold = value;
-			update_storage();
+			break;
 		}
 		return;
 	case CMD_SET_SIREN_DURATION:
 		if (value) {
 			module_cfg.siren_duration = value;
-			update_storage();
+			break;
 		}
 		return;
 	case CMD_GET_STATUS:
@@ -473,9 +464,9 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		return;
 	case CMD_GET_REPORT_HUM_VAL:
 		module_cfg.humidity_report_interval = value;
-		update_storage();
-		return;
+		break;
 	}
+	update_storage();
 }
 
 static void rf_connecting_on_event(event_t *ev, uint8_t events);

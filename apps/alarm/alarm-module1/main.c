@@ -10,7 +10,7 @@
 #include <interrupts.h>
 #include "alarm-module1.h"
 #include "gpio.h"
-#include "../module.h"
+#include "../module-common.h"
 
 #define UART_RING_SIZE 16
 

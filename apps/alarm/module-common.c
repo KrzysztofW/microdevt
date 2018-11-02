@@ -1,5 +1,4 @@
 #include <eeprom.h>
-#include "module.h"
 #include "module-common.h"
 
 const uint32_t rf_enc_defkey[4] = {
@@ -123,4 +122,12 @@ send_rf_msg(swen_l3_assoc_t *assoc, uint8_t cmd, const void *data, int len)
 		__buf_add(&buf, data, len);
 	sbuf = buf2sbuf(&buf);
 	return swen_l3_send(assoc, &sbuf);
+}
+
+void module_set_default_cfg(module_cfg_t *cfg)
+{
+	memset(cfg, 0, sizeof(module_cfg_t));
+	cfg->state = MODULE_STATE_DISABLED;
+	cfg->humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
+	cfg->siren_duration = DEFAULT_SIREN_ON_DURATION;
 }
