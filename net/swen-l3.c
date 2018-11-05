@@ -20,6 +20,9 @@ typedef enum swen_l3_op {
 #define SWEN_L3_RETRANSMIT_DELAY 1000000 /* 1s */
 #define SWEN_L3_MAX_RETRIES 15
 
+/* reserve one byte for retry info and one byte for seqid */
+#define SWEN_L3_HEADER_RESERVED_LEN 2
+
 typedef struct __attribute__((__packed__)) swen_l3_hdr {
 	uint8_t op;
 	uint8_t seq_id;
@@ -75,22 +78,30 @@ static int swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc,
 
 static inline uint8_t swen_l3_get_pkt_retries(pkt_t *pkt)
 {
-	return pkt->buf.data[pkt->buf.len];
+	uint8_t *b = pkt->buf.data - pkt->buf.skip;
+
+	return b[0];
 }
 
 static inline void swen_l3_set_pkt_retries(pkt_t *pkt, uint8_t retries)
 {
-	pkt->buf.data[pkt->buf.len] = retries;
+	uint8_t *b = pkt->buf.data - pkt->buf.skip;
+
+	b[0] = retries;
 }
 
 static inline uint8_t swen_l3_get_pkt_seqid(pkt_t *pkt)
 {
-	return pkt->buf.data[pkt->buf.len + 1];
+	uint8_t *b = pkt->buf.data - pkt->buf.skip;
+
+	return b[1];
 }
 
 static inline void swen_l3_set_pkt_seqid(pkt_t *pkt, uint8_t seqid)
 {
-	pkt->buf.data[pkt->buf.len + 1] = seqid;
+	uint8_t *b = pkt->buf.data - pkt->buf.skip;
+
+	b[1] = seqid;
 }
 
 static void swen_l3_free_assoc_pkts(swen_l3_assoc_t *assoc)
@@ -187,10 +198,8 @@ static int __swen_l3_output(pkt_t *pkt, swen_l3_assoc_t *assoc, uint8_t op,
 
 	pkt_adj(pkt, (int)(sizeof(swen_hdr_t) + hdr_len));
 	if (sbuf) {
-		/* reserve one byte for retry info and one byte for seqid */
-		if (buf_has_room(&pkt->buf, sbuf->len + 2) < 0)
+		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
 			return -1;
-		__buf_addsbuf(&pkt->buf, sbuf);
 		len = sbuf->len;
 	}
 	pkt_adj(pkt, -((int8_t)hdr_len));
@@ -265,9 +274,11 @@ swen_l3_output(uint8_t op, swen_l3_assoc_t *assoc, const sbuf_t *sbuf)
 			return -1;
 		return 0;
 	}
+	pkt_adj(pkt, SWEN_L3_HEADER_RESERVED_LEN);
 
 	assoc->seq_id++;
 	if (__swen_l3_output(pkt, assoc, op, sbuf) < 0) {
+		assoc->seq_id--;
 		pkt_free(pkt);
 		return -1;
 	}
@@ -384,6 +395,7 @@ static void swen_l3_send_ack_task_cb(void *arg)
 		schedule_task(swen_l3_send_ack_task_cb, assoc);
 		return;
 	}
+	pkt_adj(pkt, SWEN_L3_HEADER_RESERVED_LEN);
 	__swen_l3_output(pkt, assoc, S_OP_ACK, NULL);
 }
 

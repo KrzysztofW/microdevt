@@ -709,8 +709,10 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		if (handle_tx_commands(module, op) >= 0) {
 			DEBUG_LOG("mod0: sending op:0x%X to mod%d\n", op, id);
 			__module_skip_op(&module->op_queue);
-		} else if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
+		} else if (swen_l3_get_state(assoc) != S_STATE_CONNECTED) {
+			swen_l3_associate(assoc);
 			goto error;
+		}
 	}
 	return;
  error:

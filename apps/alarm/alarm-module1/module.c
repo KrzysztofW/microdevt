@@ -580,9 +580,10 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			module_skip_op();
 			return;
 		}
-		if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
+		if (swen_l3_get_state(assoc) != S_STATE_CONNECTED) {
+			swen_l3_associate(assoc);
 			goto error;
-		goto error;
+		}
 	}
 	return;
  error:
