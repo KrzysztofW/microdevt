@@ -41,7 +41,7 @@ static sbuf_t s_siren_off = SBUF_INITS("siren off");
 static sbuf_t s_siren_duration = SBUF_INITS("siren duration");
 static sbuf_t s_siren_timeout = SBUF_INITS("siren timeout");
 static sbuf_t s_humidity_th = SBUF_INITS("humidity th");
-static sbuf_t s_report_hum_val = SBUF_INITS("report hum");
+static sbuf_t s_sensor_report = SBUF_INITS("sensor report");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
 static sbuf_t s_connect = SBUF_INITS("connect");
 static sbuf_t s_disable = SBUF_INITS("disable");
@@ -74,8 +74,8 @@ static cmd_t cmds[] = {
 	{ .s = &s_siren_off, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_OFF },
 	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_HUM_TH },
-	{ .s = &s_report_hum_val, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
-	  .cmd = CMD_GET_REPORT_HUM_VAL },
+	{ .s = &s_sensor_report, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
+	  .cmd = CMD_GET_SENSOR_REPORT },
 	{ .s = &s_siren_duration, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_SIREN_DURATION },
 	{ .s = &s_siren_timeout, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
@@ -182,12 +182,12 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 		    " Global humidity value:  %u%%\n"
 		    " Humidity tendency:  %s\n"
 		    " Humidity threshold:  %u%%\n"
-		    " Humidity report interval: %u secs\n",
+		    " Sensor report interval: %u secs\n",
 		    status->humidity.val,
 		    status->humidity.global_val,
 		    humidity_tendency_to_str(status->humidity.tendency),
 		    status->humidity.threshold,
-		    status->humidity.report_interval);
+		    status->sensor_report_interval);
 	}
 	if (features & MODULE_FEATURE_TEMPERATURE)
 		LOG(" Temperatue:  %d\n", status->temperature);
@@ -281,8 +281,8 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	case CMD_SET_HUM_TH:
 		__buf_getc(args, &cfg->humidity_threshold);
 		break;
-	case CMD_GET_REPORT_HUM_VAL:
-		__buf_get_u16(args, &cfg->humidity_report_interval);
+	case CMD_GET_SENSOR_REPORT:
+		__buf_get_u16(args, &cfg->sensor_report_interval);
 		break;
 	case CMD_SET_SIREN_DURATION:
 		__buf_get_u16(args, &cfg->siren_duration);
@@ -524,6 +524,10 @@ module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
 		if (buf_getc(buf, &status->siren.timeout) < 0)
 			return -1;
 	}
+	if (features & (MODULE_FEATURE_HUMIDITY | MODULE_FEATURE_TEMPERATURE)) {
+		if (buf_get_u16(buf, &status->sensor_report_interval) < 0)
+			return -1;
+	}
 	return 0;
 }
 
@@ -555,8 +559,8 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 			goto error;
 	}
 
-	if (cfg->humidity_report_interval != status->humidity.report_interval
-	    && __module_add_op(op_queue, CMD_GET_REPORT_HUM_VAL) < 0)
+	if (cfg->sensor_report_interval != status->sensor_report_interval
+	    && __module_add_op(op_queue, CMD_GET_SENSOR_REPORT) < 0)
 		goto error;
 	if (cfg->humidity_threshold != status->humidity.threshold &&
 	    __module_add_op(op_queue, CMD_SET_HUM_TH) < 0)
@@ -594,9 +598,9 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 {
 	uint8_t cmd;
 	uint8_t id = addr_to_module_id(addr);
-	uint8_t val;
 	module_status_t status;
 	module_cfg_t cfg;
+	sensor_report_status_t sensor_report;
 
 	if (addr < RF_MASTER_MOD_HW_ADDR || id > NB_MODULES)
 		return;
@@ -621,11 +625,19 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		LOG("mod%d: power %s\n", id,
 		    cmd == CMD_NOTIF_MAIN_PWR_UP ? "up" : "down");
 		return;
-	case CMD_REPORT_HUM_VAL:
-		if (buf_len(buf) < sizeof(uint8_t))
-			goto error;
-		val = buf_data(buf)[0];
-		LOG("humidity value: %u\n", val);
+	case CMD_SENSOR_REPORT:
+		memset(&sensor_report, 0, sizeof(sensor_report));
+		if (cfg.features & MODULE_FEATURE_HUMIDITY) {
+			if (buf_getc(buf, &sensor_report.humidity) < 0)
+				goto error;
+			LOG("humidity value: %u%%\n", sensor_report.humidity);
+		}
+		if (cfg.features & MODULE_FEATURE_TEMPERATURE) {
+			if (buf_getc(buf,
+				     (uint8_t *)&sensor_report.temperature) < 0)
+				goto error;
+			LOG("temperature: %d C\n", sensor_report.temperature);
+		}
 		return;
 	case CMD_FEATURES:
 		if (buf_len(buf) < sizeof(uint8_t))
@@ -663,8 +675,8 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 		data = &cfg.humidity_threshold;
 		len = sizeof(uint8_t);
 		break;
-	case CMD_GET_REPORT_HUM_VAL:
-		data = &cfg.humidity_report_interval;
+	case CMD_GET_SENSOR_REPORT:
+		data = &cfg.sensor_report_interval;
 		len = sizeof(uint16_t);
 		break;
 	case CMD_SET_SIREN_DURATION:

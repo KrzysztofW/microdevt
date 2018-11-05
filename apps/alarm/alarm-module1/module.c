@@ -45,7 +45,7 @@ static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint8_t humidity_sampling_update;
 static swen_l3_assoc_t mod1_assoc;
-static uint16_t report_hval_elapsed_secs;
+static uint16_t sensor_report_elapsed_secs;
 static uint8_t init_time;
 static uint8_t pwr_state;
 static uint8_t pwr_state_report;
@@ -89,7 +89,7 @@ void watchdog_on_wakeup(void *arg)
 
 	if (fan_sec_cnt > WD_TIMEOUT)
 		fan_sec_cnt -= WD_TIMEOUT;
-	report_hval_elapsed_secs += WD_TIMEOUT;
+	sensor_report_elapsed_secs += WD_TIMEOUT;
 	if (init_time < INIT_TIME)
 		init_time += WD_TIMEOUT;
 	/* stay active for 2 seconds in order to catch incoming RF packets */
@@ -104,17 +104,17 @@ static void pwr_mgr_on_sleep(void *arg)
 }
 #endif
 
-static void report_hum_value(void)
+static void sensor_report_value(void)
 {
-	if (module_cfg.humidity_report_interval == 0)
+	if (module_cfg.sensor_report_interval == 0)
 		return;
-	if (report_hval_elapsed_secs >=
-	    module_cfg.humidity_report_interval) {
-		report_hval_elapsed_secs = 0;
-		module_add_op(CMD_REPORT_HUM_VAL, 0);
+	if (sensor_report_elapsed_secs >=
+	    module_cfg.sensor_report_interval) {
+		sensor_report_elapsed_secs = 0;
+		module_add_op(CMD_SENSOR_REPORT, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 	} else
-		report_hval_elapsed_secs++;
+		sensor_report_elapsed_secs++;
 }
 
 static inline void set_fan_off(void)
@@ -153,7 +153,7 @@ static void timer_1sec_cb(void *arg)
 	if (timer_is_pending(&siren_timer))
 		power_management_pwr_down_reset();
 #endif
-	report_hum_value();
+	sensor_report_value();
 	if (fan_sec_cnt) {
 		if (fan_sec_cnt == 1)
 			set_fan_off();
@@ -286,7 +286,7 @@ static void get_status(module_status_t *status)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 
-	status->humidity.report_interval = module_cfg.humidity_report_interval;
+	status->sensor_report_interval = module_cfg.sensor_report_interval;
 	status->humidity.threshold = module_cfg.humidity_threshold;
 	status->humidity.val = get_humidity_cur_value();
 	array_copy(humidity_array, global_humidity_array,
@@ -391,7 +391,7 @@ static int handle_tx_commands(uint8_t cmd)
 	module_status_t status;
 	void *data = NULL;
 	int len = 0;
-	uint8_t hum_val;
+	sensor_report_status_t sensor_report;
 	uint8_t features;
 
 	switch (cmd) {
@@ -400,10 +400,11 @@ static int handle_tx_commands(uint8_t cmd)
 		data = &status;
 		len = sizeof(module_status_t);
 		break;
-	case CMD_REPORT_HUM_VAL:
-		hum_val = get_humidity_cur_value();
-		data = &hum_val;
-		len = sizeof(hum_val);
+	case CMD_SENSOR_REPORT:
+		sensor_report.humidity = get_humidity_cur_value();
+		sensor_report.temperature = get_temperature_cur_value();
+		data = &sensor_report;
+		len = sizeof(sensor_report);
 		break;
 	case CMD_NOTIF_ALARM_ON:
 	case CMD_NOTIF_MAIN_PWR_DOWN:
@@ -476,8 +477,8 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		module_add_op(CMD_STATUS, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
-	case CMD_GET_REPORT_HUM_VAL:
-		module_cfg.humidity_report_interval = value;
+	case CMD_GET_SENSOR_REPORT:
+		module_cfg.sensor_report_interval = value;
 		break;
 	}
 	update_storage();

@@ -40,7 +40,7 @@ typedef struct __attribute__((__packed__)) module_cfg {
 	uint8_t  fan_enabled : 1;
 	uint16_t siren_duration;
 	uint8_t  siren_timeout;
-	uint16_t humidity_report_interval;
+	uint16_t sensor_report_interval;
 	uint8_t  humidity_threshold;
 } module_cfg_t;
 
@@ -72,8 +72,12 @@ typedef enum status_flags {
 	STATUS_STATE_SIREN_ON = (1 << 5),
 } status_flags_t;
 
+typedef struct __attribute__((__packed__)) sensor_report_status {
+	uint8_t humidity;
+	int8_t  temperature;
+} sensor_report_status_t;
+
 typedef struct __attribute__((__packed__)) humidity_status {
-	uint16_t report_interval;
 	uint8_t  threshold;
 	uint8_t  val;
 	uint8_t  global_val;
@@ -91,6 +95,7 @@ typedef struct __attribute__((__packed__)) module_status {
 	humidity_status_t humidity;
 	int8_t   temperature;
 	siren_status_t siren;
+	uint16_t sensor_report_interval;
 } module_status_t;
 
 typedef struct module {
@@ -127,8 +132,8 @@ typedef enum commands {
 	CMD_DISCONNECT,
 	CMD_CONNECT,
 	CMD_DISABLE,
-	CMD_GET_REPORT_HUM_VAL,
-	CMD_REPORT_HUM_VAL,
+	CMD_GET_SENSOR_REPORT,
+	CMD_SENSOR_REPORT,
 	CMD_NOTIF_MAIN_PWR_DOWN,
 	CMD_NOTIF_MAIN_PWR_UP,
 	CMD_DISABLE_PWR_DOWN,
