@@ -175,8 +175,6 @@ static void siren_tim_cb(void *arg)
 
 static void set_siren_on(uint8_t force)
 {
-	if (gpio_is_siren_on() || init_time < INIT_TIME)
-		return;
 	if (module_cfg.state != MODULE_STATE_ARMED && !force)
 		return;
 
@@ -194,6 +192,11 @@ static void set_siren_on(uint8_t force)
 static void pir_on_action(void *arg)
 {
 	set_siren_on(0);
+}
+
+static void siren_on_tim_cb(void *arg)
+{
+	schedule_task(pir_on_action, NULL);
 }
 
 ISR(PCINT0_vect)
@@ -217,9 +220,16 @@ ISR(PCINT0_vect)
 
 ISR(PCINT2_vect)
 {
-	if (module_cfg.state == MODULE_STATE_DISABLED || !gpio_is_pir_on())
+	if (module_cfg.state == MODULE_STATE_DISABLED || !gpio_is_pir_on() ||
+	    init_time < INIT_TIME || gpio_is_siren_on() ||
+	    timer_is_pending(&siren_timer))
 		return;
-	schedule_task(pir_on_action, NULL);
+
+	if (module_cfg.siren_timeout)
+		timer_add(&siren_timer, module_cfg.siren_timeout * 1000000,
+			  siren_on_tim_cb, NULL);
+	else
+		schedule_task(pir_on_action, NULL);
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_pwr_down_reset();
 #endif
@@ -296,7 +306,8 @@ static void get_status(module_status_t *status)
 	status->state = module_cfg.state;
 	if (swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED)
 		status->flags |= STATUS_STATE_CONN_RF_UP;
-	status->siren_duration = module_cfg.siren_duration;
+	status->siren.duration = module_cfg.siren_duration;
+	status->siren.timeout = module_cfg.siren_timeout;
 	status->temperature = get_temperature_cur_value();
 }
 
@@ -458,6 +469,9 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 			break;
 		}
 		return;
+	case CMD_SET_SIREN_TIMEOUT:
+		module_cfg.siren_timeout = value;
+		break;
 	case CMD_GET_STATUS:
 		module_add_op(CMD_STATUS, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
@@ -474,7 +488,7 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events);
 static void module1_parse_commands(buf_t *buf)
 {
 	uint8_t cmd;
-	uint8_t v8;
+	uint8_t v8 = 0;
 	uint16_t v16 = 0;
 
 	if (buf_getc(buf, &cmd) < 0)

@@ -39,6 +39,7 @@ static sbuf_t s_fan_enable = SBUF_INITS("fan enable");
 static sbuf_t s_siren_on = SBUF_INITS("siren on");
 static sbuf_t s_siren_off = SBUF_INITS("siren off");
 static sbuf_t s_siren_duration = SBUF_INITS("siren duration");
+static sbuf_t s_siren_timeout = SBUF_INITS("siren timeout");
 static sbuf_t s_humidity_th = SBUF_INITS("humidity th");
 static sbuf_t s_report_hum_val = SBUF_INITS("report hum");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
@@ -77,6 +78,8 @@ static cmd_t cmds[] = {
 	  .cmd = CMD_GET_REPORT_HUM_VAL },
 	{ .s = &s_siren_duration, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_SIREN_DURATION },
+	{ .s = &s_siren_timeout, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
+	  .cmd = CMD_SET_SIREN_TIMEOUT },
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 	{ .s = &s_disable, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISABLE },
@@ -196,7 +199,8 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 	if (features & MODULE_FEATURE_SIREN) {
 		LOG(" Siren:  %s\n",
 		    on_off(!!(status->flags & STATUS_STATE_SIREN_ON)));
-		LOG(" Siren duration:  %u secs\n", status->siren_duration);
+		LOG(" Siren duration:  %u secs\n", status->siren.duration);
+		LOG(" Siren timeout:   %u secs\n", status->siren.timeout);
 	}
 	if (features & MODULE_FEATURE_LAN)
 		LOG(" LAN:  %s\n",
@@ -224,7 +228,8 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events);
 
 static void module_get_master_status(module_status_t *status)
 {
-	status->siren_duration = master_cfg.siren_duration;
+	status->siren.duration = master_cfg.siren_duration;
+	status->siren.timeout = master_cfg.siren_timeout;
 	status->state = master_cfg.state;
 	status->temperature = adc_read_mv(ADC_1_1V_REF_VOLTAGE, 3);
 	status->temperature = LM35DZ_TO_C_DEGREES(status->temperature);
@@ -237,7 +242,6 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	module_cfg_t c;
 	module_cfg_t *cfg;
 	swen_l3_assoc_t *assoc;
-	/* uint8_t op; */
 
 	if (id == 0)
 		cfg = &master_cfg;
@@ -256,7 +260,8 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		 cmd == CMD_DISABLE_FAN || cmd == CMD_ENABLE_FAN)) ||
 	    (!(cfg->features & MODULE_FEATURE_SIREN)
 	     && (cmd == CMD_SIREN_ON || cmd == CMD_SIREN_OFF ||
-		 cmd == CMD_SET_SIREN_DURATION || cmd == CMD_ARM ||
+		 cmd == CMD_SET_SIREN_DURATION ||
+		 cmd == CMD_SET_SIREN_TIMEOUT || cmd == CMD_ARM ||
 		 cmd == CMD_DISARM)) ||
 	    (!(cfg->features & MODULE_FEATURE_HUMIDITY)
 	     && cmd == CMD_SET_HUM_TH)) {
@@ -281,6 +286,9 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		break;
 	case CMD_SET_SIREN_DURATION:
 		__buf_get_u16(args, &cfg->siren_duration);
+		break;
+	case CMD_SET_SIREN_TIMEOUT:
+		__buf_getc(args, &cfg->siren_timeout);
 		break;
 	case CMD_ENABLE_FAN:
 		cfg->fan_enabled = 1;
@@ -511,7 +519,9 @@ module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
 		return -1;
 
 	if (features & MODULE_FEATURE_SIREN) {
-		if (buf_get_u16(buf, &status->siren_duration) < 0)
+		if (buf_get_u16(buf, &status->siren.duration) < 0)
+			return -1;
+		if (buf_getc(buf, &status->siren.timeout) < 0)
 			return -1;
 	}
 	return 0;
@@ -543,8 +553,8 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 		}
 		if (__module_add_op(op_queue, op) < 0)
 			goto error;
-
 	}
+
 	if (cfg->humidity_report_interval != status->humidity.report_interval
 	    && __module_add_op(op_queue, CMD_GET_REPORT_HUM_VAL) < 0)
 		goto error;
@@ -558,9 +568,13 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 	    __module_add_op(op_queue, CMD_ENABLE_FAN) < 0)
 		goto error;
 
-	if (cfg->siren_duration != status->siren_duration &&
+	if (cfg->siren_duration != status->siren.duration &&
 	    __module_add_op(op_queue, CMD_SET_SIREN_DURATION) < 0)
 		goto error;
+	if (cfg->siren_timeout != status->siren.timeout &&
+	    __module_add_op(op_queue, CMD_SET_SIREN_TIMEOUT) < 0)
+		goto error;
+
 	if (ring_len(op_queue)) {
 		DEBUG_LOG("wrong status, updating...\n");
 		swen_l3_event_set_mask(assoc, EV_READ|EV_WRITE);
@@ -656,6 +670,10 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 	case CMD_SET_SIREN_DURATION:
 		data = &cfg.siren_duration;
 		len = sizeof(uint16_t);
+		break;
+	case CMD_SET_SIREN_TIMEOUT:
+		data = &cfg.siren_timeout;
+		len = sizeof(uint8_t);
 		break;
 	default:
 		break;

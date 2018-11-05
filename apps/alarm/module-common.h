@@ -25,6 +25,7 @@ typedef enum __attribute__ ((__packed__)) features features_t;
 
 #define DEFAULT_HUMIDITY_THRESHOLD  3
 #define DEFAULT_SIREN_ON_DURATION  60
+#define DEFAULT_SIREN_ON_TIMEOUT 5
 
 typedef enum module_state {
 	MODULE_STATE_DISARMED,
@@ -38,6 +39,7 @@ typedef struct __attribute__((__packed__)) module_cfg {
 	uint8_t  state : 2;
 	uint8_t  fan_enabled : 1;
 	uint16_t siren_duration;
+	uint8_t  siren_timeout;
 	uint16_t humidity_report_interval;
 	uint8_t  humidity_threshold;
 } module_cfg_t;
@@ -78,12 +80,17 @@ typedef struct __attribute__((__packed__)) humidity_status {
 	uint8_t  tendency;
 } humidity_status_t;
 
+typedef struct __attribute__((__packed__)) siren_status {
+	uint16_t duration;
+	uint8_t  timeout;
+} siren_status_t;
+
 typedef struct __attribute__((__packed__)) module_status {
 	uint8_t  flags;
 	uint8_t  state;
 	humidity_status_t humidity;
 	int8_t   temperature;
-	uint16_t siren_duration;
+	siren_status_t siren;
 } module_status_t;
 
 typedef struct module {
@@ -112,6 +119,7 @@ typedef enum commands {
 	CMD_SIREN_ON,
 	CMD_SIREN_OFF,
 	CMD_SET_SIREN_DURATION,
+	CMD_SET_SIREN_TIMEOUT,
 	CMD_GET_STATUS,
 	CMD_STATUS,
 	CMD_SET_HUM_TH,
