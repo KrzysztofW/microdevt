@@ -6,5 +6,10 @@
 
 /* tmp36gz temperature sensor */
 #define TMP36GZ_TO_C_DEGREES(millivolts) (((millivolts) - 500) / 10)
+#define TMP36GZ_TO_C_CENTI_DEGREES(millivolts) ((millivolts) - 500)
+
+/* LM35dz temperature sensor */
+#define LM35DZ_TO_C_DEGREES(millivolts) ((millivolts) / 10)
+#define LM35DZ_TO_C_CENTI_DEGREES(millivolts) (millivolts)
 
 #endif
