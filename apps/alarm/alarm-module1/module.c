@@ -59,16 +59,16 @@ typedef struct humidity_info {
 
 static inline uint8_t get_humidity_cur_value(void)
 {
-	int val = analog_read(HUMIDITY_ANALOG_PIN);
-
-	return HIH_4000_TO_RH(analog_to_millivolt(val));
+	adc_init_external_64prescaler();
+	return HIH_4000_TO_RH(adc_read_mv(ADC_5V_REF_VOLTAGE,
+					  HUMIDITY_ANALOG_PIN));
 }
 
 static inline int8_t get_temperature_cur_value(void)
 {
-	int val = analog_read(TEMPERATURE_ANALOG_PIN);
-
-	return TMP36GZ_TO_C_DEGREES(analog_to_millivolt(val));
+	adc_init_external_64prescaler();
+	return TMP36GZ_TO_C_DEGREES(adc_read_mv(ADC_5V_REF_VOLTAGE,
+						TEMPERATURE_ANALOG_PIN));
 }
 
 static void humidity_sampling_task_cb(void *arg);

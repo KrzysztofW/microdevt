@@ -225,7 +225,7 @@ static void module_get_master_status(module_status_t *status)
 {
 	status->siren_duration = master_cfg.siren_duration;
 	status->state = master_cfg.state;
-	status->temperature = analog_read(3);
+	status->temperature = adc_read(3);
 	status->flags = STATUS_STATE_CONN_RF_UP |
 		(PORTB & (1 << PB0)) ? STATUS_STATE_SIREN_ON : 0;
 }
