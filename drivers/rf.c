@@ -324,9 +324,13 @@ static void rf_snd_tim_cb(void *arg)
 #endif
 	while (1) {
 		if (ctx->snd_data.pkt == NULL) {
+			pkt_t *pkt;
+
 			if ((ctx->snd_data.pkt = pkt_get(iface->tx)) == NULL)
 				break;
-			ctx->snd_data.buf = ctx->snd_data.pkt->buf;
+			pkt = ctx->snd_data.pkt;
+			buf_init(&ctx->snd_data.buf, pkt->buf.data,
+				 pkt->buf.len);
 		}
 		if (rf_snd(ctx) >= 0) {
 			timer_add(&ctx->timer, RF_SAMPLING_US * 2,
