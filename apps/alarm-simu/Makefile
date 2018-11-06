@@ -57,36 +57,10 @@ clean:
 run: all
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
 
-upload: all
-	avr-size $(EXE)
-	avr-objcopy -j .text -j .data -O ihex $(EXE) $(EXE).hex
-	avr-objcopy -O srec $(EXE) $(EXE).srec
-	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
-
 size: all
 	avr-size -C --mcu=${CONFIG_AVR_MCU} $(EXE)
 
 nm: all
 	avr-nm -S --size-sort -t d $(EXE)
-
-read_fuses:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h
-
-# FUSES see http://www.engbedded.com/fusecalc
-
-# 8MHZ (no internal clk/8)
-#write_fuses:
-#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
-
-# 1MHZ (internal clk/8)
-#write_fuses:
-#	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m 
-
-# 16MHZ external crystal
-write_fuses:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xee:m -U hfuse:w:0x99:m -U efuse:w:0xff:m
-
-erase:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
 
 .PHONY: all
