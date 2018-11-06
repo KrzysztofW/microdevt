@@ -385,7 +385,7 @@ buf_get_sbuf_upto_and_skip(buf_t *buf, sbuf_t *sbuf, const char *s)
 
 static inline int buf_addbuf(buf_t *dst, const buf_t *src)
 {
-	return buf_add(dst, src->data + src->skip, src->len - src->skip);
+	return buf_add(dst, src->data, src->len);
 }
 
 static inline int buf_addsbuf(buf_t *dst, const sbuf_t *src)
