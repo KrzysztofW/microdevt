@@ -58,10 +58,10 @@ upload: optimized
 	avr-objcopy -O srec $(EXE) $(EXE).srec
 	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
 
-size: all
+size: optimized
 	avr-size -C --mcu=${CONFIG_AVR_MCU} $(EXE)
 
-nm: all
+nm: optimized
 	avr-nm -S --size-sort -t d $(EXE)
 
 reset:
