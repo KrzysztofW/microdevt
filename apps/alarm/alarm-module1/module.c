@@ -65,7 +65,7 @@ static uint16_t get_sensor_value(uint8_t pin)
 
        /* get rid of the extrem values */
        for (i = 0; i < ARRAY_LENGTH; i++)
-               arr[i] = adc_read(pin);
+	       arr[i] = adc_read(pin);
        adc_shutdown();
        return array_get_median(arr, ARRAY_LENGTH);
 }
@@ -76,17 +76,16 @@ static inline uint8_t get_humidity_cur_value(void)
 {
 	uint16_t val;
 
-	adc_init_avcc_64prescaler();
+	ADC_SET_REF_VOLTAGE_AVCC();
 	val = get_sensor_value(HUMIDITY_ANALOG_PIN);
 
 	/* Prepare the ADC for internal REF voltage p243 24.6 (Atmega328).
 	 * This shuts the AREF pin down which is needed to stabilize
 	 * the internal voltage on that pin.
 	 */
-	adc_init_internal_64prescaler();
+	ADC_SET_REF_VOLTAGE_INTERNAL();
 
-	val = adc_to_millivolt(ADC_5V_REF_VOLTAGE, val);
-	return HIH_4000_TO_RH(val);
+	return HIH_4000_TO_RH(adc_to_millivolt(val));
 }
 
 static inline int8_t get_temperature_cur_value(void)
@@ -98,8 +97,7 @@ static inline int8_t get_temperature_cur_value(void)
 	delay_us(400);
 
 	val = get_sensor_value(TEMPERATURE_ANALOG_PIN);
-	val = adc_to_millivolt(ADC_1_1V_REF_VOLTAGE, val);
-	return LM35DZ_TO_C_DEGREES(val);
+	return LM35DZ_TO_C_DEGREES(adc_to_millivolt(val));
 }
 
 static void humidity_sampling_task_cb(void *arg);

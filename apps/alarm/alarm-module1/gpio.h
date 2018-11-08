@@ -45,6 +45,8 @@ static inline void gpio_init(void)
 	PORTC = 0xFF & ~((1 << PC0) | (1 << PC2) | (1 << PC1) | (1 << PC3));
 
 	/* analog pins */
+	ADC_SET_PRESCALER_64();
+	ADC_SET_REF_VOLTAGE_INTERNAL();
 	DDRC = 0xFF & ~((1 << PC0) | (1 << PC1) | (1 << PC3));
 
 #ifndef CONFIG_AVR_SIMU
