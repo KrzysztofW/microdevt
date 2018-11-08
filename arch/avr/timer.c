@@ -3,7 +3,7 @@
 #include "log.h"
 #include "common.h"
 #include "timer.h"
-#include "avr-utils.h"
+#include "utils.h"
 
 /* 8-bit timer 300us resolution
  * 255-0.0003/(1/(16000000/64.)) = 180

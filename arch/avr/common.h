@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <avr/power.h>
 #include <avr/wdt.h>
-#include "avr-utils.h"
+#include "utils.h"
 
 #define __abort() do {							\
 		DEBUG_LOG("%s:%d aborted\n", __func__, __LINE__);	\
