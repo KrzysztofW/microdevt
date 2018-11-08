@@ -47,12 +47,16 @@ typedef struct rf_ctx {
 #endif
 #ifdef CONFIG_RF_SENDER
 	rf_data_t snd_data;
+#ifdef CONFIG_RF_BURST
 	uint8_t   burst;
+#endif
 	struct {
 		uint8_t  frame_pos;
 		uint8_t  bit;
 		uint8_t  clk;
+#ifdef CONFIG_RF_BURST
 		uint8_t  burst_cnt;
+#endif
 	} snd;
 #endif
 } rf_ctx_t;
@@ -261,13 +265,16 @@ static int rf_snd(rf_ctx_t *ctx)
 				RF_SND_PORT |= 1 << RF_SND_PIN_NB;
 				return 0;
 			}
-
+#ifndef CONFIG_RF_BURST
+			return -1;
+#else
 			if (ctx->snd.burst_cnt == ctx->burst)
 				return -1;
 			ctx->snd.burst_cnt++;
 			__buf_reset_keep(&ctx->snd_data.buf);
 			ctx->snd.frame_pos = START_FRAME_LENGTH;
 			return 0;
+#endif
 		}
 		__buf_getc(&ctx->snd_data.buf, &c);
 		byte_init(&ctx->snd_data.byte, c);
@@ -456,7 +463,11 @@ static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
 {
 	int i;
 	int data_len = pkt->buf.len;
+	int burst = 0;
 
+#ifdef CONFIG_RF_BURST
+	burst = ctx->burst;
+#endif
 	ctx->snd_data.pkt = pkt;
 	ctx->snd_data.buf = pkt->buf;
 	rf_check_recv_ctx.rcv_data.pkt = pkt_recv;
@@ -471,13 +482,13 @@ static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
 	pkt->buf.len += pkt->buf.skip;
 	pkt->buf.skip = 0;
 
-	if (pkt_recv->buf.len != data_len * (ctx->burst + 1)) {
+	if (pkt_recv->buf.len != data_len * (burst + 1)) {
 		DEBUG_LOG("%s:%d failed (len:%d, expected: %d)\n",
 			  __func__, __LINE__, pkt_recv->buf.len,
-			  data_len * (ctx->burst + 1));
+			  data_len * burst + 1);
 		return -1;
 	}
-	for (i = 0; i < ctx->burst; i++) {
+	for (i = 0; i < burst; i++) {
 		buf_t tmp;
 
 		buf_init(&tmp, pkt_recv->buf.data + (pkt->buf.len * i),
@@ -570,7 +581,8 @@ void rf_init(iface_t *iface, uint8_t burst)
 	RF_RCV_PORT &= ~(1 << RF_RCV_PIN_NB);
 #endif
 #endif
-#ifdef CONFIG_RF_SENDER
+
+#if defined (CONFIG_RF_SENDER) && defined (CONFIG_RF_BURST)
 #ifdef RF_DEBUG
 	ctx->burst = 0;
 #else
