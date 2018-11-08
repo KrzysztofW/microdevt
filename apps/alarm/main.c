@@ -64,7 +64,7 @@ int main(void)
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 	uart_ring = ring_create(UART_RING_SIZE);
 #endif
-	adc_init_avcc_64prescaler();
+	adc_init_internal_64prescaler();
 	timer_subsystem_init();
 	irq_enable();
 

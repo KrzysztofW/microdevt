@@ -57,18 +57,49 @@ typedef struct humidity_info {
 	uint8_t tendency;
 } humidity_info_t;
 
+#define ARRAY_LENGTH 10
+static uint16_t get_sensor_value(uint8_t pin)
+{
+       uint8_t i;
+       int arr[ARRAY_LENGTH];
+
+       /* get rid of the extrem values */
+       for (i = 0; i < ARRAY_LENGTH; i++)
+               arr[i] = adc_read(pin);
+       adc_shutdown();
+       return array_get_median(arr, ARRAY_LENGTH);
+}
+#undef ARRAY_LENGTH
+
+
 static inline uint8_t get_humidity_cur_value(void)
 {
-	adc_init_external_64prescaler();
-	return HIH_4000_TO_RH(adc_read_mv(ADC_5V_REF_VOLTAGE,
-					  HUMIDITY_ANALOG_PIN));
+	uint16_t val;
+
+	adc_init_avcc_64prescaler();
+	val = get_sensor_value(HUMIDITY_ANALOG_PIN);
+
+	/* Prepare the ADC for internal REF voltage p243 24.6 (Atmega328).
+	 * This shuts the AREF pin down which is needed to stabilize
+	 * the internal voltage on that pin.
+	 */
+	adc_init_internal_64prescaler();
+
+	val = adc_to_millivolt(ADC_5V_REF_VOLTAGE, val);
+	return HIH_4000_TO_RH(val);
 }
 
 static inline int8_t get_temperature_cur_value(void)
 {
-	adc_init_external_64prescaler();
-	return TMP36GZ_TO_C_DEGREES(adc_read_mv(ADC_5V_REF_VOLTAGE,
-						TEMPERATURE_ANALOG_PIN));
+	uint16_t val;
+
+	/* the internal voltage has to stabilize */
+	adc_enable();
+	delay_us(400);
+
+	val = get_sensor_value(TEMPERATURE_ANALOG_PIN);
+	val = adc_to_millivolt(ADC_1_1V_REF_VOLTAGE, val);
+	return LM35DZ_TO_C_DEGREES(val);
 }
 
 static void humidity_sampling_task_cb(void *arg);
@@ -282,18 +313,29 @@ static void humidity_sampling_task_cb(void *arg)
 		set_fan_off();
 }
 
+static void get_sensor_status(sensor_report_status_t *status)
+{
+	/* the temperature sensor must be read first */
+	status->temperature = get_temperature_cur_value();
+	status->humidity = get_humidity_cur_value();
+}
+
 static void get_status(module_status_t *status)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
+	sensor_report_status_t sensor_status;
+
+	get_sensor_status(&sensor_status);
 
 	status->sensor_report_interval = module_cfg.sensor_report_interval;
 	status->humidity.threshold = module_cfg.humidity_threshold;
-	status->humidity.val = get_humidity_cur_value();
+	status->humidity.val = sensor_status.humidity;
 	array_copy(humidity_array, global_humidity_array,
 		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
 	status->humidity.global_val =
 		array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH);
 	status->humidity.tendency = get_hum_tendency();
+	status->temperature = sensor_status.temperature;
 
 	status->flags = 0;
 	if (gpio_is_fan_on())
@@ -308,7 +350,6 @@ static void get_status(module_status_t *status)
 		status->flags |= STATUS_STATE_CONN_RF_UP;
 	status->siren.duration = module_cfg.siren_duration;
 	status->siren.timeout = module_cfg.siren_timeout;
-	status->temperature = get_temperature_cur_value();
 }
 
 static inline void update_storage(void)
@@ -401,8 +442,7 @@ static int handle_tx_commands(uint8_t cmd)
 		len = sizeof(module_status_t);
 		break;
 	case CMD_SENSOR_REPORT:
-		sensor_report.humidity = get_humidity_cur_value();
-		sensor_report.temperature = get_temperature_cur_value();
+		get_sensor_status(&sensor_report);
 		data = &sensor_report;
 		len = sizeof(sensor_report);
 		break;
@@ -505,8 +545,9 @@ static void module1_parse_commands(buf_t *buf)
 static void module_print_status(void)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
-	uint8_t hval = get_humidity_cur_value();
+	sensor_report_status_t sensor_status;
 
+	get_sensor_status(&sensor_status);
 	array_copy(humidity_array, global_humidity_array,
 		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
 
@@ -517,10 +558,10 @@ static void module_print_status(void)
 	    " Global humidity value:  %d%%\n"
 	    " Humidity tendency:  %u\n"
 	    " Humidity threshold:  %u%%\n",
-	    hval > 100 ? 0 : hval,
+	    sensor_status.humidity > 100 ? 0 : sensor_status.humidity,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
 	    get_hum_tendency(), module_cfg.humidity_threshold);
-	LOG(" Temperature:  %d\n", get_temperature_cur_value());
+	LOG(" Temperature:  %d\n", sensor_status.temperature);
 	LOG(" Fan: %d\n Fan enabled: %d\n", gpio_is_fan_on(),
 	    module_cfg.fan_enabled);
 	LOG(" Siren:  %d\n", gpio_is_siren_on()),

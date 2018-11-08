@@ -233,6 +233,7 @@ static void module_get_master_status(module_status_t *status)
 	status->state = master_cfg.state;
 	status->temperature = adc_read_mv(ADC_1_1V_REF_VOLTAGE, 3);
 	status->temperature = LM35DZ_TO_C_DEGREES(status->temperature);
+	adc_shutdown();
 	status->flags = STATUS_STATE_CONN_RF_UP |
 		(PORTB & (1 << PB0)) ? STATUS_STATE_SIREN_ON : 0;
 }

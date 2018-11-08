@@ -41,7 +41,7 @@ static inline void gpio_init(void)
 	PORTD = 0xFF & ~((1 << LED) | (1 << FAN) | (1 << PIR));
 
 	/* PORTC used RF sender (PC2) & receiver (PC0) */
-	/* analog: PC1 - HIH, PC3 - tmp36gz */
+	/* analog: PC1 - HIH, PC3 - temp sensor */
 	PORTC = 0xFF & ~((1 << PC0) | (1 << PC2) | (1 << PC1) | (1 << PC3));
 
 	/* analog pins */
