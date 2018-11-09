@@ -249,8 +249,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		cfg = &c;
 	cfg_load(cfg, id);
 
-	if (cmd != CMD_CONNECT &&
-	    cfg->state == MODULE_STATE_UNINITIALIZED) {
+	if (cmd != CMD_CONNECT && cfg->state == MODULE_STATE_UNINITIALIZED) {
 		LOG("module %d not initilized\n", id);
 		return;
 	}
@@ -318,6 +317,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 			return;
 		cfg->state = MODULE_STATE_DISABLED;
 		cmd = CMD_DISCONNECT;
+		break;
 	default:
 		break;
 	}
@@ -345,7 +345,8 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		}
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 		if (!swen_l3_is_assoc_bound(assoc))
-			swen_l3_assoc_bind(assoc, module_id_to_addr(id), &rf_iface);
+			swen_l3_assoc_bind(assoc, module_id_to_addr(id),
+					   &rf_iface);
 		swen_l3_associate(&modules[id].assoc);
 		return;
 	}

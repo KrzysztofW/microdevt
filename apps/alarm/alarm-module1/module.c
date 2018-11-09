@@ -50,7 +50,7 @@ static uint8_t init_time;
 static uint8_t pwr_state;
 static uint8_t pwr_state_report;
 
-static module_cfg_t EEMEM persistent_data;
+static module_cfg_t EEMEM persistent_cfg;
 
 typedef struct humidity_info {
 	int val;
@@ -350,20 +350,24 @@ static void get_status(module_status_t *status)
 	status->siren.timeout = module_cfg.siren_timeout;
 }
 
-static inline void update_storage(void)
+static inline void cfg_update(void)
 {
-	eeprom_update(&persistent_data, &module_cfg, sizeof(module_cfg_t));
+	eeprom_update(&persistent_cfg, &module_cfg, sizeof(module_cfg_t));
 }
 
-static void load_cfg_from_storage(void)
+static void cfg_load(void)
 {
+#ifndef CONFIG_AVR_SIMU
 	if (!module_check_magic()) {
+#endif
 		module_set_default_cfg(&module_cfg);
-		update_storage();
+		cfg_update();
 		module_update_magic();
 		return;
+#ifndef CONFIG_AVR_SIMU
 	}
-	eeprom_load(&module_cfg, &persistent_data, sizeof(module_cfg_t));
+#endif
+	eeprom_load(&module_cfg, &persistent_cfg, sizeof(module_cfg_t));
 }
 
 static void handle_rx_commands(uint8_t cmd, uint16_t value);
@@ -420,7 +424,7 @@ static void module_arm(uint8_t on)
 		module_cfg.state = MODULE_STATE_DISARMED;
 		set_siren_off();
 	}
-	update_storage();
+	cfg_update();
 	timer_del(&siren_timer);
 	timer_add(&siren_timer, 10000, arm_cb, NULL);
 }
@@ -519,7 +523,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		module_cfg.sensor_report_interval = value;
 		break;
 	}
-	update_storage();
+	cfg_update();
 }
 
 static void rf_connecting_on_event(event_t *ev, uint8_t events);
@@ -682,7 +686,7 @@ void module1_init(void)
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
-	load_cfg_from_storage();
+	cfg_load();
 
 	timer_init(&siren_timer);
 	timer_init(&timer_1sec);
