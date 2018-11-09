@@ -47,6 +47,7 @@ static uint8_t sensor_sampling_update = SENSOR_SAMPLING;
 static swen_l3_assoc_t mod1_assoc;
 static uint16_t sensor_report_elapsed_secs;
 static sensor_report_status_t sensor_status;
+static tim_t sensor_timer;
 static uint8_t init_time;
 static uint8_t pwr_state;
 static uint8_t pwr_state_report;
@@ -91,21 +92,16 @@ static inline uint8_t get_humidity_cur_value(void)
 
 static inline int8_t get_temperature_cur_value(void)
 {
-	uint16_t val;
+	uint16_t val = get_sensor_value(TEMPERATURE_ANALOG_PIN);
 
-	/* the internal voltage has to stabilize */
-	adc_enable();
-	delay_us(400);
-
-	val = get_sensor_value(TEMPERATURE_ANALOG_PIN);
 	return LM35DZ_TO_C_DEGREES(adc_to_millivolt(val));
 }
 
-static void get_sensor_status(sensor_report_status_t *status)
+static void get_sensor_status(void)
 {
 	/* the temperature sensor must be read first */
-	status->temperature = get_temperature_cur_value();
-	status->humidity = get_humidity_cur_value();
+	sensor_status.temperature = get_temperature_cur_value();
+	sensor_status.humidity = get_humidity_cur_value();
 }
 
 static void sensor_sampling_task_cb(void *arg);
@@ -303,12 +299,11 @@ static void set_humidity_info(humidity_info_t *info)
 	info->tendency = tendency;
 }
 
-static void sensor_sampling_task_cb(void *arg)
+static void sensor_status_on_ready_cb()
 {
 	humidity_info_t info;
 
-	sensor_sampling_update = 0;
-	get_sensor_status(&sensor_status);
+	get_sensor_status();
 	set_humidity_info(&info);
 
 	if (!module_cfg.fan_enabled || global_humidity_array[0] == 0)
@@ -319,6 +314,16 @@ static void sensor_sampling_task_cb(void *arg)
 		set_fan_on();
 	} else if (info.tendency == HUMIDITY_TENDENCY_STABLE)
 		set_fan_off();
+}
+
+static void sensor_sampling_task_cb(void *arg)
+{
+	sensor_sampling_update = 0;
+
+	/* at least 400us are needed for the internal voltage to
+	 * stabilize */
+	adc_enable();
+	timer_add(&sensor_timer, 800, sensor_status_on_ready_cb, NULL);
 }
 
 static void get_status(module_status_t *status)
@@ -686,6 +691,7 @@ void module1_init(void)
 
 	timer_init(&siren_timer);
 	timer_init(&timer_1sec);
+	timer_init(&sensor_timer);
 	timer_add(&timer_1sec, ONE_SECOND, timer_1sec_cb, NULL);
 
 #ifdef CONFIG_POWER_MANAGEMENT
