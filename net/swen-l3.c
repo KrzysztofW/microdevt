@@ -198,8 +198,10 @@ static int __swen_l3_output(pkt_t *pkt, swen_l3_assoc_t *assoc, uint8_t op,
 
 	pkt_adj(pkt, (int)(sizeof(swen_hdr_t) + hdr_len));
 	if (sbuf) {
-		if (buf_addsbuf(&pkt->buf, sbuf) < 0)
+		if (buf_addsbuf(&pkt->buf, sbuf) < 0) {
+			assert(0);
 			return -1;
+		}
 		len = sbuf->len;
 	}
 	pkt_adj(pkt, -((int8_t)hdr_len));
@@ -238,8 +240,10 @@ static int __swen_l3_output(pkt_t *pkt, swen_l3_assoc_t *assoc, uint8_t op,
 #endif
 	if (assoc->enc_key) {
 		hdr_encr->len = len;
-		if (xtea_encode(&pkt->buf, assoc->enc_key) < 0)
+		if (xtea_encode(&pkt->buf, assoc->enc_key) < 0) {
+			assert(0);
 			return -1;
+		}
 	}
 	pkt_retain(pkt);
 	if (swen_output(pkt, assoc->iface, L3_PROTO_SWEN, &assoc->dst) < 0) {
