@@ -22,7 +22,7 @@
 #define HUMIDITY_ANALOG_PIN 1
 #define FAN_ON_DURATION (4 * 3600) /* max 4h of activity */
 #define TEMPERATURE_ANALOG_PIN 3
-#define HUMIDITY_SAMPLING 30 /* sample every 30s */
+#define SENSOR_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define MAX_HUMIDITY_VALUE 80
 #define INIT_TIME 60 /* seconds */
@@ -43,9 +43,10 @@ static tim_t siren_timer;
 static tim_t timer_1sec;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
-static uint8_t humidity_sampling_update;
+static uint8_t sensor_sampling_update = SENSOR_SAMPLING;
 static swen_l3_assoc_t mod1_assoc;
 static uint16_t sensor_report_elapsed_secs;
+static sensor_report_status_t sensor_status;
 static uint8_t init_time;
 static uint8_t pwr_state;
 static uint8_t pwr_state_report;
@@ -100,7 +101,14 @@ static inline int8_t get_temperature_cur_value(void)
 	return LM35DZ_TO_C_DEGREES(adc_to_millivolt(val));
 }
 
-static void humidity_sampling_task_cb(void *arg);
+static void get_sensor_status(sensor_report_status_t *status)
+{
+	/* the temperature sensor must be read first */
+	status->temperature = get_temperature_cur_value();
+	status->humidity = get_humidity_cur_value();
+}
+
+static void sensor_sampling_task_cb(void *arg);
 
 #ifdef CONFIG_POWER_MANAGEMENT
 void watchdog_on_wakeup(void *arg)
@@ -111,7 +119,7 @@ void watchdog_on_wakeup(void *arg)
 
 	/* sample every 30 seconds ((8-sec sleep + 2 secs below) * 3) */
 	if (sampling_cnt >= 3) {
-		schedule_task(humidity_sampling_task_cb, NULL);
+		schedule_task(sensor_sampling_task_cb, NULL);
 		sampling_cnt = 0;
 	} else
 		sampling_cnt++;
@@ -172,8 +180,8 @@ static void timer_1sec_cb(void *arg)
 
 	/* skip sampling when the siren is on */
 	if (!timer_is_pending(&siren_timer)
-	    && humidity_sampling_update++ >= HUMIDITY_SAMPLING)
-		schedule_task(humidity_sampling_task_cb, NULL);
+	    && sensor_sampling_update++ >= SENSOR_SAMPLING)
+		schedule_task(sensor_sampling_task_cb, NULL);
 
 	gpio_led_toggle();
 
@@ -282,25 +290,27 @@ static uint8_t get_hum_tendency(void)
 	return HUMIDITY_TENDENCY_RISING;
 }
 
-static void get_humidity(humidity_info_t *info)
+static void set_humidity_info(humidity_info_t *info)
 {
-	uint8_t val = get_humidity_cur_value();
 	uint8_t tendency;
 
 	array_left_shift(global_humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH, 1);
-	global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1] = val;
+	global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1] =
+		sensor_status.humidity;
 	tendency = get_hum_tendency();
 	if (info->tendency != tendency)
 		prev_tendency = info->tendency;
 	info->tendency = tendency;
 }
 
-static void humidity_sampling_task_cb(void *arg)
+static void sensor_sampling_task_cb(void *arg)
 {
 	humidity_info_t info;
 
-	humidity_sampling_update = 0;
-	get_humidity(&info);
+	sensor_sampling_update = 0;
+	get_sensor_status(&sensor_status);
+	set_humidity_info(&info);
+
 	if (!module_cfg.fan_enabled || global_humidity_array[0] == 0)
 		return;
 	if (info.tendency == HUMIDITY_TENDENCY_RISING ||
@@ -311,19 +321,9 @@ static void humidity_sampling_task_cb(void *arg)
 		set_fan_off();
 }
 
-static void get_sensor_status(sensor_report_status_t *status)
-{
-	/* the temperature sensor must be read first */
-	status->temperature = get_temperature_cur_value();
-	status->humidity = get_humidity_cur_value();
-}
-
 static void get_status(module_status_t *status)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
-	sensor_report_status_t sensor_status;
-
-	get_sensor_status(&sensor_status);
 
 	status->sensor_report_interval = module_cfg.sensor_report_interval;
 	status->humidity.threshold = module_cfg.humidity_threshold;
@@ -434,7 +434,6 @@ static int handle_tx_commands(uint8_t cmd)
 	module_status_t status;
 	void *data = NULL;
 	int len = 0;
-	sensor_report_status_t sensor_report;
 	uint8_t features;
 
 	switch (cmd) {
@@ -444,9 +443,8 @@ static int handle_tx_commands(uint8_t cmd)
 		len = sizeof(module_status_t);
 		break;
 	case CMD_SENSOR_REPORT:
-		get_sensor_status(&sensor_report);
-		data = &sensor_report;
-		len = sizeof(sensor_report);
+		data = &sensor_status;
+		len = sizeof(sensor_status);
 		break;
 	case CMD_NOTIF_ALARM_ON:
 	case CMD_NOTIF_MAIN_PWR_DOWN:
@@ -547,9 +545,7 @@ static void module1_parse_commands(buf_t *buf)
 static void module_print_status(void)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
-	sensor_report_status_t sensor_status;
 
-	get_sensor_status(&sensor_status);
 	array_copy(humidity_array, global_humidity_array,
 		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
 
