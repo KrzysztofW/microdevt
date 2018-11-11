@@ -794,10 +794,10 @@ void master_module_init(void)
 	uint8_t i;
 	uint8_t initialized = module_check_magic();
 
-	/* load master module configuration */
-	cfg_load(&master_cfg, 0);
-
-	if (!initialized) {
+	if (initialized) {
+		/* load master module configuration */
+		cfg_load(&master_cfg, 0);
+	} else {
 		module_set_default_cfg(&master_cfg);
 		master_cfg.state = MODULE_STATE_DISARMED;
 		master_cfg.features = THIS_MODULE_FEATURES;
@@ -818,16 +818,19 @@ void master_module_init(void)
 		module_t *module = &modules[i];
 		module_cfg_t cfg;
 
-		ring_init(&module->op_queue, OP_QUEUE_SIZE);
-		cfg_load(&cfg, i);
-		swen_l3_assoc_init(&module->assoc, rf_enc_defkey);
-
 		if (i == 0)
 			continue;
-		if (!initialized) {
+
+		ring_init(&module->op_queue, OP_QUEUE_SIZE);
+		swen_l3_assoc_init(&module->assoc, rf_enc_defkey);
+
+		if (initialized)
+			cfg_load(&cfg, i);
+		else {
 			module_set_default_cfg(&cfg);
 			cfg.state = MODULE_STATE_UNINITIALIZED;
 			cfg_update(&cfg, i);
+			cfg_load(&cfg, i);
 		}
 
 		if (cfg.state == MODULE_STATE_DISABLED ||
