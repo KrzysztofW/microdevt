@@ -459,8 +459,9 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 
 				if (assoc->state != S_STATE_CONNECTED) {
 					assoc->state = S_STATE_CONNECTED;
+				}
 #ifdef CONFIG_EVENT
-				} else {
+				else {
 					/* inform the application about
 					 * the re-connection */
 					assoc->event.cb(&assoc->event, EV_ERROR);
@@ -495,7 +496,9 @@ void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface)
 			break;
 		if (assoc->state == S_STATE_CLOSING) {
 			assoc->state = S_STATE_CLOSED;
+#ifdef CONFIG_EVENT
 			event_schedule_event(&assoc->event, EV_HUNGUP);
+#endif
 			break;
 		}
 		if (assoc->state == S_STATE_CONN_COMPLETE) {
