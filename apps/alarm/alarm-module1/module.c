@@ -680,6 +680,7 @@ void module1_init(void)
 {
 	pwr_state = gpio_is_main_pwr_on();
 
+	module_init_iface(&rf_iface, &rf_addr);
 #ifdef CONFIG_RF_CHECKS
 	if (rf_checks(&rf_iface) < 0)
 		__abort();
@@ -698,7 +699,6 @@ void module1_init(void)
 	power_management_power_down_init(INACTIVITY_TIMEOUT, pwr_mgr_on_sleep,
 					 NULL);
 #endif
-	module_init_iface(&rf_iface, &rf_addr);
 	swen_l3_assoc_init(&mod1_assoc, rf_enc_defkey);
 	swen_l3_assoc_bind(&mod1_assoc, RF_MASTER_MOD_HW_ADDR, &rf_iface);
 	swen_l3_event_register(&mod1_assoc, EV_WRITE, rf_connecting_on_event);

@@ -39,7 +39,7 @@ typedef struct ring ring_t;
 	} ring_##name = {			\
 		.ring.mask = size - 1,		\
 	};					\
-	ring_t *name = &ring_##name.ring
+	static ring_t *name = &ring_##name.ring
 
 /*
  * Use this macro to declare rings in C structures

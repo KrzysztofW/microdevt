@@ -432,7 +432,7 @@ static inline int buf_read_file(buf_t *buf, const char *filename)
 static inline void __sbuf_print(const sbuf_t *buf, uint8_t hex)
 {
 	int i;
-	char *fmt = hex ? "0x%02X " : "%c";
+	const char *fmt = hex ? "0x%02X " : "%c";
 
 	for (i = 0; i < buf->len; i++)
 		printf(fmt, buf->data[i]);

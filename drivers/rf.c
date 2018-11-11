@@ -218,13 +218,13 @@ static int rf_debug_send(rf_ctx_t *src, uint8_t byte)
 
 	if (dst->rcv_data.pkt == NULL) {
 		if ((dst->rcv_data.pkt = pkt_get(iface->pkt_pool)) == NULL) {
-			LOG("%s no pkts\n", __func__);
+			DEBUG_LOG("%s no pkts\n", __func__);
 			if_schedule_receive(iface, NULL);
 			return -1;
 		}
 	}
 	if (buf_addc(&dst->rcv_data.pkt->buf, byte) < 0) {
-		LOG("%s: buf len:%d\n", __func__, dst->rcv_data.pkt->buf.len);
+		DEBUG_LOG("%s: buf len:%d\n", __func__, dst->rcv_data.pkt->buf.len);
 		return -1;
 	}
 	return 0;
