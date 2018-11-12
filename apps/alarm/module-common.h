@@ -65,11 +65,12 @@ static inline const char *humidity_tendency_to_str(uint8_t tendency)
 }
 
 typedef enum status_flags {
-	STATUS_STATE_CONN_LAN_UP = 1,
-	STATUS_STATE_CONN_RF_UP  = (1 << 1),
-	STATUS_STATE_FAN_ON      = (1 << 2),
-	STATUS_STATE_FAN_ENABLED = (1 << 3),
-	STATUS_STATE_SIREN_ON = (1 << 5),
+	STATUS_FLAGS_CONN_LAN_UP = 1,
+	STATUS_FLAGS_CONN_RF_UP  = (1 << 1),
+	STATUS_FLAGS_FAN_ON      = (1 << 2),
+	STATUS_FLAGS_FAN_ENABLED = (1 << 3),
+	STATUS_FLAGS_SIREN_ON = (1 << 5),
+	STATUS_FLAGS_MAIN_PWR_ON = (1 << 6),
 } status_flags_t;
 
 typedef struct __attribute__((__packed__)) sensor_report_status {

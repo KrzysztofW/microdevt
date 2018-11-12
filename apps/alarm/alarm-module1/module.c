@@ -342,15 +342,15 @@ static void get_status(module_status_t *status)
 
 	status->flags = 0;
 	if (gpio_is_fan_on())
-		status->flags = STATUS_STATE_FAN_ON;
+		status->flags = STATUS_FLAGS_FAN_ON;
 	if (module_cfg.fan_enabled)
-		status->flags |= STATUS_STATE_FAN_ENABLED;
+		status->flags |= STATUS_FLAGS_FAN_ENABLED;
 	if (gpio_is_siren_on())
-		status->flags |= STATUS_STATE_SIREN_ON;
+		status->flags |= STATUS_FLAGS_SIREN_ON;
 
 	status->state = module_cfg.state;
 	if (swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED)
-		status->flags |= STATUS_STATE_CONN_RF_UP;
+		status->flags |= STATUS_FLAGS_CONN_RF_UP;
 	status->siren.duration = module_cfg.siren_duration;
 	status->siren.timeout = module_cfg.siren_timeout;
 }

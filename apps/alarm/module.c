@@ -194,25 +194,24 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 
 	if (features & MODULE_FEATURE_FAN)
 		LOG(" Fan:  %s\n Fan enabled:  %s\n",
-		    on_off(!!(status->flags & STATUS_STATE_FAN_ON)),
-		    yes_no(!!(status->flags & STATUS_STATE_FAN_ENABLED)));
+		    on_off(status->flags & STATUS_FLAGS_FAN_ON),
+		    yes_no(status->flags & STATUS_FLAGS_FAN_ENABLED));
 	if (features & MODULE_FEATURE_SIREN) {
 		LOG(" Siren:  %s\n",
-		    on_off(!!(status->flags & STATUS_STATE_SIREN_ON)));
+		    on_off(status->flags & STATUS_FLAGS_SIREN_ON));
 		LOG(" Siren duration:  %u secs\n", status->siren.duration);
 		LOG(" Siren timeout:   %u secs\n", status->siren.timeout);
 	}
 	if (features & MODULE_FEATURE_LAN)
 		LOG(" LAN:  %s\n",
-		    on_off(!!(status->flags & STATUS_STATE_CONN_LAN_UP)));
+		    on_off(status->flags & STATUS_FLAGS_CONN_LAN_UP));
 	if (features & MODULE_FEATURE_RF) {
 		if (id == 0)
 			LOG(" RF connected devices: %u\n",
 			    get_connected_rf_devices());
 		else
 			LOG(" RF:  %s\n",
-			    on_off(!!(status->flags &
-				      STATUS_STATE_CONN_RF_UP)));
+			    on_off(status->flags & STATUS_FLAGS_CONN_RF_UP));
 	}
 }
 
@@ -233,8 +232,8 @@ static void module_get_master_status(module_status_t *status)
 	status->state = master_cfg.state;
 	status->temperature = LM35DZ_TO_C_DEGREES(adc_read_mv(3));
 	adc_shutdown();
-	status->flags = STATUS_STATE_CONN_RF_UP |
-		(PORTB & (1 << PB0)) ? STATUS_STATE_SIREN_ON : 0;
+	status->flags = STATUS_FLAGS_CONN_RF_UP |
+		(PORTB & (1 << PB0)) ? STATUS_FLAGS_SIREN_ON : 0;
 }
 
 static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
@@ -566,10 +565,10 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 	if (cfg->humidity_threshold != status->humidity.threshold &&
 	    __module_add_op(op_queue, CMD_SET_HUM_TH) < 0)
 		goto error;
-	if (!cfg->fan_enabled && (status->flags & STATUS_STATE_FAN_ENABLED) &&
+	if (!cfg->fan_enabled && (status->flags & STATUS_FLAGS_FAN_ENABLED) &&
 	    __module_add_op(op_queue, CMD_DISABLE_FAN) < 0)
 		goto error;
-	if (cfg->fan_enabled && !(status->flags & STATUS_STATE_FAN_ENABLED) &&
+	if (cfg->fan_enabled && !(status->flags & STATUS_FLAGS_FAN_ENABLED) &&
 	    __module_add_op(op_queue, CMD_ENABLE_FAN) < 0)
 		goto error;
 
