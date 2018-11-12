@@ -109,8 +109,7 @@ typedef struct module {
 #endif
 	/* the size of the queue should be >= sizeof(module_cfg_t) */
 #define OP_QUEUE_SIZE 8
-	ring_t  op_queue;
-	uint8_t op_queue_data[OP_QUEUE_SIZE];
+	RING_DECL_IN_STRUCT(op_queue, OP_QUEUE_SIZE);
 	int8_t  main_pwr_state;
 } module_t;
 
