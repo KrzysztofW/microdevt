@@ -36,8 +36,8 @@ typedef struct pkt pkt_t;
 #define CONFIG_PKT_SIZE 128
 #endif
 
+void pkt_mempool_init(void);
 void pkt_mempool_shutdown(void);
-void pkt_mempool_init(unsigned nb_pkts, unsigned pkt_size);
 
 #ifdef PKT_DEBUG
 #ifndef DEBUG

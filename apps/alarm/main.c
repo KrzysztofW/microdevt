@@ -76,7 +76,7 @@ int main(void)
 #endif
 #if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER	\
 	|| defined CONFIG_NETWORKING
-	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+	pkt_mempool_init();
 #endif
 	scheduler_init();
 	timer_init(&timer_led);

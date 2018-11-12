@@ -501,7 +501,7 @@ static int driver_rf_checks(void)
 	iface_t iface;
 	int ret = -1;
 
-	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+	pkt_mempool_init();
 	memset(&iface, 0, sizeof(iface_t));
 	iface.send = &send;
 	iface.recv = &recv;

@@ -1,20 +1,16 @@
 #include "pkt-mempool.h"
 #include "event.h"
 
-static uint8_t *buffer_data;
-static pkt_t *buffer_pool;
-static ring_t *pkt_pool;
-static unsigned pkt_total_size;
-#ifdef PKT_DEBUG
-static unsigned pkt_nb_pkts;
-#endif
+RING_DECL(pkt_pool, CONFIG_PKT_NB_MAX);
+static uint8_t buffer_data[CONFIG_PKT_NB_MAX * CONFIG_PKT_SIZE];
+static pkt_t buffer_pool[CONFIG_PKT_NB_MAX];
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 static pkt_t *emergency_pkt;
 
 int pkt_is_emergency(pkt_t *pkt)
 {
-	return (pkt > buffer_pool + pkt_pool->mask + 1 || pkt < buffer_pool);
+	return pkt > buffer_pool + pkt_pool->mask + 1 || pkt < buffer_pool;
 }
 #endif
 
@@ -29,7 +25,7 @@ void pkt_get_traced_pkts(void)
 	int i;
 
 	DEBUG_LOG("\nLast used functions:\n");
-	for (i = 0; i < pkt_nb_pkts - 1; i++) {
+	for (i = 0; i < CONFIG_PKT_NB_MAX - 1; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
 		DEBUG_LOG("[%d] pkt:%p get:%s put:%s\n",
@@ -98,7 +94,7 @@ void __pkt_free(pkt_t *pkt, const char *func, int line)
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt)) {
 		assert(emergency_pkt);
-		free(pkt);
+		free(emergency_pkt);
 		emergency_pkt = NULL;
 		return;
 	}
@@ -184,7 +180,7 @@ void pkt_free(pkt_t *pkt)
 
 static void pkt_init_pkt(pkt_t *pkt, uint8_t *data)
 {
-	pkt->buf = BUF_INIT(data, pkt_total_size);
+	pkt->buf = BUF_INIT(data, CONFIG_PKT_SIZE);
 	pkt->refcnt = 0;
 
 	INIT_LIST_HEAD(&pkt->list);
@@ -202,34 +198,26 @@ pkt_t *pkt_alloc_emergency(void)
 	if (emergency_pkt)
 		return NULL;
 
-	pkt = malloc(sizeof(pkt_t) + pkt_total_size);
+	pkt = malloc(sizeof(pkt_t) + CONFIG_PKT_SIZE);
 	if (pkt == NULL) /* unrecoverable error => reset */
 		__abort();
 	pkt_init_pkt(pkt, (uint8_t *)pkt + sizeof(pkt_t));
+	pkt->refcnt = 1;
 	pkt->offset = -1;
 	emergency_pkt = pkt;
 	return pkt;
 }
 #endif
 
-void pkt_mempool_init(unsigned nb_pkts, unsigned pkt_size)
+void pkt_mempool_init(void)
 {
 	unsigned i;
 
-	pkt_pool = ring_create(nb_pkts);
-	buffer_pool = malloc(nb_pkts * sizeof(pkt_t));
-	buffer_data = malloc(nb_pkts * pkt_size);
-	if (buffer_pool == NULL || buffer_data == NULL)
-		__abort();
-	pkt_total_size = pkt_size;
-#ifdef PKT_DEBUG
-	pkt_nb_pkts = nb_pkts;
-#endif
-	for (i = 0; i < nb_pkts - 1; i++) {
+	for (i = 0; i < CONFIG_PKT_NB_MAX - 1; i++) {
 		pkt_t *pkt = &buffer_pool[i];
 
 		assert(i < (typeof(pkt->offset))(-1));
-		pkt_init_pkt(pkt, &buffer_data[i * pkt_size]);
+		pkt_init_pkt(pkt, &buffer_data[i * CONFIG_PKT_SIZE]);
 		pkt->offset = i;
 		ring_addc(pkt_pool, i);
 	}
@@ -238,8 +226,6 @@ void pkt_mempool_init(unsigned nb_pkts, unsigned pkt_size)
 #ifdef TEST
 void pkt_mempool_shutdown(void)
 {
-	ring_free(pkt_pool);
-	free(buffer_data);
-	free(buffer_pool);
+	ring_reset(pkt_pool);
 }
 #endif

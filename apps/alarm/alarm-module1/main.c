@@ -66,7 +66,7 @@ int main(void)
 	gpio_init();
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
-	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+	pkt_mempool_init();
 	module1_init();
 #endif
 

@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 #endif
-	pkt_mempool_init(CONFIG_PKT_NB_MAX, CONFIG_PKT_SIZE);
+	pkt_mempool_init();
 	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
 		CONFIG_PKT_DRIVER_NB_MAX, 0);
 
@@ -251,7 +251,6 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 #endif
-
 	while (1) {
 		if (tun_receive_pkt(&iface) >= 0)
 			iface.if_input(&iface);
