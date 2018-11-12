@@ -12,6 +12,7 @@ SOURCES += ../alarm/alarm-module1/module.c ../../sys/array.c
 
 include config
 include build.mk
+include ../../common.mk
 
 ARCH_DIR=../../arch
 include ../../arch/build.mk
@@ -35,27 +36,24 @@ CFLAGS += -I../.. -I.
 STATIC_LIBS = ../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
-all: libnet $(SOURCES) $(EXE)
+all: revision libnet $(SOURCES) $(EXE)
 
 libnet:
 	make -C ../../net
 
-$(EXE): $(OBJ) $(STATIC_LIBS) config
-	#$(AR) -cr $(EXE).a $(OBJ)
-	#ranlib $(EXE).a
-	#$(CC) $(EXE).a $(STATIC_LIBS) $(LDFLAGS) -o $@
+$(EXE): revision $(OBJ) $(STATIC_LIBS) config
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
 
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
-clean:
+clean: clean_common
 	make -C ../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec
 	@rm -f $(ARCH_DIR)/$(ARCH)/*.o $(EXE).a
 
 run: all
-	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
+	$(CONFIG_AVR_SIMU_PATH)/src/simulavr  -g -n -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
 
 size: all
 	avr-size -C --mcu=${CONFIG_AVR_MCU} $(EXE)

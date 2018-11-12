@@ -9,6 +9,7 @@ export CFLAGS
 include config
 
 include ../../arch/build.mk
+include ../../common.mk
 include build.mk
 
 ifeq ($(DEBUG), 1)
@@ -28,12 +29,12 @@ STATIC_LIBS = ../../net/libnet-x86.a
 SOURCES += ../../sys/errno.c ../../scheduler.c
 OBJ = $(SOURCES:.c=.o)
 
-all: libnet $(SOURCES) $(EXE)
+all: revision libnet $(SOURCES) $(EXE)
 
 libnet:
 	make -C ../../net
 
-$(EXE): $(OBJ) $(STATIC_LIBS)
+$(EXE): revision $(OBJ) $(STATIC_LIBS)
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
 	@if [ -f tun-driver ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
 
@@ -43,7 +44,7 @@ run: all
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
-clean:
+clean: clean_common
 	make -C ../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(ARCH_DIR)/$(ARCH)/*.o
 

@@ -1,5 +1,3 @@
-# ../simulavr/src/simulavr  -f alarm -d atmega328 -F 16000000
-
 EXE = alarm
 CFLAGS = -Wall -Werror -Os -g -c
 
@@ -8,6 +6,7 @@ SOURCES += ../../crypto/xtea.c ../../scheduler.c
 
 include config
 include build.mk
+include ../../common.mk
 
 ARCH_DIR=../../arch
 include ../../arch/build.mk
@@ -23,7 +22,7 @@ else
 endif
 
 
-NET_APPS_DIR=../../net-apps
+NET_APPS_DIR = ../../net-apps
 
 include $(NET_APPS_DIR)/build.mk
 
@@ -32,12 +31,12 @@ CFLAGS += -I../.. -I.
 STATIC_LIBS = ../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
-all: libnet $(SOURCES) $(EXE)
+all: revision libnet $(SOURCES) $(EXE)
 
 libnet:
 	make -C ../../net
 
-$(EXE): $(OBJ) $(STATIC_LIBS) config
+$(EXE): revision $(OBJ) $(STATIC_LIBS) config
 	$(AR) -cr $(EXE).a $(OBJ)
 	ranlib $(EXE).a
 	$(CC) $(EXE).a $(STATIC_LIBS) $(EXE).a $(LDFLAGS) -o $@
@@ -45,7 +44,7 @@ $(EXE): $(OBJ) $(STATIC_LIBS) config
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
-clean:
+clean: clean_common
 	make -C ../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec
 	@rm -f $(ARCH_DIR)/$(ARCH)/*.o $(EXE).a

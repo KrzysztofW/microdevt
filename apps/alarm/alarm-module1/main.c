@@ -8,6 +8,7 @@
 #include <timer.h>
 #include <scheduler.h>
 #include <interrupts.h>
+#include "version.h"
 #include "alarm-module1.h"
 #include "gpio.h"
 #include "../module-common.h"
@@ -52,7 +53,7 @@ int main(void)
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 1);
 	uart_ring = ring_create(UART_RING_SIZE);
-	DEBUG_LOG("KW alarm module 1\n");
+	DEBUG_LOG("KW alarm module 1 (%s)\n", revision);
 #endif
 	timer_subsystem_init();
 	irq_enable();

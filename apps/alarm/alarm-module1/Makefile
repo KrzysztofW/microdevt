@@ -8,6 +8,7 @@ SOURCES += $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config
 include build.mk
+include ../../../common.mk
 
 ARCH_DIR=../../../arch
 include ../../../arch/build.mk
@@ -27,8 +28,8 @@ CFLAGS += -I../../.. -I.
 STATIC_LIBS = ../../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
-all: libnet $(SOURCES) $(EXE)
-optimized: libnet $(SOURCES) $(EXE)_optimized
+all: revision libnet $(SOURCES) $(EXE)
+optimized: revision libnet $(SOURCES) $(EXE)_optimized
 
 libnet:
 	make -C ../../../net
@@ -44,7 +45,7 @@ $(EXE)_optimized: $(OBJ) $(STATIC_LIBS) config
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
-clean:
+clean: clean_common
 	make -C ../../../net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec $(ARCH_DIR)/$(ARCH)/*.o
 	@rm -f $(EXE).a

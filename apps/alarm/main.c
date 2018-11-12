@@ -8,6 +8,7 @@
 #include <scheduler.h>
 #include <net/pkt-mempool.h>
 #include <interrupts.h>
+#include "version.h"
 #include "alarm.h"
 #include "module-common.h"
 
@@ -59,7 +60,7 @@ int main(void)
 
 	init_stream0(&stdout, &stdin, 1);
 #ifdef DEBUG
-	DEBUG_LOG("KW alarm v0.2\n");
+	DEBUG_LOG("KW alarm v0.2 (%s)\n", revision);
 #endif
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 	uart_ring = ring_create(UART_RING_SIZE);
