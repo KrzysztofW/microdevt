@@ -6,11 +6,12 @@ static uint8_t buffer_data[CONFIG_PKT_NB_MAX * CONFIG_PKT_SIZE];
 static pkt_t buffer_pool[CONFIG_PKT_NB_MAX];
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
-static pkt_t *emergency_pkt;
+static pkt_t emergency_pkt;
+uint8_t emergency_pkt_data[CONFIG_PKT_SIZE];
 
 int pkt_is_emergency(pkt_t *pkt)
 {
-	return pkt > buffer_pool + pkt_pool->mask + 1 || pkt < buffer_pool;
+	return pkt == &emergency_pkt;
 }
 #endif
 
@@ -48,8 +49,8 @@ pkt_t *__pkt_get(ring_t *ring, const char *func, int line)
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (offset == (typeof(offset))-1) {
 		DEBUG_LOG("%s() in %s:%d (pkt:%p emergency pkt) failed\n",
-			  __func__, func, line, emergency_pkt);
-		return emergency_pkt;
+			  __func__, func, line, &emergency_pkt);
+		return &emergency_pkt;
 	}
 #endif
 	pkt = &buffer_pool[offset];
@@ -92,12 +93,8 @@ void __pkt_free(pkt_t *pkt, const char *func, int line)
 		return;
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
-	if (pkt_is_emergency(pkt)) {
-		assert(emergency_pkt);
-		free(emergency_pkt);
-		emergency_pkt = NULL;
+	if (pkt_is_emergency(pkt))
 		return;
-	}
 #endif
 	DEBUG_LOG("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
 	buf_reset(&pkt->buf);
@@ -117,7 +114,7 @@ pkt_t *pkt_get(ring_t *ring)
 		return NULL;
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (offset == (typeof(offset))-1)
-		return emergency_pkt;
+		return &emergency_pkt;
 #endif
 	return &buffer_pool[offset];
 }
@@ -161,12 +158,8 @@ void pkt_free(pkt_t *pkt)
 #endif
 
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
-	if (pkt_is_emergency(pkt)) {
-		assert(emergency_pkt);
-		free(pkt);
-		emergency_pkt = NULL;
+	if (pkt_is_emergency(pkt))
 		return;
-	}
 #endif
 	buf_reset(&pkt->buf);
 	if (pkt_put(pkt_pool, pkt) < 0)
@@ -193,19 +186,9 @@ static void pkt_init_pkt(pkt_t *pkt, uint8_t *data)
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 pkt_t *pkt_alloc_emergency(void)
 {
-	pkt_t *pkt;
-
-	if (emergency_pkt)
-		return NULL;
-
-	pkt = malloc(sizeof(pkt_t) + CONFIG_PKT_SIZE);
-	if (pkt == NULL) /* unrecoverable error => reset */
-		__abort();
-	pkt_init_pkt(pkt, (uint8_t *)pkt + sizeof(pkt_t));
-	pkt->refcnt = 1;
-	pkt->offset = -1;
-	emergency_pkt = pkt;
-	return pkt;
+	assert(emergency_pkt.refcnt == 0);
+	emergency_pkt.refcnt++;
+	return &emergency_pkt;
 }
 #endif
 
@@ -221,6 +204,10 @@ void pkt_mempool_init(void)
 		pkt->offset = i;
 		ring_addc(pkt_pool, i);
 	}
+#ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
+	pkt_init_pkt(&emergency_pkt, (uint8_t *)&emergency_pkt + sizeof(pkt_t));
+	emergency_pkt.offset = -1;
+#endif
 }
 
 #ifdef TEST
