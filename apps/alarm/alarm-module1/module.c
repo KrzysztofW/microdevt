@@ -347,6 +347,8 @@ static void get_status(module_status_t *status)
 		status->flags |= STATUS_FLAGS_FAN_ENABLED;
 	if (gpio_is_siren_on())
 		status->flags |= STATUS_FLAGS_SIREN_ON;
+	if (pwr_state)
+		status->flags |= STATUS_FLAGS_MAIN_PWR_ON;
 
 	status->state = module_cfg.state;
 	if (swen_l3_get_state(&mod1_assoc) == S_STATE_CONNECTED)

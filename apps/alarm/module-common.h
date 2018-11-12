@@ -111,6 +111,7 @@ typedef struct module {
 #define OP_QUEUE_SIZE 8
 	ring_t  op_queue;
 	uint8_t op_queue_data[OP_QUEUE_SIZE];
+	int8_t  main_pwr_state;
 } module_t;
 
 typedef enum commands {

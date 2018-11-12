@@ -213,6 +213,8 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 			LOG(" RF:  %s\n",
 			    on_off(status->flags & STATUS_FLAGS_CONN_RF_UP));
 	}
+	LOG(" Main power: %s\n",
+	    on_off(status->flags & STATUS_FLAGS_MAIN_PWR_ON));
 }
 
 static int module_send_cmd(swen_l3_assoc_t *assoc, uint8_t cmd)
@@ -579,6 +581,21 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 	    __module_add_op(op_queue, CMD_SET_SIREN_TIMEOUT) < 0)
 		goto error;
 
+	if (modules[id].main_pwr_state == -1)
+		modules[id].main_pwr_state = !!(status->flags &
+						STATUS_FLAGS_MAIN_PWR_ON);
+	else {
+		if (modules[id].main_pwr_state == 1 &&
+		    ~(status->flags & STATUS_FLAGS_MAIN_PWR_ON)) {
+			DEBUG_LOG("Power down action\n");
+		} else if (modules[id].main_pwr_state == 0 &&
+			   status->flags & STATUS_FLAGS_MAIN_PWR_ON) {
+			DEBUG_LOG("Power up action\n");
+		}
+		modules[id].main_pwr_state = !!(status->flags
+						& STATUS_FLAGS_MAIN_PWR_ON);
+	}
+
 	if (ring_len(op_queue)) {
 		DEBUG_LOG("wrong status, updating...\n");
 		swen_l3_event_set_mask(assoc, EV_READ|EV_WRITE);
@@ -621,9 +638,12 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		LOG("mod%d: alarm on\n", id);
 		return;
 	case CMD_NOTIF_MAIN_PWR_DOWN:
+		modules[id].main_pwr_state = 0;
+		LOG("mod%d: power down\n", id);
+		return;
 	case CMD_NOTIF_MAIN_PWR_UP:
-		LOG("mod%d: power %s\n", id,
-		    cmd == CMD_NOTIF_MAIN_PWR_UP ? "up" : "down");
+		modules[id].main_pwr_state =1;
+		LOG("mod%d: power up\n", id);
 		return;
 	case CMD_SENSOR_REPORT:
 		memset(&sensor_report, 0, sizeof(sensor_report));
@@ -831,6 +851,7 @@ void master_module_init(void)
 			cfg_update(&cfg, i);
 			cfg_load(&cfg, i);
 		}
+		module->main_pwr_state = -1;
 
 		if (cfg.state == MODULE_STATE_DISABLED ||
 		    cfg.state == MODULE_STATE_UNINITIALIZED)
