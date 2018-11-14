@@ -217,10 +217,6 @@ static void set_siren_on(uint8_t force)
 	timer_del(&siren_timer);
 	timer_add(&siren_timer, module_cfg.siren_duration * 1000000,
 		  siren_tim_cb, NULL);
-	if (module_cfg.state == MODULE_STATE_ARMED || force) {
-		module_add_op(CMD_NOTIF_ALARM_ON, 1);
-		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
-	}
 }
 
 #ifndef CONFIG_AVR_SIMU
@@ -255,10 +251,13 @@ ISR(PCINT0_vect)
 
 ISR(PCINT2_vect)
 {
-	if (module_cfg.state == MODULE_STATE_DISABLED || !gpio_is_pir_on() ||
+	if (module_cfg.state != MODULE_STATE_ARMED || !gpio_is_pir_on() ||
 	    init_time < INIT_TIME || gpio_is_siren_on() ||
 	    timer_is_pending(&siren_timer))
 		return;
+
+	module_add_op(CMD_NOTIF_ALARM_ON, 1);
+	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 
 	if (module_cfg.siren_timeout)
 		timer_add(&siren_timer, module_cfg.siren_timeout * 1000000,
