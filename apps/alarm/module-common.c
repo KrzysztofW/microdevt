@@ -36,11 +36,11 @@ int module_check_magic(void)
 	return magic == MAGIC;
 }
 
-void module_update_magic(void)
+int8_t module_update_magic(void)
 {
 	uint8_t magic = MAGIC;
 
-	eeprom_update(&eeprom_magic, &magic, sizeof(magic));
+	return eeprom_update_and_check(&eeprom_magic, &magic, sizeof(magic));
 }
 
 static void module_task_cb(void *arg)
@@ -65,7 +65,8 @@ void module_add_op(uint8_t op, uint8_t urgent)
 
 	if (__module_add_op(queue, op) < 0) {
 		assert(0);
-		schedule_task(module_task_cb, (void *)(uintptr_t)op);
+		if (urgent)
+			schedule_task(module_task_cb, (void *)(uintptr_t)op);
 	}
 }
 

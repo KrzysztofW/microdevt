@@ -540,6 +540,10 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 	ring_t *op_queue = &modules[id].op_queue;
 	swen_l3_assoc_t *assoc = &modules[id].assoc;
 
+	if (modules[id].faulty) {
+		LOG("mod%d in faulty state\n", id);
+		return;
+	}
 	if (cfg->state != status->state) {
 		switch (cfg->state) {
 		case MODULE_STATE_DISARMED:
@@ -623,8 +627,7 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		return;
 
 	cfg_load(&cfg, id);
-	if (cfg.state == MODULE_STATE_DISABLED || buf == NULL
-	    || buf_getc(buf, &cmd) < 0)
+	if (buf == NULL || buf_getc(buf, &cmd) < 0)
 		return;
 
 	switch (cmd) {
@@ -666,6 +669,12 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 			__module_add_op(&modules[id].op_queue, CMD_GET_STATUS);
 		cfg.features = buf_data(buf)[0];
 		cfg_update(&cfg, id);
+		return;
+	case CMD_STORAGE_ERROR:
+		LOG("mod%d has a corrupted storage\n", id);
+		cfg.state = MODULE_STATE_DISABLED;
+		cfg_update(&cfg, id);
+		modules[id].faulty = 1;
 		return;
 	default:
 		return;

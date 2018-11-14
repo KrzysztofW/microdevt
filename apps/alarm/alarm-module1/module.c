@@ -360,7 +360,12 @@ static void get_status(module_status_t *status)
 
 static inline void cfg_update(void)
 {
-	eeprom_update(&persistent_cfg, &module_cfg, sizeof(module_cfg_t));
+	if (eeprom_update_and_check(&persistent_cfg, &module_cfg,
+				    sizeof(module_cfg_t)))
+		return;
+	module_add_op(CMD_STORAGE_ERROR, 0);
+	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+	module_cfg.state = MODULE_STATE_DISABLED;
 }
 
 static void cfg_load(void)
@@ -369,8 +374,11 @@ static void cfg_load(void)
 	if (!module_check_magic()) {
 #endif
 		module_set_default_cfg(&module_cfg);
-		cfg_update();
-		module_update_magic();
+		if (!module_update_magic()) {
+			module_cfg.state = MODULE_STATE_DISABLED;
+			module_add_op(CMD_STORAGE_ERROR, 0);
+		} else
+			cfg_update();
 		return;
 #ifndef CONFIG_AVR_SIMU
 	}
@@ -457,6 +465,7 @@ static int handle_tx_commands(uint8_t cmd)
 	case CMD_NOTIF_ALARM_ON:
 	case CMD_NOTIF_MAIN_PWR_DOWN:
 	case CMD_NOTIF_MAIN_PWR_UP:
+	case CMD_STORAGE_ERROR:
 		break;
 	case CMD_FEATURES:
 		cmd = CMD_FEATURES;

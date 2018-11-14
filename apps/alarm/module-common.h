@@ -111,6 +111,7 @@ typedef struct module {
 #define OP_QUEUE_SIZE 8
 	RING_DECL_IN_STRUCT(op_queue, OP_QUEUE_SIZE);
 	int8_t  main_pwr_state;
+	uint8_t faulty : 1;
 } module_t;
 
 typedef enum commands {
@@ -139,6 +140,7 @@ typedef enum commands {
 	CMD_NOTIF_MAIN_PWR_UP,
 	CMD_DISABLE_PWR_DOWN,
 	CMD_ENABLE_PWR_DOWN,
+	CMD_STORAGE_ERROR,
 } commands_t;
 
 extern const uint32_t rf_enc_defkey[4];
@@ -155,7 +157,7 @@ static inline uint8_t addr_to_module_id(uint8_t addr)
 
 void module_init_iface(iface_t *iface, uint8_t *addr);
 int module_check_magic(void);
-void module_update_magic(void);
+int8_t module_update_magic(void);
 
 void module_add_op(uint8_t op, uint8_t urgent);
 int __module_add_op(ring_t *queue, uint8_t op);
