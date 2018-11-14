@@ -165,15 +165,6 @@ static void timer_1sec_cb(void *arg)
 {
 	timer_reschedule(&timer_1sec, ONE_SECOND);
 
-	if (pwr_state_report) {
-		uint8_t cmd = pwr_state ? CMD_NOTIF_MAIN_PWR_UP
-			: CMD_NOTIF_MAIN_PWR_DOWN;
-
-		module_add_op(cmd, 1);
-		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
-		pwr_state_report = 0;
-	}
-
 	/* skip sampling when the siren is on */
 	if (!timer_is_pending(&siren_timer)
 	    && sensor_sampling_update++ >= SENSOR_SAMPLING)
@@ -186,7 +177,18 @@ static void timer_1sec_cb(void *arg)
 	if (timer_is_pending(&siren_timer))
 		power_management_pwr_down_reset();
 #endif
-	sensor_report_value();
+
+	if (module_cfg.state != MODULE_STATE_DISABLED) {
+		if (pwr_state_report) {
+			uint8_t cmd = pwr_state ? CMD_NOTIF_MAIN_PWR_UP
+				: CMD_NOTIF_MAIN_PWR_DOWN;
+
+			module_add_op(cmd, 1);
+			swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+			pwr_state_report = 0;
+		}
+		sensor_report_value();
+	}
 	if (fan_sec_cnt) {
 		if (fan_sec_cnt == 1)
 			set_fan_off();
