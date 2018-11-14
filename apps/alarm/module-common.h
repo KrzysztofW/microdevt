@@ -99,6 +99,10 @@ typedef struct __attribute__((__packed__)) module_status {
 	uint16_t sensor_report_interval;
 } module_status_t;
 
+#define POWER_STATE_NONE 0
+#define POWER_STATE_ON   1
+#define POWER_STATE_OFF  2
+
 typedef struct module {
 #ifdef CONFIG_SWEN_ROLLING_CODES
 	swen_rc_ctx_t rc_ctx;
@@ -110,7 +114,7 @@ typedef struct module {
 	/* the size of the queue should be >= sizeof(module_cfg_t) */
 #define OP_QUEUE_SIZE 8
 	RING_DECL_IN_STRUCT(op_queue, OP_QUEUE_SIZE);
-	int8_t  main_pwr_state;
+	uint8_t main_pwr_state : 2;
 	uint8_t faulty : 1;
 } module_t;
 

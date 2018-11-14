@@ -589,15 +589,17 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 		modules[id].main_pwr_state = !!(status->flags &
 						STATUS_FLAGS_MAIN_PWR_ON);
 	else {
-		if (modules[id].main_pwr_state == 1 &&
-		    ~(status->flags & STATUS_FLAGS_MAIN_PWR_ON)) {
+		if (modules[id].main_pwr_state == POWER_STATE_ON &&
+		    !(status->flags & STATUS_FLAGS_MAIN_PWR_ON)) {
 			DEBUG_LOG("Power down action\n");
-		} else if (modules[id].main_pwr_state == 0 &&
+		} else if (modules[id].main_pwr_state == POWER_STATE_OFF &&
 			   status->flags & STATUS_FLAGS_MAIN_PWR_ON) {
 			DEBUG_LOG("Power up action\n");
 		}
-		modules[id].main_pwr_state = !!(status->flags
-						& STATUS_FLAGS_MAIN_PWR_ON);
+		if (status->flags & STATUS_FLAGS_MAIN_PWR_ON)
+			modules[id].main_pwr_state = POWER_STATE_ON;
+		else
+			modules[id].main_pwr_state = POWER_STATE_OFF;
 	}
 
 	if (ring_len(op_queue)) {
@@ -641,11 +643,11 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		LOG("mod%d: alarm on\n", id);
 		return;
 	case CMD_NOTIF_MAIN_PWR_DOWN:
-		modules[id].main_pwr_state = 0;
+		modules[id].main_pwr_state = POWER_STATE_OFF;
 		LOG("mod%d: power down\n", id);
 		return;
 	case CMD_NOTIF_MAIN_PWR_UP:
-		modules[id].main_pwr_state =1;
+		modules[id].main_pwr_state = POWER_STATE_ON;
 		LOG("mod%d: power up\n", id);
 		return;
 	case CMD_SENSOR_REPORT:
@@ -860,7 +862,6 @@ void master_module_init(void)
 			cfg_update(&cfg, i);
 			cfg_load(&cfg, i);
 		}
-		module->main_pwr_state = -1;
 
 		if (cfg.state == MODULE_STATE_DISABLED ||
 		    cfg.state == MODULE_STATE_UNINITIALIZED)
