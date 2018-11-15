@@ -526,6 +526,9 @@ int rf_checks(const iface_t *iface)
 	rf_receive_checks(iface);
 	timer_reschedule(&ctx->timer, RF_SAMPLING_US);
 #endif
+#ifndef TEST
+	DEBUG_LOG("RF checks succeeded\n");
+#endif
 	return 0;
 }
 #endif
