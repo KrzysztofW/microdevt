@@ -211,10 +211,11 @@ static int rf_debug_send(rf_ctx_t *src, uint8_t byte)
 	if (src == rf_debug_iface2->priv) {
 		dst = rf_debug_iface1->priv;
 		iface = rf_debug_iface1;
-	}  else {
+	}  else if (src == rf_debug_iface1->priv) {
 		dst = rf_debug_iface2->priv;
 		iface = rf_debug_iface2;
-	}
+	} else
+		__abort();
 
 	if (dst->rcv_data.pkt == NULL) {
 		if ((dst->rcv_data.pkt = pkt_get(iface->pkt_pool)) == NULL) {
@@ -224,7 +225,8 @@ static int rf_debug_send(rf_ctx_t *src, uint8_t byte)
 		}
 	}
 	if (buf_addc(&dst->rcv_data.pkt->buf, byte) < 0) {
-		DEBUG_LOG("%s: buf len:%d\n", __func__, dst->rcv_data.pkt->buf.len);
+		DEBUG_LOG("%s: buf len:%d\n", __func__,
+			  dst->rcv_data.pkt->buf.len);
 		return -1;
 	}
 	return 0;
@@ -479,8 +481,6 @@ static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
 		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
 		return -1;
 	}
-	pkt->buf.len += pkt->buf.skip;
-	pkt->buf.skip = 0;
 
 	if (pkt_recv->buf.len != data_len * (burst + 1)) {
 		DEBUG_LOG("%s:%d failed (len:%d, expected: %d)\n",
