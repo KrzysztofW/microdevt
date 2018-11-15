@@ -25,27 +25,25 @@ static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 	return 0;
 }
 
-#define ZCHK_RSIZE 64
-
 static int ring_check_full(ring_t *ring)
 {
 	int i;
 	unsigned char c;
 
-	for (i = 0; i < ZCHK_RSIZE - 1; i++) {
+	for (i = 0; i < CHK_RSIZE - 1; i++) {
 		if (ring_addc(ring, 1) < 0)
 			return -1;
 	}
-	if (ring_len(ring) != ZCHK_RSIZE - 1) {
+	if (ring_len(ring) != CHK_RSIZE - 1) {
 		return -1;
 	}
 	ring_getc(ring, &c);
-	if (ring_len(ring) != ZCHK_RSIZE - 2) {
+	if (ring_len(ring) != CHK_RSIZE - 2) {
 		return -1;
 	}
 	if (ring_addc(ring, 1) < 0)
 		return -1;
-	if (ring_len(ring) != ZCHK_RSIZE - 1) {
+	if (ring_len(ring) != CHK_RSIZE - 1) {
 		return -1;
 	}
 
@@ -496,10 +494,19 @@ static int send(const struct iface *iface, pkt_t *pkt)
 
 static void recv(const struct iface *iface) {}
 
+static void net_swen_l3_flush_scheduler(void)
+{
+	int i;
+
+	for (i = 0; i < 10; i++)
+		scheduler_run_tasks();
+}
+
 static int driver_rf_checks(void)
 {
 	iface_t iface;
 	int ret = -1;
+	uint8_t hw_addr = 0x6F;
 
 	pkt_mempool_init();
 	memset(&iface, 0, sizeof(iface_t));
@@ -507,9 +514,11 @@ static int driver_rf_checks(void)
 	iface.recv = &recv;
 	if_init(&iface, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
 		CONFIG_PKT_DRIVER_NB_MAX, 1);
+	iface.hw_addr = &hw_addr;
 
 	rf_init(&iface, 2);
 	ret = rf_checks(&iface);
+	net_swen_l3_flush_scheduler();
 
 	if_shutdown(&iface);
 	pkt_mempool_shutdown();
