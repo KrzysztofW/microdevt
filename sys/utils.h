@@ -35,17 +35,7 @@
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-static inline uint32_t roundup_pwr2(uint32_t v)
-{
-	v--;
-	v |= v >> 1;
-	v |= v >> 2;
-	v |= v >> 4;
-	v |= v >> 8;
-	v |= v >> 16;
-	v++;
-	return v;
-}
+#define roundup_pwr2(x) (1 << ((sizeof(int) * 8) - __builtin_clz(x - 1)))
 
 static inline long
 map(long x, long in_min, long in_max, long out_min, long out_max)

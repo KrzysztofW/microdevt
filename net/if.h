@@ -52,17 +52,15 @@ struct iface {
 	uint16_t tx_errors;
 	uint16_t tx_dropped;
 #endif
-	/* interrupt handler's pkt rings */
-	ring_t *pkt_pool;
 	ring_t *rx;
 	ring_t *tx;
+	/* interrupt handler's pkt ring */
+	ring_t *pkt_pool;
 } __attribute__((__packed__));
 typedef struct iface iface_t;
 
-void if_init(iface_t *ifce, uint8_t type,
-	     unsigned nb_pkt_rx, unsigned nb_pkt_tx, unsigned nb_if_pkt_pool,
-	     uint8_t interrupt_driven);
-void if_shutdown(iface_t *ifce);
+void if_init(iface_t *ifce, uint8_t type, ring_t *pkt_pool, ring_t *rx,
+	     ring_t *tx, uint8_t is_interrupt_driven);
 
 /* functions supposed to be called from an interrupt handler */
 void if_schedule_receive(const iface_t *iface, pkt_t *pkt);

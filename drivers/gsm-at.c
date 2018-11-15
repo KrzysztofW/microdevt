@@ -22,9 +22,9 @@ static FILE *gsm_in, *gsm_out;
 #define GSM_SENDING_DELAY 5000000 /* 5s */
 
 #define RING_SIZE 128
-static ring_t *ring;
+STATIC_RING_DECL(ring, RING_SIZE);
 #ifdef DEBUG_GSM
-static ring_t *ring_dbg;
+STATIC_RING_DECL(ring_dbg, RING_SIZE);
 #endif
 
 static sbuf_t ok = SBUF_INITS("OK\n");
@@ -215,10 +215,6 @@ void
 gsm_init(FILE *in, FILE *out, void (*cb)(uint8_t status, const sbuf_t *from,
 					 const sbuf_t *msg))
 {
-	ring = ring_create(RING_SIZE);
-#if DEBUG_GSM
-	ring_dbg = ring_create(RING_SIZE);
-#endif
 	timer_init(&timer);
 	gsm_in = in;
 	gsm_out = out;
@@ -385,7 +381,6 @@ int gsm_tests(void)
 {
 	int i, nb = 4;
 
-	scheduler_init();
 	gsm_init(stdin, stdout, test_cb);
 	timer_del(&timer);
 

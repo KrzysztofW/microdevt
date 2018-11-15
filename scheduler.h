@@ -8,8 +8,6 @@ void __schedule_task(void (*cb)(void *arg), void *arg,
 #else
 void schedule_task(void (*cb)(void *arg), void *arg);
 #endif
-void scheduler_init(void);
-void scheduler_shutdown(void);
 
 /* run bottom halves */
 void scheduler_run_tasks(void);

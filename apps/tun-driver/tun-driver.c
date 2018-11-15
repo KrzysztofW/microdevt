@@ -43,6 +43,16 @@ static iface_t iface = {
 	.recv = &recv,
 };
 
+static struct iface_queues {
+	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
+	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
+	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
+} iface_queues = {
+	.pkt_pool = RING_INIT(iface_queues.pkt_pool),
+	.rx = RING_INIT(iface_queues.rx),
+	.tx = RING_INIT(iface_queues.tx),
+};
+
 static int send(const iface_t *iface, pkt_t *pkt)
 {
 	ssize_t nwrite;
@@ -212,8 +222,8 @@ int main(int argc, char *argv[])
 	}
 #endif
 	pkt_mempool_init();
-	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
+		&iface_queues.rx, &iface_queues.tx, 0);
 
 	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
 		fprintf(stderr, "cannot set non blocking tcp socket (%m)\n");
@@ -225,8 +235,6 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_TIMER_CHECKS
 	timer_checks();
 #endif
-	scheduler_init();
-
 	socket_init();
 	dft_route.iface = &iface;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__

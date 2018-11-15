@@ -9,8 +9,19 @@ const uint32_t rf_enc_defkey[4] = {
 static uint8_t EEMEM eeprom_magic;
 
 #define TX_QUEUE_SIZE 4
-static RING_DECL(tx_queue, TX_QUEUE_SIZE);
-static RING_DECL(urgent_tx_queue, TX_QUEUE_SIZE);
+STATIC_RING_DECL(tx_queue, TX_QUEUE_SIZE);
+STATIC_RING_DECL(urgent_tx_queue, TX_QUEUE_SIZE);
+
+static struct iface_queues {
+	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
+	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
+	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
+} iface_queues = {
+	.pkt_pool = RING_INIT(iface_queues.pkt_pool),
+	.rx = RING_INIT(iface_queues.rx),
+	.tx = RING_INIT(iface_queues.tx),
+};
+static rf_ctx_t ctx;
 
 void module_init_iface(iface_t *iface, uint8_t *addr)
 {
@@ -22,10 +33,9 @@ void module_init_iface(iface_t *iface, uint8_t *addr)
 	iface->send = rf_output;
 #endif
 	iface->flags = IF_UP|IF_RUNNING|IF_NOARP;
-
-	if_init(iface, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX, 1);
-	rf_init(iface, 1);
+	if_init(iface, IF_TYPE_RF, &iface_queues.pkt_pool, &iface_queues.rx,
+		&iface_queues.tx, 1);
+	rf_init(iface, &ctx, 1);
 }
 
 int module_check_magic(void)

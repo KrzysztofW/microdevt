@@ -19,8 +19,8 @@ typedef struct __attribute__((__packed__)) task {
 
 #define RING_SIZE (CONFIG_SCHEDULER_MAX_TASKS * sizeof(task_t))
 
-static ring_t *ring;
-static ring_t *ring_irq;
+STATIC_RING_DECL(ring, roundup_pwr2(RING_SIZE));
+STATIC_RING_DECL(ring_irq, roundup_pwr2(RING_SIZE));
 
 #ifdef CONFIG_POWER_MANAGEMENT
 static uint8_t idle;
@@ -90,19 +90,3 @@ void scheduler_run_tasks(void)
 	}
 #endif
 }
-
-void scheduler_init(void)
-{
-	int size = roundup_pwr2(RING_SIZE);
-
-	ring_irq = ring_create(size);
-	ring = ring_create(size);
-}
-
-#ifdef TEST
-void scheduler_shutdown(void)
-{
-	ring_free(ring);
-	ring_free(ring_irq);
-}
-#endif

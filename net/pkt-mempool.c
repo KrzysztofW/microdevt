@@ -1,7 +1,7 @@
 #include "pkt-mempool.h"
 #include "event.h"
 
-RING_DECL(pkt_pool, CONFIG_PKT_NB_MAX);
+STATIC_RING_DECL(pkt_pool, CONFIG_PKT_NB_MAX);
 static uint8_t buffer_data[CONFIG_PKT_NB_MAX * CONFIG_PKT_SIZE];
 static pkt_t buffer_pool[CONFIG_PKT_NB_MAX];
 

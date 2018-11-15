@@ -13,10 +13,9 @@
 #include "gpio.h"
 #include "../module-common.h"
 
-#define UART_RING_SIZE 16
-
 #ifdef DEBUG
-static ring_t *uart_ring;
+#define UART_RING_SIZE 16
+STATIC_RING_DECL(uart_ring, UART_RING_SIZE);
 #endif
 
 #ifdef DEBUG
@@ -52,12 +51,10 @@ int main(void)
 {
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 1);
-	uart_ring = ring_create(UART_RING_SIZE);
 	DEBUG_LOG("KW alarm module 1 (%s)\n", revision);
 #endif
 	timer_subsystem_init();
 	irq_enable();
-	scheduler_init();
 
 #ifdef CONFIG_TIMER_CHECKS
 	watchdog_shutdown();

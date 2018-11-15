@@ -7,6 +7,7 @@
 #include <net/socket.h>
 #include <net-apps/net-apps.h>
 #include <timer.h>
+#include <drivers/rf.h>
 
 /* #define ENC28J60_INT */
 /* #define NETWORK_WD_RESET */
@@ -22,6 +23,16 @@ iface_t eth_iface = {
 	.ip4_mask = ip_mask,
 	.send = &enc28j60_pkt_send,
 	.recv = &enc28j60_pkt_recv,
+};
+
+static struct iface_queues {
+	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
+	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
+	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
+} iface_queues = {
+	.pkt_pool = RING_INIT(iface_queues.pkt_pool),
+	.rx = RING_INIT(iface_queues.rx),
+	.tx = RING_INIT(iface_queues.tx),
 };
 
 #ifdef NETWORK_WD_RESET
@@ -81,8 +92,8 @@ void alarm_network_init(void)
 #ifdef NETWORK_WD_RESET
 	timer_add(&timer_wd, 5000000UL, tim_cb_wd, NULL);
 #endif
-	if_init(&eth_iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&eth_iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
+		&iface_queues.rx, &iface_queues.tx, 0);
 
 	dft_route.iface = &eth_iface;
 	dft_route.ip = 0x0b00a8c0;

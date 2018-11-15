@@ -31,6 +31,26 @@ static iface_t iface = {
 	.recv = &recv,
 };
 
+static struct iface_queues {
+	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
+	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
+	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
+} iface_queues = {
+	.pkt_pool = RING_INIT(iface_queues.pkt_pool),
+	.rx = RING_INIT(iface_queues.rx),
+	.tx = RING_INIT(iface_queues.tx),
+};
+
+static struct remote_iface_queues {
+	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
+	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
+	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
+} remote_iface_queues = {
+	.pkt_pool = RING_INIT(iface_queues.pkt_pool),
+	.rx = RING_INIT(iface_queues.rx),
+	.tx = RING_INIT(iface_queues.tx),
+};
+
 static unsigned char arp_request_pkt[] = {
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x48, 0x4D, 0x7E,
 	0xE4, 0xDA, 0x65, 0x08, 0x06, 0x00, 0x01, 0x08, 0x00,
@@ -156,8 +176,8 @@ int net_arp_tests(void)
 	const iface_t *interface = NULL;
 
 	pkt_mempool_init();
-	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
+		&iface_queues.rx, &iface_queues.tx, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -224,7 +244,6 @@ int net_arp_tests(void)
 
  end:
 	pkt_mempool_shutdown();
-	if_shutdown(&iface);
 	return ret;
 }
 
@@ -257,8 +276,8 @@ int net_icmp_tests(void)
 	pkt_mempool_init();
 	iface.ip4_addr = (void *)&ip_src;
 	iface.hw_addr = mac_src;
-	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
+		&iface_queues.rx, &iface_queues.tx, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -296,7 +315,6 @@ int net_icmp_tests(void)
 
  end:
 	pkt_mempool_shutdown();
-	if_shutdown(&iface);
 	return ret;
 }
 
@@ -372,8 +390,8 @@ int net_udp_tests(void)
 	pkt_mempool_init();
 	iface.ip4_addr = (void *)&ip_dst;
 	iface.hw_addr = mac_dst;
-	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
+		&iface_queues.rx, &iface_queues.tx, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
@@ -507,7 +525,6 @@ int net_udp_tests(void)
 	}
 #endif
  end:
-	if_shutdown(&iface);
 	socket_shutdown();
 	pkt_mempool_shutdown();
 	return ret;
@@ -617,11 +634,10 @@ int net_tcp_tests(void)
 	pkt_mempool_init();
 	iface.ip4_addr = (void *)&ip_dst;
 	iface.hw_addr = mac_dst;
-	if_init(&iface, IF_TYPE_ETHERNET, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
+		&iface_queues.rx, &iface_queues.tx, 0);
 
 	if ((pkt = pkt_alloc()) == NULL) {
-		if_shutdown(&iface);
 		fprintf(stderr, "%s: can't alloc a packet\n", __func__);
 		return -1;
 	}
@@ -873,9 +889,7 @@ int net_tcp_tests(void)
 #endif
  end:
 	socket_shutdown();
-	if_shutdown(&iface);
 	pkt_mempool_shutdown();
-
 	return ret;
 }
 
@@ -1024,9 +1038,7 @@ static int net_swen_l3_pkt_cmp(const sbuf_t *sbuf, iface_t *iface)
 		return -1;
 	}
 
-	if (pkt_put(iface->rx, pkt) < 0)
-		return -1;
-	return 0;
+	return pkt_put(iface->rx, pkt);
 }
 
 static void net_swen_l3_flush_scheduler(void)
@@ -1193,14 +1205,15 @@ int net_swen_l3_tests(void)
 	iface_swen_l3_local.hw_addr = &hw_addr;
 	iface_swen_l3_local.send = &net_swen_send;
 	iface_swen_l3_local.recv = &net_swen_recv;
-	if_init(&iface_swen_l3_local, IF_TYPE_RF, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&iface_swen_l3_local, IF_TYPE_RF, &iface_queues.pkt_pool,
+		&iface_queues.rx, &iface_queues.tx, 0);
 
 	iface_swen_l3_remote.hw_addr = &hw_remote_addr;
 	iface_swen_l3_remote.send = &net_swen_remote_send;
 	iface_swen_l3_remote.recv = &net_swen_remote_recv;
-	if_init(&iface_swen_l3_remote, IF_TYPE_RF, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_NB_MAX, CONFIG_PKT_DRIVER_NB_MAX, 0);
+	if_init(&iface_swen_l3_remote, IF_TYPE_RF,
+		&remote_iface_queues.pkt_pool, &remote_iface_queues.rx,
+		&remote_iface_queues.tx, 0);
 
 	swen_l3_assoc_init(&assoc_remote, rf_enc_key);
 	swen_l3_assoc_bind(&assoc_remote, hw_addr, &iface_swen_l3_remote);
@@ -1237,9 +1250,7 @@ int net_swen_l3_tests(void)
 	}
 
  end:
-	if_shutdown(&iface);
 	pkt_mempool_shutdown();
-
 	return ret;
 }
 #endif

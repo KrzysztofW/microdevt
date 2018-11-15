@@ -37,7 +37,16 @@ typedef struct ring ring_t;
 		ring_t ring;			\
 		uint8_t ring_data[size];	\
 	} ring_##name = {			\
-		.ring.mask = size - 1,		\
+		.ring.mask = (size) - 1,	\
+	};					\
+	ring_t *name = &ring_##name.ring
+
+#define STATIC_RING_DECL(name, size)		\
+	static struct  {			\
+		ring_t ring;			\
+		uint8_t ring_data[size];	\
+	} ring_##name = {			\
+		.ring.mask = (size) - 1,	\
 	};					\
 	static ring_t *name = &ring_##name.ring
 
@@ -74,22 +83,6 @@ static inline void ring_init(ring_t *ring, int size)
 		__abort();
 	ring->head = ring->tail = 0;
 	ring->mask = size - 1;
-}
-
-static inline ring_t *ring_create(int size)
-{
-	ring_t *ring;
-
-	if ((ring = malloc(sizeof(ring_t) + size)) == NULL)
-		__abort();
-
-	ring_init(ring, size);
-	return ring;
-}
-
-static inline void ring_free(ring_t *ring)
-{
-	free(ring);
 }
 
 static inline int ring_is_full(const ring_t *ring)

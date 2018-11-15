@@ -14,7 +14,7 @@
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 #define UART_RING_SIZE 32
-static ring_t *uart_ring;
+STATIC_RING_DECL(uart_ring, UART_RING_SIZE);
 
 static void uart_task(void *arg)
 {
@@ -62,9 +62,6 @@ int main(void)
 #ifdef DEBUG
 	DEBUG_LOG("KW alarm v0.2 (%s)\n", revision);
 #endif
-#if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
-	uart_ring = ring_create(UART_RING_SIZE);
-#endif
 	ADC_SET_PRESCALER_64();
 	ADC_SET_REF_VOLTAGE_INTERNAL();
 
@@ -79,10 +76,8 @@ int main(void)
 	|| defined CONFIG_NETWORKING
 	pkt_mempool_init();
 #endif
-	scheduler_init();
 	timer_init(&timer_led);
 	timer_add(&timer_led, 0, blink_led, &timer_led);
-
 
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);
 

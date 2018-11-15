@@ -14,6 +14,18 @@
 #include <drivers/rf.h>
 #include <drivers/gsm-at.h>
 
+#define CHK_RSIZE 64
+static struct iface_queues {
+	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
+	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
+	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
+} iface_queues = {
+	.pkt_pool = RING_INIT(iface_queues.pkt_pool),
+	.rx = RING_INIT(iface_queues.rx),
+	.tx = RING_INIT(iface_queues.tx),
+};
+static rf_ctx_t rf_ctx;
+
 static int fill_ring(ring_t *ring, unsigned char *bytes, int len)
 {
 	int i;
@@ -52,17 +64,15 @@ static int ring_check_full(ring_t *ring)
 
 static int ring_check(void)
 {
-	ring_t *ring;
+	RING_DECL(ring, CHK_RSIZE);
 	unsigned int i;
 	unsigned char bytes[] = { 0x3C, 0xFF, 0xA0, 0x00, 0x10, 0xB5, 0x99,
 				  0x11, 0xF7 };
 	unsigned char c;
 	int j;
 
-	ring = ring_create(ZCHK_RSIZE);
 	if (ring_check_full(ring) < 0) {
 		fprintf(stderr, "check full failed\n");
-		free(ring);
 		return -1;
 	}
 
@@ -76,7 +86,6 @@ static int ring_check(void)
 		if (c != bytes[i]) {
 			fprintf(stderr, "ring checks failed. Got: 0x%X should be: 0x%X\n",
 				c, bytes[i]);
-			free(ring);
 			return -1;
 		}
 		i++;
@@ -88,58 +97,50 @@ static int ring_check(void)
 
 	if (ring_addc(ring, bytes[0]) == 0) {
 		fprintf(stderr, "ring overloaded\n");
-		free(ring);
 		return -1;
 	}
 	if (ring_getc(ring, &c) < 0) {
 		fprintf(stderr, "cannot take elements\n");
-		free(ring);
 		return -1;
 	}
 	if (c != bytes[0]) {
 		fprintf(stderr, "elements mismatch\n");
-		free(ring);
 		return -1;
 	}
 	j = 1;
 	/* ring_print(ring); */
 	/* ring_print_bits(ring); */
-	for (i = 1; i < ZCHK_RSIZE - 1; i++) {
+	for (i = 1; i < CHK_RSIZE - 1; i++) {
 		if (ring_getc(ring, &c) < 0 || c != bytes[j]) {
 			printf("ring content:\n");
 			ring_print(ring);
 			fprintf(stderr, "failed getting %dth element from ring (len:%d)\n", i,
 				ring_len(ring));
-			free(ring);
 			return -1;
 		}
 		j = (j + 1) % sizeof(bytes);
 	}
 	while (fill_ring(ring, bytes, sizeof(bytes)) == 0) {}
 	ring_skip(ring, 2);
-	if (ring_len(ring) != ZCHK_RSIZE - 3) {
+	if (ring_len(ring) != CHK_RSIZE - 3) {
 		fprintf(stderr, "ring skip 1 failed (ring size:%d)\n",
 			ring_len(ring));
-		free(ring);
 		return -1;
 	}
 	ring_addc(ring, 0xAA);
 	ring_addc(ring, 0xFF);
-	if (ring_len(ring) != ZCHK_RSIZE - 1) {
+	if (ring_len(ring) != CHK_RSIZE - 1) {
 		fprintf(stderr, "ring skip 2 failed (ring size:%d)\n",
 			ring_len(ring));
-		free(ring);
 		return -1;
 	}
-	ring_skip(ring, ZCHK_RSIZE);
+	ring_skip(ring, CHK_RSIZE);
 	if (ring_len(ring) != 0) {
 		fprintf(stderr, "ring skip 3 failed (ring size:%d)\n",
 			ring_len(ring));
-		free(ring);
 		return -1;
 	}
 
-	free(ring);
 	return 0;
 }
 
@@ -512,15 +513,14 @@ static int driver_rf_checks(void)
 	memset(&iface, 0, sizeof(iface_t));
 	iface.send = &send;
 	iface.recv = &recv;
-	if_init(&iface, IF_TYPE_RF, CONFIG_PKT_NB_MAX, CONFIG_PKT_NB_MAX,
-		CONFIG_PKT_DRIVER_NB_MAX, 1);
 	iface.hw_addr = &hw_addr;
+	if_init(&iface, IF_TYPE_RF, &iface_queues.pkt_pool, &iface_queues.rx,
+		&iface_queues.tx, 1);
 
-	rf_init(&iface, 2);
+	rf_init(&iface, &rf_ctx, 2);
 	ret = rf_checks(&iface);
 	net_swen_l3_flush_scheduler();
 
-	if_shutdown(&iface);
 	pkt_mempool_shutdown();
 	return ret;
 }
@@ -529,8 +529,6 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
-
-	scheduler_init();
 
 	if (array_tests() < 0) {
 		fprintf(stderr, "  ==> array checks failed\n");
@@ -618,6 +616,5 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> net tcp tests succeeded\n");
 #endif
-	scheduler_shutdown();
 	return 0;
 }
