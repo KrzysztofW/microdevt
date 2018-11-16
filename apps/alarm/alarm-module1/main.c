@@ -1,4 +1,3 @@
-#include <avr/sleep.h>
 #include <log.h>
 #include <_stdio.h>
 #include <common.h>
