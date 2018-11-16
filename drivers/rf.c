@@ -108,7 +108,6 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 			if ((ctx->rcv_data.pkt = pkt_get(iface->pkt_pool))
 			    == NULL) {
 				DEBUG_LOG("%s: cannot alloc pkt\n", __func__);
-				if_schedule_receive(iface, NULL);
 				goto end;
 			}
 		} else
