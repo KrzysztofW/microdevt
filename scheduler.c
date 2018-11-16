@@ -26,29 +26,6 @@ STATIC_RING_DECL(ring_irq, roundup_pwr2(RING_SIZE));
 static uint8_t idle;
 #endif
 
-#ifdef DEBUG
-void __schedule_task(void (*cb)(void *arg), void *arg,
-		     const char *func, int line)
-#else
-void schedule_task(void (*cb)(void *arg), void *arg)
-#endif
-{
-	task_t task = {
-		.cb = cb,
-		.arg = arg,
-	};
-	ring_t *r = IRQ_CHECK() ? ring : ring_irq;
-
-	while (ring_add(r, &task, sizeof(task_t)) < 0) {
-		if (r == ring_irq) {
-			DEBUG_LOG("Too many scheduled tasks from %s:%d (task:%p). "
-				  "Lower TASK_WATER_MARK option\n", func, line, cb);
-			__abort();
-		}
-		scheduler_run_tasks();
-	}
-}
-
 static void __scheduler_run_tasks(ring_t *r)
 {
 	task_t task;
@@ -63,6 +40,24 @@ static void __scheduler_run_tasks(ring_t *r)
 #ifdef CONFIG_POWER_MANAGEMENT
 	idle = 0;
 #endif
+}
+
+#ifdef DEBUG
+void __schedule_task(void (*cb)(void *arg), void *arg,
+		     const char *func, int line)
+#else
+void schedule_task(void (*cb)(void *arg), void *arg)
+#endif
+{
+	task_t task = {
+		.cb = cb,
+		.arg = arg,
+	};
+	ring_t *r = IRQ_CHECK() ? ring : ring_irq;
+
+	if (ring_add(r, &task, sizeof(task_t)) >= 0)
+		return;
+	DEBUG_LOG("cannot schedule task %p from %s:%d\n", cb, func, line);
 }
 
 void scheduler_run_tasks(void)
