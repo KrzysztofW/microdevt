@@ -83,8 +83,9 @@ read_fuses:
 
 # 16MHZ external crystal
 # preserve eeprom: hfuse:w:0xd1:m
+# BOD 2.7V: efuse:w:0xfd:m
 write_fuses:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
+	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0xfd:m
 
 erase:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
