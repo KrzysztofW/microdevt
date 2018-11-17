@@ -63,9 +63,14 @@ static void module_task_cb(void *arg)
 int __module_add_op(ring_t *queue, uint8_t op)
 {
 	uint8_t cur_op;
+	int rlen = ring_len(queue);
+	uint8_t i;
 
-	if (__module_get_op(queue, &cur_op) >= 0 && cur_op == op)
-		return 0;
+	for (i = 0; i < rlen; i++) {
+		__ring_getc_at(queue, &cur_op, i);
+		if (cur_op == op)
+			return 0;
+	}
 	return ring_addc(queue, op);
 }
 
