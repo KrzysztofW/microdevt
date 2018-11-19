@@ -52,6 +52,29 @@ static inline void list_add_tail(list_t *new, list_t *head)
 }
 #endif
 
+/* src will not be usable after this functions exits */
+static inline void __list_move_tail_list(list_t *dst, list_t *src)
+{
+	/* src list empty */
+	if (src->next == src)
+		return;
+	/* src list has only one element */
+	if (src->next->next == src) {
+		list_add_tail(src->next, dst);
+		return;
+	}
+	src->next->prev = dst->prev;
+	src->prev->next = dst;
+	dst->prev->next = src->next;
+	dst->prev = src->prev;
+}
+
+static inline void list_move_tail_list(list_t *dst, list_t *src)
+{
+	__list_move_tail_list(dst, src);
+	INIT_LIST_HEAD(src);
+}
+
 static inline void __list_del(list_t *prev, list_t *next)
 {
 	next->prev = prev;
