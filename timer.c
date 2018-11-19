@@ -10,39 +10,37 @@
 #define TIMER_TABLE_SIZE 16
 #define TIMER_TABLE_MASK (TIMER_TABLE_SIZE - 1)
 
-struct timer_state {
-	unsigned int current_idx;
-	list_t timer_list[TIMER_TABLE_SIZE];
-} __attribute__((__packed__));
-struct timer_state timer_state;
+static unsigned int cur_idx;
+static list_t timer_list[TIMER_TABLE_SIZE];
 
 #ifdef TIMER_DEBUG
+static void timer_dump_list(list_t *head)
+{
+	tim_t *timer;
+	uint8_t first = 1;
+
+	list_for_each_entry(timer, head, list) {
+		if (first) {
+			LOG("head:%p (p:%p n:%p) ", head,
+			    head->prev, head->next);
+			first = 0;
+		}
+		LOG("tim:%p (prev:%p next:%p) ", timer,
+		    timer->list.prev, timer->list.next);
+	}
+	if (!first)
+		LOG("\n");
+}
+
 void timer_dump(void)
 {
 	uint8_t i;
+	uint8_t flags;
 
-	for (i = 0; i < TIMER_TABLE_SIZE; i++) {
-		uint8_t first = 1;
-		tim_t *timer;
-		list_t *head = &timer_state.timer_list[i];
-		uint8_t flags;
-
-		irq_save(flags);
-		list_for_each_entry(timer, head, list) {
-			if (first) {
-				LOG("idx[%d]: ", i);
-				LOG("head:%p (p:%p n:%p) ", head,
-				    head->prev, head->next);
-				first = 0;
-			}
-			LOG("tim:%p (prev:%p next:%p) ", timer,
-			    timer->list.prev, timer->list.next);
-		}
-		irq_restore(flags);
-		if (!first)
-			LOG("\n");
-	}
-	LOG("\n");
+	irq_save(flags);
+	for (i = 0; i < TIMER_TABLE_SIZE; i++)
+		timer_dump_list(&timer_list[i]);
+	irq_restore(flags);
 }
 #endif
 
@@ -51,10 +49,10 @@ static unsigned ticks_to_idx(uint32_t *delta_ticks)
 	unsigned idx;
 
 	if (*delta_ticks >= TIMER_TABLE_SIZE) {
-		idx = timer_state.current_idx - 1;
+		idx = cur_idx - 1;
 		*delta_ticks -= TIMER_TABLE_MASK;
 	} else {
-		idx = timer_state.current_idx + *delta_ticks;
+		idx = cur_idx + *delta_ticks;
 		*delta_ticks = 0;
 	}
 	idx &= TIMER_TABLE_MASK;
@@ -63,24 +61,20 @@ static unsigned ticks_to_idx(uint32_t *delta_ticks)
 
 void timer_process(void)
 {
-	unsigned int idx;
+	cur_idx = (cur_idx + 1) & TIMER_TABLE_MASK;
 
-	idx = (timer_state.current_idx + 1) & TIMER_TABLE_MASK;
-	timer_state.current_idx = idx;
+	while (!list_empty(&timer_list[cur_idx])) {
+		tim_t *timer = list_first_entry(&timer_list[cur_idx], tim_t,
+						list);
 
-	while (!list_empty(&timer_state.timer_list[idx])) {
-		tim_t *timer = list_first_entry(&timer_state.timer_list[idx],
-						tim_t, list);
-
-		list_del_init(&timer->list);
 		if (timer->ticks > 0) {
 			unsigned i;
 
 			i = ticks_to_idx(&timer->ticks);
-			list_add_tail(&timer->list, &timer_state.timer_list[i]);
+			list_move_tail(&timer->list, &timer_list[i]);
 			continue;
 		}
-
+		list_del_init(&timer->list);
 		(*timer->cb)(timer->arg);
 	}
 }
@@ -90,7 +84,7 @@ void timer_subsystem_init(void)
 	int i;
 
 	for (i = 0; i < TIMER_TABLE_SIZE; i++)
-		INIT_LIST_HEAD(&timer_state.timer_list[i]);
+		INIT_LIST_HEAD(&timer_list[i]);
 	__timer_subsystem_init();
 }
 
@@ -130,7 +124,7 @@ void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 
 	irq_save(flags);
 	idx = ticks_to_idx(&timer->ticks);
-	list_add_tail(&timer->list, &timer_state.timer_list[idx]);
+	list_add_tail(&timer->list, &timer_list[idx]);
 	irq_restore(flags);
 }
 
