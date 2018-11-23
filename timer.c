@@ -100,20 +100,13 @@ void timer_init(tim_t *timer)
 	INIT_LIST_HEAD(&timer->list);
 }
 
-/* set the tick duration to the current timer resolution */
-#ifdef CONFIG_TIMER_RESOLUTION_MS
-#define TIMER_RESOLUTION CONFIG_TIMER_RESOLUTION_MS
-#else
-#define TIMER_RESOLUTION CONFIG_TIMER_RESOLUTION_US
-#endif
-
 void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 {
 	unsigned int idx;
 	uint8_t flags;
 
 	assert(!timer_is_pending(timer));
-	timer->ticks = expiry / TIMER_RESOLUTION;
+	timer->ticks = expiry / CONFIG_TIMER_RESOLUTION_US;
 
 	/* don't schedule at current idx */
 	if (timer->ticks == 0)
