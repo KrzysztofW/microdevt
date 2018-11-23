@@ -12,12 +12,10 @@
 #include "gpio.h"
 #include "../module-common.h"
 
-#ifdef DEBUG
+#if defined(DEBUG) && defined(CONFIG_AVR_SIMU)
 #define UART_RING_SIZE 16
 STATIC_RING_DECL(uart_ring, UART_RING_SIZE);
-#endif
 
-#ifdef DEBUG
 static void uart_task(void *arg)
 {
 	buf_t buf;
@@ -51,15 +49,23 @@ int main(void)
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 1);
 	DEBUG_LOG("KW alarm module 1 (%s)\n", revision);
+#ifndef CONFIG_AVR_SIMU
+	DEBUG_LOG("MCUSR:%X\n", MCUSR);
+	MCUSR = 0;
+#endif
 #endif
 	timer_subsystem_init();
 	irq_enable();
 
 #ifdef CONFIG_TIMER_CHECKS
+#ifndef CONFIG_AVR_SIMU
 	watchdog_shutdown();
+#endif
 	timer_checks();
 #endif
+#ifndef CONFIG_AVR_SIMU
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);
+#endif
 	gpio_init();
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
@@ -70,7 +76,9 @@ int main(void)
 	/* interruptible functions */
 	while (1) {
 		scheduler_run_tasks();
+#ifndef CONFIG_AVR_SIMU
 		watchdog_reset();
+#endif
 	}
 	return 0;
 }

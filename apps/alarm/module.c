@@ -227,14 +227,6 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 	    on_off(status->flags & STATUS_FLAGS_MAIN_PWR_ON));
 }
 
-static int module_send_cmd(swen_l3_assoc_t *assoc, uint8_t cmd)
-{
-	sbuf_t sbuf = SBUF_INIT(&cmd, 1);
-
-	LOG("sending cmd:%X\n", cmd);
-	return swen_l3_send(assoc, &sbuf);
-}
-
 static void rf_connecting_on_event(event_t *ev, uint8_t events);
 
 static void module_get_master_status(module_status_t *status)
@@ -274,7 +266,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	cfg_load(cfg, id);
 
 	if (cmd != CMD_CONNECT && cfg->state == MODULE_STATE_UNINITIALIZED) {
-		LOG("module %d not initilized\n", id);
+		LOG("module %u not initilized\n", id);
 		return;
 	}
 
@@ -760,6 +752,7 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 			__module_add_op(&modules[id].op_queue, CMD_GET_STATUS);
 		cfg.features = buf_data(buf)[0];
 		cfg_update(&cfg, id);
+		LOG("mod%d: features updated\n", id);
 		return;
 	case CMD_STORAGE_ERROR:
 		LOG("mod%d has a corrupted storage\n", id);
@@ -907,7 +900,8 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 			op = CMD_GET_FEATURES;
 		else
 			op = CMD_GET_STATUS;
-		if (module_send_cmd(assoc, op) < 0) {
+		DEBUG_LOG("sending cmd:%X\n", op);
+		if (send_rf_msg(assoc, op, NULL, 0) < 0) {
 			if (swen_l3_get_state(assoc) != S_STATE_CONNECTED)
 				goto error;
 			return;

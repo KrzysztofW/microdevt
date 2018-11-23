@@ -566,7 +566,7 @@ static void module1_parse_commands(buf_t *buf)
 	handle_rx_commands(cmd, v16);
 }
 
-#ifdef DEBUG
+#if defined(DEBUG) && defined(CONFIG_AVR_SIMU)
 static void module_print_status(void)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];

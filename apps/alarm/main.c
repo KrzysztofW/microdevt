@@ -61,6 +61,10 @@ int main(void)
 	init_stream0(&stdout, &stdin, 1);
 #ifdef DEBUG
 	DEBUG_LOG("KW alarm v0.2 (%s)\n", revision);
+#ifndef CONFIG_AVR_SIMU
+	DEBUG_LOG("MCUSR:%X\n", MCUSR);
+	MCUSR = 0;
+#endif
 #endif
 	ADC_SET_PRESCALER_64();
 	ADC_SET_REF_VOLTAGE_INTERNAL();
@@ -78,7 +82,9 @@ int main(void)
 #endif
 	timer_add(&timer_led, 0, blink_led, &timer_led);
 
+#ifndef CONFIG_AVR_SIMU
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);
+#endif
 
 #ifdef CONFIG_NETWORKING
 	alarm_network_init();
@@ -104,7 +110,9 @@ int main(void)
 		alarm_network_loop();
 #endif
 		scheduler_run_tasks();
+#ifndef CONFIG_AVR_SIMU
 		watchdog_reset();
+#endif
 	}
 	return 0;
 }

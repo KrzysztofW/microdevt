@@ -18,7 +18,11 @@ typedef enum swen_l3_op {
 } swen_l3_op_t;
 
 #define SWEN_L3_RETRANSMIT_DELAY 1000000 /* 1s */
+#ifdef CONFIG_AVR_SIMU
+#define SWEN_L3_MAX_RETRIES 3
+#else
 #define SWEN_L3_MAX_RETRIES 15
+#endif
 
 /* reserve one byte for retry info and one byte for seqid */
 #define SWEN_L3_HEADER_RESERVED_LEN 2
