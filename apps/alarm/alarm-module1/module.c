@@ -2,7 +2,6 @@
 #include <scheduler.h>
 #include <net/event.h>
 #include <net/swen-l3.h>
-#include <net/swen-cmds.h>
 #include <adc.h>
 #include <sys/array.h>
 #include <power-management.h>
@@ -388,32 +387,17 @@ static void cfg_load(void)
 
 static void handle_rx_commands(uint8_t cmd, uint16_t value);
 
-#ifdef CONFIG_RF_RECEIVER
-#ifdef CONFIG_RF_GENERIC_COMMANDS
-static void rf_kerui_cb(int nb)
+#if defined(CONFIG_RF_RECEIVER) && defined(CONFIG_RF_GENERIC_COMMANDS)
+static void generic_cmds_cb(uint16_t cmd, uint8_t status)
 {
-	uint8_t cmd;
-
-	DEBUG_LOG("received kerui cmd %d\n", nb);
-	switch (nb) {
-	case 0:
-		cmd = CMD_ARM;
-		break;
-	case 1:
-		cmd = CMD_DISARM;
-		break;
-	case 2:
-		cmd = CMD_RUN_FAN;
-		break;
-	case 3:
-		cmd = CMD_STOP_FAN;
-		break;
-	default:
+	if (status == GENERIC_CMD_STATUS_RCV) {
+		DEBUG_LOG("mod1: received generic cmd %u\n", cmd);
+		handle_rx_commands(cmd, 0);
 		return;
 	}
-	handle_rx_commands(cmd, 0);
+	send_rf_msg(&mod1_assoc, CMD_RECORD_GENERIC_COMMAND_ANSWER, &status,
+		    sizeof(status));
 }
-#endif
 #endif
 
 static void arm_cb(void *arg)
@@ -451,6 +435,9 @@ static int handle_tx_commands(uint8_t cmd)
 	void *data = NULL;
 	int len = 0;
 	uint8_t features;
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	buf_t buf;
+#endif
 
 	switch (cmd) {
 	case CMD_STATUS:
@@ -468,11 +455,17 @@ static int handle_tx_commands(uint8_t cmd)
 	case CMD_STORAGE_ERROR:
 		break;
 	case CMD_FEATURES:
-		cmd = CMD_FEATURES;
 		features = THIS_MODULE_FEATURES;
 		data = &features;
 		len = sizeof(features);
 		break;
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	case CMD_GENERIC_COMMANDS_LIST:
+		buf = BUF(sizeof(recordable_cmds) * 2 + 2);
+		__buf_addc(&buf, CMD_RECORD_GENERIC_COMMAND_ANSWER);
+		swen_generic_cmds_get_list(&buf);
+		return swen_l3_send_buf(&mod1_assoc, &buf);
+#endif
 	default:
 		return 0;
 	}
@@ -537,6 +530,21 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 	case CMD_GET_SENSOR_REPORT:
 		module_cfg.sensor_report_interval = value;
 		break;
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	case CMD_RECORD_GENERIC_COMMAND:
+		if (!cmd_is_recordable(value))
+			return;
+		DEBUG_LOG("recording (val:%u)\n", value);
+		swen_generic_cmds_start_recording(value);
+		return;
+	case CMD_GENERIC_COMMANDS_LIST:
+		module_add_op(CMD_GENERIC_COMMANDS_LIST, 0);
+		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		return;
+	case CMD_GENERIC_COMMANDS_DELETE:
+		swen_generic_cmds_delete_recorded_cmd(value);
+		return;
+#endif
 	}
 	cfg_update();
 }
@@ -698,7 +706,7 @@ void module1_init(void)
 		__abort();
 #endif
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
+	swen_generic_cmds_init(generic_cmds_cb);
 #endif
 	cfg_load();
 	timer_add(&timer_1sec, ONE_SECOND, timer_1sec_cb, NULL);

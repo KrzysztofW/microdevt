@@ -3,14 +3,11 @@
 #include <net/swen.h>
 #include <net/swen-rc.h>
 #include <net/swen-l3.h>
-#include <net/swen-cmds.h>
 #include <adc.h>
-#include <eeprom.h>
 #include <interrupts.h>
 #include <drivers/sensors.h>
+#include <eeprom.h>
 #include "module-common.h"
-
-/* #define RF_DEBUG */
 
 #define THIS_MODULE_FEATURES MODULE_FEATURE_TEMPERATURE |		\
 	MODULE_FEATURE_SIREN | MODULE_FEATURE_LAN | MODULE_FEATURE_RF
@@ -45,6 +42,11 @@ static sbuf_t s_sensor_report = SBUF_INITS("sensor report");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
 static sbuf_t s_connect = SBUF_INITS("connect");
 static sbuf_t s_disable = SBUF_INITS("disable");
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+static sbuf_t s_record_cmd = SBUF_INITS("record cmd");
+static sbuf_t s_delete_cmd = SBUF_INITS("delete cmd");
+static sbuf_t s_list_cmds = SBUF_INITS("list cmd");
+#endif
 
 #define MAX_ARGS 8
 typedef enum arg_type {
@@ -83,6 +85,14 @@ static cmd_t cmds[] = {
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 	{ .s = &s_disable, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISABLE },
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	{ .s = &s_record_cmd, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
+	  .cmd = CMD_RECORD_GENERIC_COMMAND },
+	{ .s = &s_delete_cmd, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
+	  .cmd = CMD_GENERIC_COMMANDS_DELETE, },
+	{ .s = &s_list_cmds, .args = { ARG_TYPE_NONE },
+	  .cmd = CMD_GENERIC_COMMANDS_LIST, },
+#endif
 };
 
 #define NB_MODULES 2
@@ -238,6 +248,19 @@ static void module_get_master_status(module_status_t *status)
 		(PORTB & (1 << PB0)) ? STATUS_FLAGS_SIREN_ON : 0;
 }
 
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+static void show_recordable_cmds(void)
+{
+	uint8_t i;
+
+	LOG("List of recordable commands:\n");
+	for (i = 0; i < sizeof(cmds) / sizeof(cmd_t); i++) {
+		if (cmd_is_recordable(cmds[i].cmd))
+			LOG("%2u %s\n", cmds[i].cmd, cmds[i].s->data);
+	}
+}
+#endif
+
 static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 {
 	module_cfg_t c;
@@ -319,6 +342,11 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		cfg->state = MODULE_STATE_DISABLED;
 		cmd = CMD_DISCONNECT;
 		break;
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	case CMD_GENERIC_COMMANDS_LIST:
+		show_recordable_cmds();
+		break;
+#endif
 	default:
 		break;
 	}
@@ -355,6 +383,24 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		LOG("module not connected\n");
 		return;
 	}
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	if (cmd == CMD_RECORD_GENERIC_COMMAND ||
+	    cmd == CMD_GENERIC_COMMANDS_DELETE) {
+		uint8_t rcmd;
+
+		if (buf_getc(args, &rcmd) < 0) {
+			LOG("invalid argument\n");
+			return;
+		}
+		if (cmd == CMD_RECORD_GENERIC_COMMAND &&
+		    !cmd_is_recordable(rcmd)) {
+			LOG("command %u is not recordable\n", rcmd);
+			return;
+		}
+		send_rf_msg(assoc, cmd, &rcmd, sizeof(rcmd));
+		return;
+	}
+#endif
 	if (cmd == CMD_DISCONNECT) {
 		swen_l3_disassociate(assoc);
 		return;
@@ -617,6 +663,49 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 	swen_l3_associate(assoc);
 }
 
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+static void generic_cmds_print_status(uint8_t status)
+{
+	LOG("Generic cmd status: ");
+	switch (status) {
+	case GENERIC_CMD_STATUS_OK:
+		LOG("OK\n");
+		break;
+	case GENERIC_CMD_STATUS_ERROR_FULL:
+		LOG("FULL\n");
+		break;
+	case GENERIC_CMD_STATUS_ERROR_DUPLICATE:
+		LOG("DUPLICATE\n");
+		break;
+	case GENERIC_CMD_STATUS_ERROR_TIMEOUT:
+		LOG("TIMEOUT\n");
+		break;
+	default:
+		assert(0);
+	}
+}
+
+static void generic_cmds_handle_answer(buf_t *buf)
+{
+	uint8_t status;
+
+	if (buf_getc(buf, &status) < 0)
+		return;
+	if (status == GENERIC_CMD_STATUS_LIST) {
+		LOG("Generic cmd list:\n");
+		while (buf->len) {
+			uint8_t n, c;
+
+			__buf_getc(buf, &n);
+			if (buf_getc(buf, &c) >= 0)
+				LOG("id: %u cmd: %u\n", n, c);
+		}
+		return;
+	}
+	generic_cmds_print_status(status);
+}
+#endif
+
 static void module0_parse_commands(uint8_t addr, buf_t *buf)
 {
 	uint8_t cmd;
@@ -678,6 +767,11 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		cfg_update(&cfg, id);
 		modules[id].faulty = 1;
 		return;
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+	case CMD_RECORD_GENERIC_COMMAND_ANSWER:
+		generic_cmds_handle_answer(buf);
+		return;
+#endif
 	default:
 		return;
 	}
@@ -686,10 +780,18 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 	    addr);
 }
 
-#if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_GENERIC_COMMANDS)
-static void rf_kerui_cb(int nb)
+#if defined(CONFIG_RF_RECEIVER) && defined(CONFIG_RF_GENERIC_COMMANDS) \
+	&& !defined(CONFIG_AVR_SIMU)
+static void generic_cmds_cb(uint16_t cmd, uint8_t status)
 {
-	DEBUG_LOG("received kerui cmd %d\n", nb);
+	buf_t args = BUF_INIT(NULL, 0);
+
+	if (status == GENERIC_CMD_STATUS_RCV) {
+		DEBUG_LOG("mod0: received generic cmd %u\n", cmd);
+		handle_rx_commands(0, cmd, &args);
+		return;
+	}
+	generic_cmds_print_status(status);
 }
 #endif
 
@@ -840,8 +942,8 @@ void master_module_init(void)
 	module1_init();
 #endif
 
-#ifdef CONFIG_RF_GENERIC_COMMANDS
-	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
+#if defined(CONFIG_RF_GENERIC_COMMANDS) && !defined(CONFIG_AVR_SIMU)
+	swen_generic_cmds_init(generic_cmds_cb);
 #endif
 	for (i = 0; i < NB_MODULES; i++) {
 		module_t *module = &modules[i];

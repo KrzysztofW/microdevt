@@ -9,17 +9,259 @@
 #include "event.h"
 #include "swen-l3.h"
 #include "swen.h"
-
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-static void (*generic_cmds_cb)(int nb);
-static const uint8_t *generic_cmds;
+#include <eeprom.h>
 
-void
-swen_generic_cmds_init(void (*cb)(int nb), const uint8_t *cmds)
+#define MAGIC 0xA7
+typedef struct swen_generic_cmd_hdr {
+	uint8_t length;
+	int8_t  cmd;
+	uint8_t data[];
+} swen_generic_cmd_hdr_t;
+
+typedef struct swen_generic_cmds_storage_hdr {
+	uint8_t magic;
+	swen_generic_cmd_hdr_t cmds[];
+} swen_generic_cmds_storage_hdr_t;
+
+#define SWEN_GENERIC_CMDS_RECORD_TIMEOUT 10 /* seconds */
+static tim_t gcmd_timer = TIMER_INIT(gcmd_timer);
+
+#define LOOP_STOP 0
+#define LOOP_CONTINUE -1
+/* #define CONSISTENCY_CHECK */
+
+static uint8_t
+#ifdef CONFIG_AVR_MCU
+EEMEM
+#endif
+swen_generic_cmds_storage[CONFIG_RF_GENERIC_COMMANDS_SIZE];
+
+static uint8_t swen_generic_cmds[CONFIG_RF_GENERIC_COMMANDS_SIZE];
+static int16_t swen_generic_cmds_record_value = -1; /* -1 => unset */
+static void (*swen_generic_cmds_cb)(uint16_t cmd, uint8_t status);
+
+static unsigned swen_generic_cmds_addr_offset(void *addr)
 {
-	generic_cmds_cb = cb;
-	generic_cmds = cmds;
+	uint8_t *a = addr;
+
+	assert(a >= swen_generic_cmds);
+	return a - swen_generic_cmds;
 }
+
+#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+static void swen_generic_cmds_check_consistency(void)
+{
+	uint8_t data[CONFIG_RF_GENERIC_COMMANDS_SIZE];
+	sbuf_t sbuf;
+
+	eeprom_load(data, swen_generic_cmds_storage,
+		    CONFIG_RF_GENERIC_COMMANDS_SIZE);
+	if (memcmp(data, swen_generic_cmds,
+		   CONFIG_RF_GENERIC_COMMANDS_SIZE) == 0)
+		return;
+	sbuf = SBUF_INIT(data, CONFIG_RF_GENERIC_COMMANDS_SIZE);
+
+	DEBUG_LOG("EEPROM:\n");
+	sbuf_print_hex(&sbuf);
+	DEBUG_LOG("RAM:\n");
+	sbuf = SBUF_INIT(swen_generic_cmds, CONFIG_RF_GENERIC_COMMANDS_SIZE);
+	sbuf_print_hex(&sbuf);
+	__abort();
+}
+#endif
+
+void swen_generic_cmds_init(void (*cb)(uint16_t cmd, uint8_t status))
+{
+	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
+
+	STATIC_ASSERT(CONFIG_RF_GENERIC_COMMANDS_SIZE >
+		      sizeof(swen_generic_cmds_storage_hdr_t) +
+		      sizeof(swen_generic_cmd_hdr_t));
+
+	swen_generic_cmds_cb = cb;
+	eeprom_load(hdr, swen_generic_cmds_storage,
+		    sizeof(swen_generic_cmds_storage_hdr_t));
+	if (hdr->magic != MAGIC) {
+		swen_generic_cmd_hdr_t *cmd_hdr = hdr->cmds;
+
+		hdr->magic = MAGIC;
+		cmd_hdr->length = 0;
+		eeprom_update(swen_generic_cmds_storage, hdr,
+			      sizeof(swen_generic_cmds_storage_hdr_t) +
+			      sizeof(swen_generic_cmd_hdr_t));
+		return;
+	}
+	eeprom_load(swen_generic_cmds +
+		    sizeof(swen_generic_cmds_storage_hdr_t),
+		    swen_generic_cmds_storage +
+		    sizeof(swen_generic_cmds_storage_hdr_t),
+		    CONFIG_RF_GENERIC_COMMANDS_SIZE -
+		    sizeof(swen_generic_cmds_storage_hdr_t));
+}
+
+static void swen_generic_cmds_record_timeout_cb(void *arg)
+{
+	swen_generic_cmds_cb(swen_generic_cmds_record_value,
+			     GENERIC_CMD_STATUS_ERROR_TIMEOUT);
+	swen_generic_cmds_record_value = -1;
+}
+
+void swen_generic_cmds_start_recording(int16_t value)
+{
+	swen_generic_cmds_record_value = value;
+	timer_del(&gcmd_timer);
+	timer_add(&gcmd_timer, SWEN_GENERIC_CMDS_RECORD_TIMEOUT * 1000000,
+		  swen_generic_cmds_record_timeout_cb, NULL);
+}
+
+int swen_generic_cmds_for_each(int (*cb)(uint8_t number,
+					 swen_generic_cmd_hdr_t *cmd_hdr,
+					 void *arg), void *arg)
+{
+	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
+	uint16_t i = 0;
+	uint8_t number = 0;
+
+	while (i < CONFIG_RF_GENERIC_COMMANDS_SIZE) {
+		swen_generic_cmd_hdr_t *cmd_hdr = &hdr->cmds[i];
+
+		if (cb(number, cmd_hdr, arg) == 0)
+			return i;
+		if (cmd_hdr->length == 0)
+			return -1;
+		i += sizeof(swen_generic_cmd_hdr_t) + cmd_hdr->length;
+		number++;
+	}
+	return -1;
+}
+
+static int get_recorded_cmds_cb(uint8_t number,
+				swen_generic_cmd_hdr_t *cmd_hdr, void *arg)
+{
+	buf_t *buf = arg;
+
+	if (cmd_hdr->cmd != -1) {
+		if (cmd_hdr->length == 0 || buf_has_room(buf, 2) < 0)
+			return LOOP_STOP;
+		__buf_addc(buf, number);
+		__buf_addc(buf, cmd_hdr->cmd);
+	}
+
+	return LOOP_CONTINUE;
+}
+
+void swen_generic_cmds_get_list(buf_t *buf)
+{
+	if (buf_addc(buf, GENERIC_CMD_STATUS_LIST) < 0)
+		return;
+	swen_generic_cmds_for_each(get_recorded_cmds_cb, buf);
+}
+
+static int
+delete_recorded_cmd_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr,
+		       void *arg)
+{
+	uint8_t nb = (uintptr_t)arg;
+
+	if (number == nb && cmd_hdr->cmd != -1) {
+		unsigned offset = swen_generic_cmds_addr_offset(cmd_hdr);
+
+		cmd_hdr->cmd = -1;
+		eeprom_update(swen_generic_cmds_storage + offset,
+			      cmd_hdr, sizeof(swen_generic_cmd_hdr_t));
+#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+		swen_generic_cmds_check_consistency();
+#endif
+		return LOOP_STOP;
+	}
+	return LOOP_CONTINUE;
+}
+
+int swen_generic_cmds_delete_recorded_cmd(uint8_t number)
+{
+	return swen_generic_cmds_for_each(delete_recorded_cmd_cb,
+					  (void *)(uintptr_t)number);
+}
+
+static int
+cmd_record_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr, void *arg)
+{
+	uint8_t status = GENERIC_CMD_STATUS_OK;
+	buf_t *buf = arg;
+	unsigned offset = swen_generic_cmds_addr_offset(cmd_hdr);
+
+	if (offset + buf->len > CONFIG_RF_GENERIC_COMMANDS_SIZE) {
+		DEBUG_LOG("cannot record, no more room\n");
+		status = GENERIC_CMD_STATUS_ERROR_FULL;
+		goto end;
+	}
+	if ((cmd_hdr->length >= buf->len && cmd_hdr->cmd == -1) ||
+	    cmd_hdr->length == 0) {
+		uint8_t *storage;
+
+		timer_del(&gcmd_timer);
+		cmd_hdr->length = buf->len;
+		cmd_hdr->cmd = swen_generic_cmds_record_value;
+		memcpy(cmd_hdr->data, buf->data, buf->len);
+		storage = swen_generic_cmds_storage + offset;
+		eeprom_update(storage, cmd_hdr, sizeof(swen_generic_cmd_hdr_t)
+			      + buf->len);
+		status = GENERIC_CMD_STATUS_OK;
+		DEBUG_LOG("cmd recorded (nb:%u cmd:%d)\n", number,
+			  swen_generic_cmds_record_value);
+		goto end;
+	}
+	return LOOP_CONTINUE;
+ end:
+	swen_generic_cmds_cb(swen_generic_cmds_record_value, status);
+	swen_generic_cmds_record_value = -1;
+	return LOOP_STOP;
+}
+
+static int cmds_parse_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr,
+			 void *arg)
+{
+	buf_t *buf = arg;
+	sbuf_t sbuf1 = buf2sbuf(buf);
+	sbuf_t sbuf2 = SBUF_INIT(cmd_hdr->data, cmd_hdr->length);
+
+	if (cmd_hdr->length && cmd_hdr->cmd == -1)
+		return LOOP_CONTINUE;
+	return sbuf_cmp(&sbuf1, &sbuf2);
+}
+
+static void swen_generic_cmds_record(buf_t *buf)
+{
+	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
+	int ret = swen_generic_cmds_for_each(cmds_parse_cb, buf);
+
+	if (ret >= 0) {
+		swen_generic_cmds_cb(hdr->cmds[ret].cmd,
+				     GENERIC_CMD_STATUS_ERROR_DUPLICATE);
+		swen_generic_cmds_record_value = -1;
+		timer_del(&gcmd_timer);
+		return;
+	}
+	swen_generic_cmds_for_each(cmd_record_cb, buf);
+#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+	swen_generic_cmds_check_consistency();
+#endif
+}
+
+static void swen_parse_generic_cmds(buf_t *buf)
+{
+	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
+	int ret = swen_generic_cmds_for_each(cmds_parse_cb, buf);
+
+#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+	swen_generic_cmds_check_consistency();
+#endif
+	if (ret < 0)
+		return;
+	swen_generic_cmds_cb(hdr->cmds[ret].cmd, GENERIC_CMD_STATUS_RCV);
+}
+
 #endif
 
 void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
@@ -74,39 +316,6 @@ int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf)
 }
 #endif
 
-#if defined CONFIG_RF_RECEIVER && defined CONFIG_RF_GENERIC_COMMANDS
-static int swen_parse_generic_cmds(const buf_t *buf)
-{
-	uint8_t cmd_index;
-	const uint8_t *cmds;
-	sbuf_t sbuf = buf2sbuf(buf);
-
-	if (generic_cmds_cb == NULL || generic_cmds == NULL)
-		return -1;
-
-	cmd_index = 0;
-	cmds = generic_cmds;
-	while (cmds[0] != 0) {
-		uint8_t len = cmds[0];
-		sbuf_t cmd;
-
-		/* the commands should be sorted from the shortest
-		 * one to the longest one */
-		if (buf->len < len)
-			return -1;
-		cmds++;
-		sbuf_init(&cmd, cmds, len);
-		if (sbuf_cmp(&sbuf, &cmd) == 0) {
-			generic_cmds_cb(cmd_index);
-			return 0;
-		}
-		cmd_index++;
-		cmds += len;
-	}
-	return -1;
-}
-#endif
-
 void swen_ev_set(void (*ev_cb)(uint8_t from, uint8_t events, buf_t *buf))
 {
 	swen_event_cb = ev_cb;
@@ -114,26 +323,21 @@ void swen_ev_set(void (*ev_cb)(uint8_t from, uint8_t events, buf_t *buf))
 
 static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 {
-	swen_hdr_t *hdr;
+	swen_hdr_t *hdr = btod(pkt);
 
-#ifdef CONFIG_RF_GENERIC_COMMANDS
-	if (swen_parse_generic_cmds(&pkt->buf) >= 0)
-		goto end;
-#endif
 	if (pkt_len(pkt) < sizeof(swen_hdr_t))
 		goto end;
 
-	hdr = btod(pkt);
-
-	/* check if data is for us */
-	if (hdr->to != iface->hw_addr[0])
+	if (hdr->to != iface->hw_addr[0] || cksum(hdr, pkt->buf.len) != 0) {
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+		if (swen_generic_cmds_record_value == -1)
+			swen_parse_generic_cmds(&pkt->buf);
+		else
+			swen_generic_cmds_record(&pkt->buf);
+#endif
 		goto end;
-
-	if (cksum(hdr, pkt->buf.len) != 0)
-		goto end;
+	}
 	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
-
-	/* TODO: chained pkts */
 
 	switch (hdr->proto) {
 	case L3_PROTO_NONE:

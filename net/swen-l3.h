@@ -51,6 +51,13 @@ void
 swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface);
 void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface);
 int swen_l3_send(swen_l3_assoc_t *assoc, const sbuf_t *sbuf);
+static inline int
+swen_l3_send_buf(swen_l3_assoc_t *assoc, const buf_t *buf)
+{
+	sbuf_t sbuf = buf2sbuf(buf);
+
+	return swen_l3_send(assoc, &sbuf);
+}
 #ifdef TEST
 void swen_l3_retransmit_pkts(swen_l3_assoc_t *assoc);
 #endif

@@ -145,7 +145,29 @@ typedef enum commands {
 	CMD_DISABLE_PWR_DOWN,
 	CMD_ENABLE_PWR_DOWN,
 	CMD_STORAGE_ERROR,
+	CMD_RECORD_GENERIC_COMMAND,
+	CMD_RECORD_GENERIC_COMMAND_ANSWER,
+	CMD_GENERIC_COMMANDS_LIST,
+	CMD_GENERIC_COMMANDS_DELETE,
 } commands_t;
+
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+static uint8_t recordable_cmds[] = {
+	CMD_DISARM, CMD_ARM, CMD_RUN_FAN, CMD_STOP_FAN, CMD_SIREN_ON,
+	CMD_SIREN_OFF,
+};
+
+static inline uint8_t cmd_is_recordable(uint8_t cmd)
+{
+	uint8_t i;
+
+	for (i = 0; i < sizeof(recordable_cmds); i++) {
+		if (recordable_cmds[i] == cmd)
+			return 1;
+	}
+	return 0;
+}
+#endif
 
 extern const uint32_t rf_enc_defkey[4];
 
