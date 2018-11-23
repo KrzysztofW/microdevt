@@ -41,9 +41,10 @@ static uint16_t fan_sec_cnt;
 static tim_t siren_timer = TIMER_INIT(siren_timer);
 static tim_t timer_1sec = TIMER_INIT(timer_1sec);
 static tim_t sensor_timer = TIMER_INIT(sensor_timer);
+static uint16_t siren_sec_cnt;
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
-static uint8_t sensor_sampling_update = SENSOR_SAMPLING;
+static uint16_t sensor_sampling_update = SENSOR_SAMPLING;
 static swen_l3_assoc_t mod1_assoc;
 static uint16_t sensor_report_elapsed_secs;
 static sensor_report_status_t sensor_status;
@@ -149,11 +150,6 @@ static void sensor_report_value(void)
 		sensor_report_elapsed_secs++;
 }
 
-static inline void set_fan_off(void)
-{
-	gpio_fan_off();
-}
-
 static void set_fan_on(void)
 {
 	gpio_fan_on();
@@ -163,17 +159,16 @@ static void set_fan_on(void)
 static void timer_1sec_cb(void *arg)
 {
 	timer_reschedule(&timer_1sec, ONE_SECOND);
-
 	/* skip sampling when the siren is on */
-	if (!timer_is_pending(&siren_timer)
-	    && sensor_sampling_update++ >= SENSOR_SAMPLING)
+	if (sensor_sampling_update++ >= SENSOR_SAMPLING &&
+	    !timer_is_pending(&siren_timer) && !gpio_is_siren_on())
 		schedule_task(sensor_sampling_task_cb, NULL);
 
 	gpio_led_toggle();
 
 #ifdef CONFIG_POWER_MANAGEMENT
 	/* do not sleep if the siren is on */
-	if (timer_is_pending(&siren_timer))
+	if (gpio_is_siren_on() || timer_is_pending(&siren_timer))
 		power_management_pwr_down_reset();
 #endif
 
@@ -190,21 +185,16 @@ static void timer_1sec_cb(void *arg)
 	}
 	if (fan_sec_cnt) {
 		if (fan_sec_cnt == 1)
-			set_fan_off();
+			gpio_fan_off();
 		fan_sec_cnt--;
+	}
+	if (siren_sec_cnt) {
+		if (siren_sec_cnt == 1)
+			gpio_siren_off();
+		siren_sec_cnt--;
 	}
 	if (init_time < INIT_TIME)
 		init_time++;
-}
-
-static void set_siren_off(void)
-{
-	gpio_siren_off();
-}
-
-static void siren_tim_cb(void *arg)
-{
-	gpio_siren_off();
 }
 
 static void set_siren_on(uint8_t force)
@@ -213,9 +203,7 @@ static void set_siren_on(uint8_t force)
 		return;
 
 	gpio_siren_on();
-	timer_del(&siren_timer);
-	timer_add(&siren_timer, module_cfg.siren_duration * 1000000,
-		  siren_tim_cb, NULL);
+	siren_sec_cnt = module_cfg.siren_duration;
 }
 
 #ifndef CONFIG_AVR_SIMU
@@ -313,7 +301,7 @@ static void sensor_status_on_ready_cb()
 	    >= MAX_HUMIDITY_VALUE) {
 		set_fan_on();
 	} else if (info.tendency == HUMIDITY_TENDENCY_STABLE)
-		set_fan_off();
+		gpio_fan_off();
 }
 
 static void sensor_sampling_task_cb(void *arg)
@@ -347,6 +335,7 @@ static void get_status(module_status_t *status)
 		status->flags |= STATUS_FLAGS_FAN_ENABLED;
 	if (gpio_is_siren_on())
 		status->flags |= STATUS_FLAGS_SIREN_ON;
+
 	if (pwr_state)
 		status->flags |= STATUS_FLAGS_MAIN_PWR_ON;
 
@@ -422,7 +411,7 @@ static void module_arm(uint8_t on)
 		module_cfg.state = MODULE_STATE_ARMED;
 	else {
 		module_cfg.state = MODULE_STATE_DISARMED;
-		set_siren_off();
+		gpio_siren_off();
 	}
 	cfg_update();
 	timer_del(&siren_timer);
@@ -494,7 +483,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		set_fan_on();
 		return;
 	case CMD_STOP_FAN:
-		set_fan_off();
+		gpio_fan_off();
 		return;
 	case CMD_DISABLE_FAN:
 		module_cfg.fan_enabled = 0;
@@ -506,7 +495,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		set_siren_on(1);
 		return;
 	case CMD_SIREN_OFF:
-		set_siren_off();
+		gpio_siren_off();
 		return;
 	case CMD_SET_HUM_TH:
 		if (value && value <= 100) {
