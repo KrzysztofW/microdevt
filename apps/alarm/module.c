@@ -27,7 +27,7 @@ iface_t *rf_debug_iface1 = &rf_iface;
 extern iface_t eth_iface;
 #endif
 
-static tim_t siren_timer;
+static tim_t siren_timer = TIMER_INIT(siren_timer);
 
 static sbuf_t s_disarm = SBUF_INITS("disarm");
 static sbuf_t s_arm = SBUF_INITS("arm");
@@ -835,7 +835,6 @@ void master_module_init(void)
 		module_update_magic();
 	}
 	module_init_iface(&rf_iface, &rf_addr);
-	timer_init(&siren_timer);
 
 #ifdef RF_DEBUG
 	module1_init();

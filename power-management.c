@@ -2,7 +2,7 @@
 #include "timer.h"
 #include "scheduler.h"
 
-static tim_t timer;
+static tim_t timer = TIMER_INIT(timer);
 static uint16_t pwr_mgr_sleep_timeout;
 static void (*on_sleep_cb)(void *arg);
 static void *on_sleep_arg;
@@ -37,6 +37,5 @@ power_management_power_down_init(uint16_t inactivity_timeout,
 	pwr_mgr_sleep_timeout = inactivity_timeout;
 	on_sleep_cb = on_sleep;
 	on_sleep_arg = arg;
-	timer_init(&timer);
 	timer_add(&timer, ONE_SECOND, timer_cb, NULL);
 }

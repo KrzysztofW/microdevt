@@ -13,6 +13,7 @@ struct timer {
 } __attribute__((__packed__));
 typedef struct timer tim_t;
 
+#define TIMER_INIT(__tim) { .list = LIST_HEAD_INIT((__tim).list) }
 void timer_subsystem_init(void);
 void timer_subsystem_shutdown(void);
 void timer_init(tim_t *timer);

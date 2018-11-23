@@ -39,15 +39,15 @@ iface_t *rf_debug_iface2 = &rf_iface;
 
 static module_cfg_t module_cfg;
 static uint16_t fan_sec_cnt;
-static tim_t siren_timer;
-static tim_t timer_1sec;
+static tim_t siren_timer = TIMER_INIT(siren_timer);
+static tim_t timer_1sec = TIMER_INIT(timer_1sec);
+static tim_t sensor_timer = TIMER_INIT(sensor_timer);
 static int global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 static uint8_t prev_tendency;
 static uint8_t sensor_sampling_update = SENSOR_SAMPLING;
 static swen_l3_assoc_t mod1_assoc;
 static uint16_t sensor_report_elapsed_secs;
 static sensor_report_status_t sensor_status;
-static tim_t sensor_timer;
 static uint8_t init_time;
 static uint8_t pwr_state;
 static uint8_t pwr_state_report;
@@ -701,10 +701,6 @@ void module1_init(void)
 	swen_generic_cmds_init(rf_kerui_cb, rf_ke_cmds);
 #endif
 	cfg_load();
-
-	timer_init(&siren_timer);
-	timer_init(&timer_1sec);
-	timer_init(&sensor_timer);
 	timer_add(&timer_1sec, ONE_SECOND, timer_1sec_cb, NULL);
 
 #ifdef CONFIG_POWER_MANAGEMENT

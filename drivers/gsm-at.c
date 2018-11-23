@@ -15,7 +15,7 @@ typedef enum state {
 } state_t;
 
 static uint8_t state;
-static tim_t timer;
+static tim_t timer = TIMER_INIT(timer);
 static FILE *gsm_in, *gsm_out;
 
 #define GSM_CMD_DELAY 1000000 /* 200ms */
@@ -215,7 +215,6 @@ void
 gsm_init(FILE *in, FILE *out, void (*cb)(uint8_t status, const sbuf_t *from,
 					 const sbuf_t *msg))
 {
-	timer_init(&timer);
 	gsm_in = in;
 	gsm_out = out;
 	gsm_cb = cb;

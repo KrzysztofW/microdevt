@@ -56,7 +56,7 @@ static void blink_led(void *arg)
 
 int main(void)
 {
-	tim_t timer_led;
+	tim_t timer_led = TIMER_INIT(timer_led);
 
 	init_stream0(&stdout, &stdin, 1);
 #ifdef DEBUG
@@ -76,7 +76,6 @@ int main(void)
 	|| defined CONFIG_NETWORKING
 	pkt_mempool_init();
 #endif
-	timer_init(&timer_led);
 	timer_add(&timer_led, 0, blink_led, &timer_led);
 
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);

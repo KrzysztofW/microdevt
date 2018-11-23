@@ -6,7 +6,7 @@
 #include <drivers/gsm-at.h>
 
 static FILE *gsm_in, *gsm_out;
-static tim_t timer;
+static tim_t timer = TIMER_INIT(timer);
 
 ISR(USART1_RX_vect)
 {
@@ -41,6 +41,5 @@ void alarm_gsm_init(void)
 {
 	init_stream1(&gsm_in, &gsm_out, 1);
 	gsm_init(gsm_in, gsm_out, gsm_cb);
-	timer_init(&timer);
 	timer_add(&timer, 30000000, gsm_tim_cb, NULL);
 }
