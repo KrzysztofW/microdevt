@@ -36,9 +36,9 @@ typedef struct buf buf_t;
 	{								\
 		.data = (uint8_t *)str, .len = sizeof(str) - 1		\
 	}
-#define SBUF_INIT_BIN(str) (sbuf_t)					\
+#define SBUF_INIT_BIN(__data) (sbuf_t)					\
 	{								\
-		.data = (uint8_t *)str, .len = sizeof(str)		\
+		.data = (uint8_t *)__data, .len = sizeof(__data)	\
 	}
 #define SBUF_INIT(__data, __len) (sbuf_t)				\
 	{								\
