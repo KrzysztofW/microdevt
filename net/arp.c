@@ -3,13 +3,9 @@
 #include "ip.h"
 #include <timer.h>
 
-arp_entries_t arp_entries;
+static arp_entries_t arp_entries;
 #ifdef CONFIG_IPV6
-arp6_entries_t arp6_entries;
-#endif
-
-#ifdef CONFIG_ARP_EXPIRY
-tim_t arp_timer;
+static arp6_entries_t arp6_entries;
 #endif
 
 uint8_t broadcast_mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
@@ -26,7 +22,7 @@ struct arp_res {
 } __attribute__((__packed__));
 typedef struct arp_res arp_res_t;
 
-list_t arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
+static list_t arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
 
 int
 arp_find_entry(const uint32_t *ip, const uint8_t **mac, const iface_t **iface)
