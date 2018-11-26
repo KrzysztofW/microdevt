@@ -41,6 +41,7 @@ typedef struct __attribute__((__packed__)) module_cfg {
 	uint16_t siren_duration;
 	uint8_t  siren_timeout;
 	uint16_t sensor_report_interval;
+	uint8_t  sensor_notif_addr;
 	uint8_t  humidity_threshold;
 } module_cfg_t;
 
@@ -97,6 +98,7 @@ typedef struct __attribute__((__packed__)) module_status {
 	int8_t   temperature;
 	siren_status_t siren;
 	uint16_t sensor_report_interval;
+	uint8_t  sensor_notif_addr;
 } module_status_t;
 
 #define POWER_STATE_NONE 0

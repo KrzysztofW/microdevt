@@ -319,6 +319,7 @@ static void get_status(module_status_t *status)
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 
 	status->sensor_report_interval = module_cfg.sensor_report_interval;
+	status->sensor_notif_addr = module_cfg.sensor_notif_addr;
 	status->humidity.threshold = module_cfg.humidity_threshold;
 	status->humidity.val = sensor_status.humidity;
 	array_copy(humidity_array, global_humidity_array,
@@ -372,14 +373,14 @@ static void cfg_load(void)
 	eeprom_load(&module_cfg, &persistent_cfg, sizeof(module_cfg_t));
 }
 
-static void handle_rx_commands(uint8_t cmd, uint16_t value);
+static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2);
 
 #if defined(CONFIG_RF_RECEIVER) && defined(CONFIG_RF_GENERIC_COMMANDS)
 static void generic_cmds_cb(uint16_t cmd, uint8_t status)
 {
 	if (status == GENERIC_CMD_STATUS_RCV) {
 		DEBUG_LOG("mod1: received generic cmd %u\n", cmd);
-		handle_rx_commands(cmd, 0);
+		handle_rx_commands(cmd, 0, 0);
 		return;
 	}
 	send_rf_msg(&mod1_assoc, CMD_RECORD_GENERIC_COMMAND_ANSWER, &status,
@@ -416,6 +417,17 @@ static void module_arm(uint8_t on)
 	timer_add(&siren_timer, 10000, arm_cb, NULL);
 }
 
+static void send_sensor_report(void)
+{
+	sbuf_t sbuf;
+	buf_t buf = BUF(sizeof(sensor_report_status_t) + 1);
+
+	__buf_addc(&buf, CMD_SENSOR_REPORT);
+	__buf_add(&buf, &sensor_status, sizeof(sensor_report_status_t));
+	sbuf = buf2sbuf(&buf);
+	swen_sendto(&rf_iface, module_cfg.sensor_notif_addr, &sbuf);
+}
+
 static int handle_tx_commands(uint8_t cmd)
 {
 	module_status_t status;
@@ -433,9 +445,8 @@ static int handle_tx_commands(uint8_t cmd)
 		len = sizeof(module_status_t);
 		break;
 	case CMD_SENSOR_REPORT:
-		data = &sensor_status;
-		len = sizeof(sensor_status);
-		break;
+		send_sensor_report();
+		return 0;
 	case CMD_NOTIF_ALARM_ON:
 	case CMD_NOTIF_MAIN_PWR_DOWN:
 	case CMD_NOTIF_MAIN_PWR_UP:
@@ -459,7 +470,7 @@ static int handle_tx_commands(uint8_t cmd)
 	return send_rf_msg(&mod1_assoc, cmd, data, len);
 }
 
-static void handle_rx_commands(uint8_t cmd, uint16_t value)
+static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 {
 	DEBUG_LOG("mod1: got cmd:0x%X\n", cmd);
 	switch (cmd) {
@@ -496,26 +507,27 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 		gpio_siren_off();
 		return;
 	case CMD_SET_HUM_TH:
-		if (value && value <= 100) {
-			module_cfg.humidity_threshold = value;
+		if (val1 && val1 <= 100) {
+			module_cfg.humidity_threshold = val1;
 			break;
 		}
 		return;
 	case CMD_SET_SIREN_DURATION:
-		if (value) {
-			module_cfg.siren_duration = value;
+		if (val1) {
+			module_cfg.siren_duration = val1;
 			break;
 		}
 		return;
 	case CMD_SET_SIREN_TIMEOUT:
-		module_cfg.siren_timeout = value;
+		module_cfg.siren_timeout = val1;
 		break;
 	case CMD_GET_STATUS:
 		module_add_op(CMD_STATUS, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
 	case CMD_GET_SENSOR_REPORT:
-		module_cfg.sensor_report_interval = value;
+		module_cfg.sensor_report_interval = val1;
+		module_cfg.sensor_notif_addr = val2;
 		break;
 #ifdef CONFIG_POWER_MANAGEMENT
 	case CMD_DISABLE_PWR_DOWN:
@@ -527,17 +539,17 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 #endif
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	case CMD_RECORD_GENERIC_COMMAND:
-		if (!cmd_is_recordable(value))
+		if (!cmd_is_recordable(val1))
 			return;
-		DEBUG_LOG("recording (val:%u)\n", value);
-		swen_generic_cmds_start_recording(value);
+		DEBUG_LOG("recording (val:%u)\n", val1);
+		swen_generic_cmds_start_recording(val1);
 		return;
 	case CMD_GENERIC_COMMANDS_LIST:
 		module_add_op(CMD_GENERIC_COMMANDS_LIST, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
 	case CMD_GENERIC_COMMANDS_DELETE:
-		swen_generic_cmds_delete_recorded_cmd(value);
+		swen_generic_cmds_delete_recorded_cmd(val1);
 		return;
 #endif
 	}
@@ -551,6 +563,8 @@ static void module1_parse_commands(buf_t *buf)
 	uint8_t cmd;
 	uint8_t v8 = 0;
 	uint16_t v16 = 0;
+	uint8_t v8_2 = 0;
+	uint16_t v16_2 = 0;
 
 	if (buf_getc(buf, &cmd) < 0)
 		return;
@@ -558,7 +572,11 @@ static void module1_parse_commands(buf_t *buf)
 	if (buf_get_u16(buf, &v16) < 0)
 		if (buf_getc(buf, &v8) >= 0)
 			v16 = v8;
-	handle_rx_commands(cmd, v16);
+	if (buf_get_u16(buf, &v16_2) < 0)
+		if (buf_getc(buf, &v8_2) >= 0)
+			v16_2 = v8_2;
+
+	handle_rx_commands(cmd, v16, v16_2);
 }
 
 #if defined(DEBUG) && defined(CONFIG_AVR_SIMU)

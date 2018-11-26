@@ -78,7 +78,8 @@ static cmd_t cmds[] = {
 	{ .s = &s_siren_off, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_OFF },
 	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_HUM_TH },
-	{ .s = &s_sensor_report, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
+	{ .s = &s_sensor_report, .args = { ARG_TYPE_INT16, ARG_TYPE_INT8,
+					   ARG_TYPE_NONE },
 	  .cmd = CMD_GET_SENSOR_REPORT },
 	{ .s = &s_siren_duration, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_SIREN_DURATION },
@@ -198,12 +199,14 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 		    " Global humidity value:  %u%%\n"
 		    " Humidity tendency:  %s\n"
 		    " Humidity threshold:  %u%%\n"
-		    " Sensor report interval: %u secs\n",
+		    " Sensor report interval: %u secs, module: %u\n",
 		    status->humidity.val,
 		    status->humidity.global_val,
 		    humidity_tendency_to_str(status->humidity.tendency),
 		    status->humidity.threshold,
-		    status->sensor_report_interval);
+		    status->sensor_report_interval,
+		    status->sensor_notif_addr ?
+		    addr_to_module_id(status->sensor_notif_addr): 0);
 	}
 	if (features & MODULE_FEATURE_TEMPERATURE)
 		LOG(" Temperatue:  %d\n", status->temperature);
@@ -264,6 +267,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	module_cfg_t c;
 	module_cfg_t *cfg;
 	swen_l3_assoc_t *assoc;
+	uint8_t mod_id;
 
 	if (id == 0)
 		cfg = &master_cfg;
@@ -304,6 +308,8 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		break;
 	case CMD_GET_SENSOR_REPORT:
 		__buf_get_u16(args, &cfg->sensor_report_interval);
+		__buf_getc(args, &mod_id);
+		cfg->sensor_notif_addr = module_id_to_addr(mod_id);
 		break;
 	case CMD_SET_SIREN_DURATION:
 		__buf_get_u16(args, &cfg->siren_duration);
@@ -573,6 +579,8 @@ module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
 	if (features & (MODULE_FEATURE_HUMIDITY | MODULE_FEATURE_TEMPERATURE)) {
 		if (buf_get_u16(buf, &status->sensor_report_interval) < 0)
 			return -1;
+		if (buf_getc(buf, &status->sensor_notif_addr) < 0)
+			return -1;
 	}
 	return 0;
 }
@@ -605,7 +613,8 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 			goto error;
 	}
 
-	if (cfg->sensor_report_interval != status->sensor_report_interval
+	if ((cfg->sensor_report_interval != status->sensor_report_interval
+	     || cfg->sensor_notif_addr != status->sensor_notif_addr)
 	    && __module_add_op(op_queue, CMD_GET_SENSOR_REPORT) < 0)
 		goto error;
 	if (cfg->humidity_threshold != status->humidity.threshold &&
@@ -706,7 +715,6 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 	uint8_t id = addr_to_module_id(addr);
 	module_status_t status;
 	module_cfg_t cfg;
-	sensor_report_status_t sensor_report;
 
 	if (addr < RF_MASTER_MOD_HW_ADDR || id > NB_MODULES)
 		return;
@@ -732,20 +740,6 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 	case CMD_NOTIF_MAIN_PWR_UP:
 		modules[id].main_pwr_state = POWER_STATE_ON;
 		LOG("mod%d: power up\n", id);
-		return;
-	case CMD_SENSOR_REPORT:
-		memset(&sensor_report, 0, sizeof(sensor_report));
-		if (cfg.features & MODULE_FEATURE_HUMIDITY) {
-			if (buf_getc(buf, &sensor_report.humidity) < 0)
-				goto error;
-			LOG("humidity value: %u%%\n", sensor_report.humidity);
-		}
-		if (cfg.features & MODULE_FEATURE_TEMPERATURE) {
-			if (buf_getc(buf,
-				     (uint8_t *)&sensor_report.temperature) < 0)
-				goto error;
-			LOG("temperature: %d C\n", sensor_report.temperature);
-		}
 		return;
 	case CMD_FEATURES:
 		if (buf_len(buf) < sizeof(uint8_t))
@@ -790,8 +784,40 @@ static void generic_cmds_cb(uint16_t cmd, uint8_t status)
 }
 #endif
 
+static void sensor_report_cb(uint8_t from, uint8_t events, buf_t *buf)
+{
+	sensor_report_status_t sensor_report;
+	uint8_t id = addr_to_module_id(from);
+	module_cfg_t cfg;
+	uint8_t cmd;
+
+	if (id > NB_MODULES || buf_getc(buf, &cmd) < 0 ||
+	    cmd != CMD_SENSOR_REPORT)
+		goto error;
+
+	cfg_load(&cfg, id);
+	if (cfg.sensor_report_interval == 0 ||
+	    cfg.sensor_notif_addr != RF_MASTER_MOD_HW_ADDR)
+		goto error;
+
+	if (cfg.features & MODULE_FEATURE_HUMIDITY) {
+		if (buf_getc(buf, &sensor_report.humidity) < 0)
+			goto error;
+		LOG("humidity value: %u%%\n", sensor_report.humidity);
+	}
+	if (cfg.features & MODULE_FEATURE_TEMPERATURE) {
+		if (buf_getc(buf, (uint8_t *)&sensor_report.temperature) < 0)
+			goto error;
+		LOG("temperature: %d C\n", sensor_report.temperature);
+	}
+	return;
+ error:
+	LOG("received unsolicited sensor report from 0x%X\n", from);
+}
+
 static int handle_tx_commands(module_t *module, uint8_t cmd)
 {
+	buf_t buf;
 	void *data = NULL;
 	uint8_t len = 0;
 	module_cfg_t cfg;
@@ -804,8 +830,13 @@ static int handle_tx_commands(module_t *module, uint8_t cmd)
 		len = sizeof(uint8_t);
 		break;
 	case CMD_GET_SENSOR_REPORT:
-		data = &cfg.sensor_report_interval;
-		len = sizeof(uint16_t);
+		buf = BUF(sizeof(module_cfg_t));
+		__buf_add(&buf, &cfg.sensor_report_interval,
+			  sizeof(cfg.sensor_report_interval));
+		__buf_add(&buf, &cfg.sensor_notif_addr,
+			  sizeof(cfg.sensor_notif_addr));
+		len = buf.len;
+		data = buf.data;
 		break;
 	case CMD_SET_SIREN_DURATION:
 		data = &cfg.siren_duration;
@@ -845,7 +876,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 
 		DEBUG_LOG("mod%d disconnected\n", id);
 		if ((events & EV_ERROR)) {
-			swen_l3_associate(&module->assoc);
+			swen_l3_associate(assoc);
 			goto error;
 		}
 		cfg_load(&cfg, id);
@@ -933,6 +964,7 @@ void master_module_init(void)
 		module_update_magic();
 	}
 	module_init_iface(&rf_iface, &rf_addr);
+	swen_ev_set(sensor_report_cb);
 
 #ifdef RF_DEBUG
 	module1_init();
