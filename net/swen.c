@@ -178,10 +178,16 @@ delete_recorded_cmd_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr,
 	return LOOP_CONTINUE;
 }
 
-int swen_generic_cmds_delete_recorded_cmd(uint8_t number)
+void swen_generic_cmds_delete_recorded_cmd(uint8_t number)
 {
-	return swen_generic_cmds_for_each(delete_recorded_cmd_cb,
-					  (void *)(uintptr_t)number);
+	uint8_t status;
+
+	if (swen_generic_cmds_for_each(delete_recorded_cmd_cb,
+				       (void *)(uintptr_t)number) < 0)
+		status = GENERIC_CMD_STATUS_ERROR_NOT_FOUND;
+	else
+		status = GENERIC_CMD_STATUS_OK;
+	swen_generic_cmds_cb(swen_generic_cmds_record_value, status);
 }
 
 static int

@@ -11,6 +11,7 @@ enum generic_cmd_status {
 	GENERIC_CMD_STATUS_ERROR_FULL,
 	GENERIC_CMD_STATUS_ERROR_TIMEOUT,
 	GENERIC_CMD_STATUS_ERROR_DUPLICATE,
+	GENERIC_CMD_STATUS_ERROR_NOT_FOUND,
 };
 
 typedef struct __attribute__((__packed__)) swen_hdr_t {
@@ -28,7 +29,7 @@ void swen_generic_cmds_init(void (*cb)(uint16_t cmd, uint8_t status));
 void swen_generic_cmds_start_recording(int16_t value);
 void swen_ev_set(void (*ev_cb)(uint8_t from, uint8_t events, buf_t *buf));
 void swen_generic_cmds_get_list(buf_t *buf);
-int swen_generic_cmds_delete_recorded_cmd(uint8_t number);
+void swen_generic_cmds_delete_recorded_cmd(uint8_t number);
 extern void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
 
 #endif
