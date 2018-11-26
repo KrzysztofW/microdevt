@@ -353,7 +353,6 @@ static inline void cfg_update(void)
 		return;
 	module_add_op(CMD_STORAGE_ERROR, 0);
 	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
-	module_cfg.state = MODULE_STATE_DISABLED;
 }
 
 static void cfg_load(void)
@@ -362,10 +361,9 @@ static void cfg_load(void)
 	if (!module_check_magic()) {
 #endif
 		module_set_default_cfg(&module_cfg);
-		if (!module_update_magic()) {
-			module_cfg.state = MODULE_STATE_DISABLED;
+		if (!module_update_magic())
 			module_add_op(CMD_STORAGE_ERROR, 0);
-		} else
+		else
 			cfg_update();
 		return;
 #ifndef CONFIG_AVR_SIMU
