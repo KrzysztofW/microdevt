@@ -30,6 +30,16 @@ static void timer_cb(void *arg)
 	schedule_task(enter_power_down_mode_cb, NULL);
 }
 
+void power_management_power_down_disable(void)
+{
+	timer_del(&timer);
+}
+
+void power_management_power_down_enable(void)
+{
+	timer_add(&timer, ONE_SECOND, timer_cb, NULL);
+}
+
 void
 power_management_power_down_init(uint16_t inactivity_timeout,
 				 void (*on_sleep)(void *arg), void *arg)
@@ -37,5 +47,5 @@ power_management_power_down_init(uint16_t inactivity_timeout,
 	pwr_mgr_sleep_timeout = inactivity_timeout;
 	on_sleep_cb = on_sleep;
 	on_sleep_arg = arg;
-	timer_add(&timer, ONE_SECOND, timer_cb, NULL);
+	power_management_power_down_enable();
 }

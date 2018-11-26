@@ -12,5 +12,7 @@ extern uint16_t power_management_inactivity;
 void
 power_management_power_down_init(uint16_t inactivity_timeout,
 				 void (*on_sleep)(void *arg), void *arg);
+void power_management_power_down_enable(void);
+void power_management_power_down_disable(void);
 
 #endif

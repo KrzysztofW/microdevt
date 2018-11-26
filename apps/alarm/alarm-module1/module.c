@@ -517,6 +517,14 @@ static void handle_rx_commands(uint8_t cmd, uint16_t value)
 	case CMD_GET_SENSOR_REPORT:
 		module_cfg.sensor_report_interval = value;
 		break;
+#ifdef CONFIG_POWER_MANAGEMENT
+	case CMD_DISABLE_PWR_DOWN:
+		power_management_power_down_disable();
+		break;
+	case CMD_ENABLE_PWR_DOWN:
+		power_management_power_down_enable();
+		break;
+#endif
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 	case CMD_RECORD_GENERIC_COMMAND:
 		if (!cmd_is_recordable(value))

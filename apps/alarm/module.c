@@ -41,6 +41,8 @@ static sbuf_t s_humidity_th = SBUF_INITS("humidity th");
 static sbuf_t s_sensor_report = SBUF_INITS("sensor report");
 static sbuf_t s_disconnect = SBUF_INITS("disconnect");
 static sbuf_t s_connect = SBUF_INITS("connect");
+static sbuf_t s_disable_pwr_down = SBUF_INITS("disable pwr down");
+static sbuf_t s_enable_pwr_down = SBUF_INITS("enable pwr down");
 static sbuf_t s_disable = SBUF_INITS("disable");
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 static sbuf_t s_record_cmd = SBUF_INITS("record cmd");
@@ -83,6 +85,10 @@ static cmd_t cmds[] = {
 	{ .s = &s_siren_timeout, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_SIREN_TIMEOUT },
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
+	{ .s = &s_disable_pwr_down, .args = { ARG_TYPE_NONE },
+	  .cmd = CMD_DISABLE_PWR_DOWN },
+	{ .s = &s_enable_pwr_down, .args = { ARG_TYPE_NONE },
+	  .cmd = CMD_ENABLE_PWR_DOWN },
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 	{ .s = &s_disable, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISABLE },
 #ifdef CONFIG_RF_GENERIC_COMMANDS
@@ -474,7 +480,7 @@ static void print_usage(void)
 
 void alarm_parse_uart_commands(buf_t *buf)
 {
-	buf_t tmp = BUF(8);
+	buf_t tmp = BUF(10);
 	uint8_t id;
 	uint8_t i;
 	sbuf_t s;
