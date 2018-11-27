@@ -47,7 +47,7 @@ static uint8_t prev_tendency;
 static uint16_t sensor_sampling_update = SENSOR_SAMPLING;
 static swen_l3_assoc_t mod1_assoc;
 static uint16_t sensor_report_elapsed_secs;
-static sensor_report_status_t sensor_status;
+static sensor_report_t sensor_report;
 static uint8_t init_time;
 static uint8_t pwr_state;
 static uint8_t pwr_state_report;
@@ -60,7 +60,7 @@ typedef struct humidity_info {
 } humidity_info_t;
 
 #define ARRAY_LENGTH 10
-static uint16_t get_sensor_value(uint8_t pin)
+static uint16_t read_sensor_val(uint8_t pin)
 {
        uint8_t i;
        int arr[ARRAY_LENGTH];
@@ -79,7 +79,7 @@ static inline uint8_t get_humidity_cur_value(void)
 	uint16_t val;
 
 	ADC_SET_REF_VOLTAGE_AVCC();
-	val = get_sensor_value(HUMIDITY_ANALOG_PIN);
+	val = read_sensor_val(HUMIDITY_ANALOG_PIN);
 
 	/* Prepare the ADC for internal REF voltage p243 24.6 (Atmega328).
 	 * This shuts the AREF pin down which is needed to stabilize
@@ -92,16 +92,16 @@ static inline uint8_t get_humidity_cur_value(void)
 
 static inline int8_t get_temperature_cur_value(void)
 {
-	uint16_t val = get_sensor_value(TEMPERATURE_ANALOG_PIN);
+	uint16_t val = read_sensor_val(TEMPERATURE_ANALOG_PIN);
 
 	return LM35DZ_TO_C_DEGREES(adc_to_millivolt(val));
 }
 
-static void get_sensor_status(void)
+static void read_sensor_values(void)
 {
 	/* the temperature sensor must be read first */
-	sensor_status.temperature = get_temperature_cur_value();
-	sensor_status.humidity = get_humidity_cur_value();
+	sensor_report.temperature = get_temperature_cur_value();
+	sensor_report.humidity = get_humidity_cur_value();
 }
 
 static void sensor_sampling_task_cb(void *arg);
@@ -139,10 +139,10 @@ static void pwr_mgr_on_sleep(void *arg)
 
 static void sensor_report_value(void)
 {
-	if (module_cfg.sensor_report_interval == 0)
+	if (module_cfg.sensor.report_interval == 0)
 		return;
 	if (sensor_report_elapsed_secs >=
-	    module_cfg.sensor_report_interval) {
+	    module_cfg.sensor.report_interval) {
 		sensor_report_elapsed_secs = 0;
 		module_add_op(CMD_SENSOR_REPORT, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
@@ -280,7 +280,7 @@ static void set_humidity_info(humidity_info_t *info)
 
 	array_left_shift(global_humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH, 1);
 	global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1] =
-		sensor_status.humidity;
+		sensor_report.humidity;
 	tendency = get_hum_tendency();
 	if (info->tendency != tendency)
 		prev_tendency = info->tendency;
@@ -291,7 +291,7 @@ static void sensor_status_on_ready_cb()
 {
 	humidity_info_t info;
 
-	get_sensor_status();
+	read_sensor_values();
 	set_humidity_info(&info);
 
 	if (!module_cfg.fan_enabled || global_humidity_array[0] == 0)
@@ -314,20 +314,25 @@ static void sensor_sampling_task_cb(void *arg)
 	timer_add(&sensor_timer, 800, sensor_status_on_ready_cb, NULL);
 }
 
-static void get_status(module_status_t *status)
+static void get_sensor_values(sensor_value_t *value)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
 
-	status->sensor_report_interval = module_cfg.sensor_report_interval;
-	status->sensor_notif_addr = module_cfg.sensor_notif_addr;
-	status->humidity.threshold = module_cfg.humidity_threshold;
-	status->humidity.val = sensor_status.humidity;
+	value->humidity.val = sensor_report.humidity;
 	array_copy(humidity_array, global_humidity_array,
 		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
-	status->humidity.global_val =
+	value->humidity.global_val =
 		array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH);
-	status->humidity.tendency = get_hum_tendency();
-	status->temperature = sensor_status.temperature;
+	value->humidity.tendency = get_hum_tendency();
+	value->temperature = sensor_report.temperature;
+}
+
+static void get_status(module_status_t *status)
+{
+	status->sensor.report_interval = module_cfg.sensor.report_interval;
+	status->sensor.notif_addr = module_cfg.sensor.notif_addr;
+	status->sensor.humidity_threshold =
+		module_cfg.sensor.humidity_threshold;
 
 	status->flags = 0;
 	if (gpio_is_fan_on())
@@ -420,17 +425,18 @@ static void module_arm(uint8_t on)
 static void send_sensor_report(void)
 {
 	sbuf_t sbuf;
-	buf_t buf = BUF(sizeof(sensor_report_status_t) + 1);
+	buf_t buf = BUF(sizeof(sensor_report_t) + 1);
 
 	__buf_addc(&buf, CMD_SENSOR_REPORT);
-	__buf_add(&buf, &sensor_status, sizeof(sensor_report_status_t));
+	__buf_add(&buf, &sensor_report, sizeof(sensor_report_t));
 	sbuf = buf2sbuf(&buf);
-	swen_sendto(&rf_iface, module_cfg.sensor_notif_addr, &sbuf);
+	swen_sendto(&rf_iface, module_cfg.sensor.notif_addr, &sbuf);
 }
 
 static int handle_tx_commands(uint8_t cmd)
 {
 	module_status_t status;
+	sensor_value_t sensor_value;
 	void *data = NULL;
 	int len = 0;
 	uint8_t features;
@@ -443,6 +449,11 @@ static int handle_tx_commands(uint8_t cmd)
 		get_status(&status);
 		data = &status;
 		len = sizeof(module_status_t);
+		break;
+	case CMD_SENSOR_VALUES:
+		get_sensor_values(&sensor_value);
+		data = &sensor_value;
+		len = sizeof(sensor_value_t);
 		break;
 	case CMD_SENSOR_REPORT:
 		send_sensor_report();
@@ -508,7 +519,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 		return;
 	case CMD_SET_HUM_TH:
 		if (val1 && val1 <= 100) {
-			module_cfg.humidity_threshold = val1;
+			module_cfg.sensor.humidity_threshold = val1;
 			break;
 		}
 		return;
@@ -525,9 +536,15 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 		module_add_op(CMD_STATUS, 0);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
+	case CMD_GET_SENSOR_VALUES:
+		module_add_op(CMD_SENSOR_VALUES, 0);
+		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		return;
 	case CMD_GET_SENSOR_REPORT:
-		module_cfg.sensor_report_interval = val1;
-		module_cfg.sensor_notif_addr = val2;
+		if (val2 == rf_addr)
+			return;
+		module_cfg.sensor.report_interval = val1;
+		module_cfg.sensor.notif_addr = val2;
 		break;
 #ifdef CONFIG_POWER_MANAGEMENT
 	case CMD_DISABLE_PWR_DOWN:
@@ -594,10 +611,10 @@ static void module_print_status(void)
 	    " Global humidity value:  %d%%\n"
 	    " Humidity tendency:  %u\n"
 	    " Humidity threshold:  %u%%\n",
-	    sensor_status.humidity > 100 ? 0 : sensor_status.humidity,
+	    sensor_report.humidity > 100 ? 0 : sensor_report.humidity,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
-	    get_hum_tendency(), module_cfg.humidity_threshold);
-	LOG(" Temperature:  %d\n", sensor_status.temperature);
+	    get_hum_tendency(), module_cfg.sensor.humidity_threshold);
+	LOG(" Temperature:  %d\n", sensor_report.temperature);
 	LOG(" Fan: %d\n Fan enabled: %d\n", gpio_is_fan_on(),
 	    module_cfg.fan_enabled);
 	LOG(" Siren:  %d\n", gpio_is_siren_on()),

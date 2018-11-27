@@ -34,15 +34,19 @@ typedef enum module_state {
 	MODULE_STATE_UNINITIALIZED,
 } module_state_t;
 
+typedef struct __attribute__((__packed__)) sensor_status {
+	uint8_t  humidity_threshold;
+	uint16_t report_interval;
+	uint8_t  notif_addr;
+} sensor_status_t;
+
 typedef struct __attribute__((__packed__)) module_cfg {
 	features_t features;
 	uint8_t  state : 2;
 	uint8_t  fan_enabled : 1;
 	uint16_t siren_duration;
 	uint8_t  siren_timeout;
-	uint16_t sensor_report_interval;
-	uint8_t  sensor_notif_addr;
-	uint8_t  humidity_threshold;
+	sensor_status_t sensor;
 } module_cfg_t;
 
 enum humidity_tendency {
@@ -74,17 +78,21 @@ typedef enum status_flags {
 	STATUS_FLAGS_MAIN_PWR_ON = (1 << 6),
 } status_flags_t;
 
-typedef struct __attribute__((__packed__)) sensor_report_status {
+typedef struct __attribute__((__packed__)) sensor_report {
 	uint8_t humidity;
 	int8_t  temperature;
-} sensor_report_status_t;
+} sensor_report_t;
 
-typedef struct __attribute__((__packed__)) humidity_status {
-	uint8_t  threshold;
-	uint8_t  val;
-	uint8_t  global_val;
-	uint8_t  tendency;
-} humidity_status_t;
+typedef struct __attribute__((__packed__)) humidity_value {
+	uint8_t val;
+	uint8_t global_val;
+	uint8_t tendency;
+} humidity_value_t;
+
+typedef struct __attribute__((__packed__)) sensor_value_t {
+	humidity_value_t humidity;
+	int8_t temperature;
+} sensor_value_t;
 
 typedef struct __attribute__((__packed__)) siren_status {
 	uint16_t duration;
@@ -94,11 +102,8 @@ typedef struct __attribute__((__packed__)) siren_status {
 typedef struct __attribute__((__packed__)) module_status {
 	uint8_t  flags;
 	uint8_t  state;
-	humidity_status_t humidity;
-	int8_t   temperature;
 	siren_status_t siren;
-	uint16_t sensor_report_interval;
-	uint8_t  sensor_notif_addr;
+	sensor_status_t sensor;
 } module_status_t;
 
 #define POWER_STATE_NONE 0
@@ -151,6 +156,8 @@ typedef enum commands {
 	CMD_RECORD_GENERIC_COMMAND_ANSWER,
 	CMD_GENERIC_COMMANDS_LIST,
 	CMD_GENERIC_COMMANDS_DELETE,
+	CMD_GET_SENSOR_VALUES,
+	CMD_SENSOR_VALUES,
 } commands_t;
 
 #ifdef CONFIG_RF_GENERIC_COMMANDS

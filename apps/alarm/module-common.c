@@ -144,7 +144,7 @@ void module_set_default_cfg(module_cfg_t *cfg)
 {
 	memset(cfg, 0, sizeof(module_cfg_t));
 	cfg->state = MODULE_STATE_DISABLED;
-	cfg->humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
+	cfg->sensor.humidity_threshold = DEFAULT_HUMIDITY_THRESHOLD;
 	cfg->siren_duration = DEFAULT_SIREN_ON_DURATION;
 	cfg->siren_timeout = DEFAULT_SIREN_ON_TIMEOUT;
 }
