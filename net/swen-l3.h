@@ -62,9 +62,6 @@ swen_l3_send_buf(swen_l3_assoc_t *assoc, const buf_t *buf)
 void swen_l3_retransmit_pkts(swen_l3_assoc_t *assoc);
 #endif
 
-void swen_l3_event_set(swen_l3_assoc_t *assoc, uint8_t events,
-		       void (*ev_cb)(event_t *ev, uint8_t events));
-
 pkt_t *swen_l3_get_pkt(swen_l3_assoc_t *assoc);
 
 #ifdef CONFIG_EVENT
