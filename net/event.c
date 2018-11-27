@@ -60,6 +60,9 @@ void event_resume_write_events(void)
 		event_t *ev = list_first_entry(&retry_list, event_t, list);
 
 		__list_del_entry(&ev->list);
-		event_schedule_event(ev, ev->available | EV_WRITE);
+		if (ev->wanted & EV_WRITE) {
+			ev->available |= EV_WRITE;
+			event_cb(ev);
+		}
 	}
 }
