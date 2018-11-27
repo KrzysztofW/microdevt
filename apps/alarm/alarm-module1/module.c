@@ -652,9 +652,8 @@ void module1_parse_uart_commands(buf_t *buf)
 
 static void rf_event_cb(event_t *ev, uint8_t events)
 {
-	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
 #ifdef DEBUG
-	uint8_t id = addr_to_module_id(assoc->dst);
+	uint8_t id = addr_to_module_id(mod1_assoc.dst);
 #endif
 
 #ifdef CONFIG_POWER_MANAGEMENT
@@ -663,7 +662,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 	if (events & EV_READ) {
 		pkt_t *pkt;
 
-		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
+		while ((pkt = swen_l3_get_pkt(&mod1_assoc)) != NULL) {
 			DEBUG_LOG("got pkt of len:%d from mod%d\n",
 				  buf_len(&pkt->buf), id);
 			module1_parse_commands(&pkt->buf);
@@ -671,7 +670,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		}
 	}
 	if (events & EV_ERROR) {
-		swen_l3_associate(assoc);
+		swen_l3_associate(&mod1_assoc);
 		goto error;
 	}
 	if (events & EV_HUNGUP)
@@ -681,7 +680,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		uint8_t op;
 
 		if (module_get_op(&op) < 0) {
-			swen_l3_event_set_mask(assoc, EV_READ);
+			swen_l3_event_set_mask(&mod1_assoc, EV_READ);
 			return;
 		}
 		DEBUG_LOG("mod1: sending op:0x%X to mod%d\n", op, id);
@@ -689,31 +688,31 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			module_skip_op();
 			return;
 		}
-		if (swen_l3_get_state(assoc) != S_STATE_CONNECTED) {
-			swen_l3_associate(assoc);
+		if (swen_l3_get_state(&mod1_assoc) != S_STATE_CONNECTED) {
+			swen_l3_associate(&mod1_assoc);
 			goto error;
 		}
 	}
 	return;
  error:
 	DEBUG_LOG("mod%d disconnected\n", id);
-	swen_l3_event_unregister(assoc);
-	swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
+	swen_l3_event_unregister(&mod1_assoc);
+	swen_l3_event_register(&mod1_assoc, EV_WRITE, rf_connecting_on_event);
 }
 
 static void rf_connecting_on_event(event_t *ev, uint8_t events)
 {
-	swen_l3_assoc_t *assoc = swen_l3_event_get_assoc(ev);
 #ifdef DEBUG
-	uint8_t id = addr_to_module_id(assoc->dst);
+	uint8_t id = addr_to_module_id(mod1_assoc.dst);
 #endif
 	uint8_t op;
 
 	if (events & (EV_ERROR | EV_HUNGUP)) {
 		DEBUG_LOG("failed to connect to mod%d\n", id);
-		swen_l3_event_unregister(assoc);
-		swen_l3_associate(assoc);
-		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
+		swen_l3_event_unregister(&mod1_assoc);
+		swen_l3_associate(&mod1_assoc);
+		swen_l3_event_register(&mod1_assoc, EV_WRITE,
+				       rf_connecting_on_event);
 		return;
 	}
 	if (events & EV_WRITE) {
@@ -722,7 +721,7 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 		DEBUG_LOG("connected to mod%d\n", id);
 		if (module_get_op(&op) >= 0)
 			flags |= EV_WRITE;
-		swen_l3_event_register(assoc, flags, rf_event_cb);
+		swen_l3_event_register(&mod1_assoc, flags, rf_event_cb);
 	}
 }
 
