@@ -118,8 +118,6 @@ void watchdog_on_wakeup(void *arg)
 {
 	static uint8_t sampling_cnt;
 
-	DEBUG_LOG("WD interrupt\n");
-
 	/* sample every 30 seconds ((8-sec sleep + 2 secs below) * 3) */
 	if (sampling_cnt >= 3) {
 		schedule_task(sensor_sampling_task_cb, NULL);
@@ -138,7 +136,6 @@ void watchdog_on_wakeup(void *arg)
 
 static void pwr_mgr_on_sleep(void *arg)
 {
-	DEBUG_LOG("sleeping...\n");
 	gpio_led_off();
 	watchdog_enable_interrupt(watchdog_on_wakeup, NULL);
 }
