@@ -73,11 +73,6 @@ static inline void buf_init(buf_t *buf, void *data, unsigned len)
 	buf->data = data;
 }
 
-static inline int buf_len(const buf_t *buf)
-{
-	return buf->len;
-}
-
 static inline int buf_get_free_space(const buf_t *buf)
 {
 	return buf->size - buf->skip - buf->len;
@@ -114,13 +109,13 @@ static inline int buf_alloc(buf_t *buf, int len)
 	buf->len = buf->skip = 0;
 	return 0;
 }
-#endif
 
 static inline void buf_free(buf_t *buf)
 {
 	if (buf->data && buf->size)
 		free(buf->data);
 }
+#endif
 
 static inline void buf_reset(buf_t *buf)
 {
@@ -171,11 +166,6 @@ static inline void buf_adj(buf_t *buf, int len)
 	buf->data += len;
 }
 
-static inline unsigned char *buf_data(const buf_t *buf)
-{
-	return buf->data;
-}
-
 static inline void __buf_add(buf_t *buf, const void *data, int len)
 {
 	memcpy(buf->data + buf->len, data, len);
@@ -207,7 +197,7 @@ static inline int buf_addf(buf_t *buf, const char *fmt, ...)
 	int buf_room = buf->size - buf->skip - buf->len;
 
 	va_start(ap, fmt);
-	len = vsnprintf((char *)buf_data(buf), buf_room, fmt, ap);
+	len = vsnprintf((char *)buf->data, buf_room, fmt, ap);
 	va_end(ap);
 	if (len < 0 || len >= buf_room)
 		return -1;
@@ -240,7 +230,7 @@ static inline void __buf_addsbuf(buf_t *buf, const sbuf_t *sbuf)
 
 static inline int buf_get_lastc(buf_t *buf, uint8_t *c)
 {
-	if (buf_len(buf) < 1)
+	if (buf->len < 1)
 		return -1;
 	*c = buf->data[buf->len - 1];
 	buf->len--;
@@ -249,9 +239,7 @@ static inline int buf_get_lastc(buf_t *buf, uint8_t *c)
 
 static inline void __buf_getc(buf_t *buf, uint8_t *c)
 {
-	uint8_t *data = buf_data(buf);
-
-	*c = data[0];
+	*c = buf->data[0];
 	buf->len--;
 	buf->skip++;
 	buf->data++;
@@ -259,7 +247,7 @@ static inline void __buf_getc(buf_t *buf, uint8_t *c)
 
 static inline int buf_getc(buf_t *buf, uint8_t *c)
 {
-	if (buf_len(buf) < 1)
+	if (buf->len < 1)
 		return -1;
 	__buf_getc(buf, c);
 	return 0;
@@ -274,7 +262,7 @@ static inline void __buf_skip(buf_t *buf, int len)
 
 static inline int buf_skip(buf_t *buf, int len)
 {
-	if (buf_len(buf) < len)
+	if (buf->len < len)
 		return -1;
 	__buf_skip(buf, len);
 	return 0;
@@ -288,7 +276,7 @@ static inline void __buf_get_u16(buf_t *buf, uint16_t *val)
 
 static inline int buf_get_u16(buf_t *buf, uint16_t *val)
 {
-	if (buf_len(buf) < sizeof(uint16_t))
+	if (buf->len < sizeof(uint16_t))
 		return -1;
 	__buf_get_u16(buf, val);
 	return 0;
@@ -302,7 +290,7 @@ static inline void __buf_get(buf_t *buf, void *data, int len)
 
 static inline int buf_get(buf_t *buf, void *data, int len)
 {
-	if (buf_len(buf) < len)
+	if (buf->len < len)
 		return -1;
 	__buf_get(buf, data, len);
 	return 0;
@@ -310,7 +298,7 @@ static inline int buf_get(buf_t *buf, void *data, int len)
 
 static inline void buf_skip_spaces(buf_t *buf)
 {
-	while (buf_len(buf) && isspace(buf_data(buf)[0]))
+	while (buf->len && isspace(buf->data[0]))
 	       __buf_skip(buf, 1);
 }
 
@@ -338,15 +326,14 @@ static inline void sbuf_print(const sbuf_t *buf);
 static inline int
 __buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s, int skip)
 {
-	uint8_t *data = buf_data(buf);
 	uint8_t *d;
 	unsigned skipped_len;
 
-	d = __memmem(data, buf->len, s->data, s->len);
+	d = __memmem(buf->data, buf->len, s->data, s->len);
 	if (d == NULL)
 		return -1;
-	skipped_len = d - data;
-	sbuf_init(sbuf, data, skipped_len);
+	skipped_len = d - buf->data;
+	sbuf_init(sbuf, buf->data, skipped_len);
 	buf_adj(buf, skipped_len + s->len);
 
 	return 0;
@@ -364,8 +351,7 @@ buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s, 0);
 }
 
-static inline int
-buf_get_sbuf_upto(buf_t *buf, sbuf_t *sbuf, const char *s)
+static inline int buf_get_sbuf_upto(buf_t *buf, sbuf_t *sbuf, const char *s)
 {
 	sbuf_t sbuf2;
 
@@ -398,7 +384,7 @@ static inline int buf_pad(buf_t *buf, uint8_t order)
 	uint8_t pad = 1 << order;
 	uint8_t mask = pad - 1;
 
-	while (buf_len(buf) & mask) {
+	while (buf->len & mask) {
 		if (buf_addc(buf, 0) < 0)
 			return -1;
 	}

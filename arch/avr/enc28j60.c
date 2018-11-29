@@ -415,8 +415,7 @@ int enc28j60_pkt_send(const iface_t *iface, pkt_t *pkt)
 	enc28j60_write(ETXNDH, (TXSTART_INIT + pkt->buf.len) >> 8);
 
 	enc28j60_write_op(ENC28J60_WRITE_BUF_MEM, 0, 0x00);
-
-	enc28j60_write_buffer(pkt->buf.len,  buf_data(&pkt->buf));
+	enc28j60_write_buffer(pkt->buf.len,  pkt->buf.data);
 
 	enc28j60_write_op(ENC28J60_BIT_FIELD_SET, ECON1, ECON1_TXRTS);
 	pkt_free(pkt);

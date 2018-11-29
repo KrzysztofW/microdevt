@@ -57,7 +57,7 @@ static int send(const iface_t *iface, pkt_t *pkt)
 {
 	ssize_t nwrite;
 
-	nwrite = write(tun_fds[0].fd, buf_data(&pkt->buf), pkt->buf.len);
+	nwrite = write(tun_fds[0].fd, pkt->buf.data, pkt->buf.len);
 	pkt_free(pkt);
 	if (nwrite < 0) {
 		if (errno != EAGAIN) {

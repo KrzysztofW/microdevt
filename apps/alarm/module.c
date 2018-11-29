@@ -785,11 +785,11 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		LOG("mod%d: power up\n", id);
 		return;
 	case CMD_FEATURES:
-		if (buf_len(buf) < sizeof(uint8_t))
+		if (buf->len < sizeof(uint8_t))
 			goto error;
 		if (cfg.features == 0)
 			module_add_op(&modules[id].op_queue, CMD_GET_STATUS);
-		cfg.features = buf_data(buf)[0];
+		cfg.features = buf->data[0];
 		cfg_update(&cfg, id);
 		LOG("mod%d: features updated\n", id);
 		return;
@@ -808,7 +808,7 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		return;
 	}
  error:
-	LOG("bad cmd (0x%X) of len %d from 0x%X\n", cmd, buf_len(buf) + 1,
+	LOG("bad cmd (0x%X) of len %d from 0x%X\n", cmd, buf->len + 1,
 	    addr);
 }
 
@@ -907,7 +907,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 
 		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
 			DEBUG_LOG("got pkt of len:%d from mod%d\n",
-				  buf_len(&pkt->buf), id);
+				  pkt->buf.len, id);
 			module0_parse_commands(assoc->dst, &pkt->buf);
 			pkt_free(pkt);
 		}

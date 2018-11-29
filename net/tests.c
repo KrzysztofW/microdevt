@@ -811,9 +811,9 @@ int net_tcp_tests(void)
 		goto end;
 	}
 #endif
-	if (strcmp((const char *)buf_data(&pkt->buf), "blabla\n") != 0) {
+	if (strcmp((const char *)pkt->buf.data, "blabla\n") != 0) {
 		fprintf(stderr, "expected \"blabla\", got \"%s\"\n",
-			buf_data(&pkt->buf));
+			pkt->buf.data);
 		ret = -1;
 		goto end;
 	}

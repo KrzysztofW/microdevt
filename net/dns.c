@@ -78,15 +78,15 @@ static void dns_query_timeout_cb(void *arg)
 
 static int dns_skip_name(buf_t *buf)
 {
-	while (buf_len(buf) > 0) {
-		uint8_t len = *(buf_data(buf));
+	while (buf->len > 0) {
+		uint8_t len = buf->data[0];
 
 		if (len == 0) {
 			/* skip len */
 			buf_adj(buf, 1);
 			return 0;
 		}
-		if (len > buf_len(buf))
+		if (len > buf->len)
 			return -1;
 		/* skip label + len */
 		buf_adj(buf, len + 1);
@@ -105,7 +105,7 @@ dns_parse_answer(const dns_query_t *dns_answer, int data_len, uint32_t *ip)
 
 	/* skip queries */
 	while (nb) {
-		if (buf_len(&buf) <= 0)
+		if (buf.len <= 0)
 			return -1;
 		if (dns_skip_name(&buf) < 0)
 			return -1;
@@ -118,21 +118,21 @@ dns_parse_answer(const dns_query_t *dns_answer, int data_len, uint32_t *ip)
 	while (nb) {
 		uint16_t type;
 
-		if (buf_len(&buf) <= 0)
+		if (buf.len <= 0)
 			return -1;
 		/* skip name */
-		if (*buf_data(&buf) != 0xC0) {
+		if (buf.data[0] != 0xC0) {
 			if (dns_skip_name(&buf) < 0)
 				return -1;
 		} else
 			buf_adj(&buf, 2);
 
-		type = *(uint16_t *)buf_data(&buf);
+		type = *(uint16_t *)buf.data;
 		/* skip type, class, ttl, first byte of len */
 		buf_adj(&buf, 9);
-		len = *buf_data(&buf);
+		len = buf.data[0];
 		buf_adj(&buf, 1); /* skip second byte of len */
-		if (len > buf_len(&buf))
+		if (len > buf.len)
 			return -1;
 		if (type != DNS_TYPE_A) {
 			buf_adj(&buf, len);
@@ -143,7 +143,7 @@ dns_parse_answer(const dns_query_t *dns_answer, int data_len, uint32_t *ip)
 			nb--;
 			continue;
 		}
-		*ip = *(uint32_t *)buf_data(&buf);
+		*ip = *(uint32_t *)buf.data;
 		return 0;
 	}
 
@@ -248,7 +248,7 @@ int dns_resolve(const sbuf_t *name, void (*cb)(uint32_t ip))
 		.size = name->len + 2
 	};
 	dns_serialize_domain_name(name, &buf);
-	q = buf_data(&buf) + buf_len(&buf);
+	q = buf.data + buf.len;
 	*(uint16_t *)q = DNS_TYPE_A;
 	q += 2;
 	*(uint16_t *)q = DNS_CLASS_IN;

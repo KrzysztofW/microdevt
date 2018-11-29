@@ -12,7 +12,7 @@ int xtea_encode(buf_t *buf, uint32_t const key[4])
 	unsigned p, rounds, e, n;
 
 	/* the buffer must be at least 8 bytes long */
-	while (buf_len(buf) < 8) {
+	while (buf->len < 8) {
 		if (buf_addc(buf, 0) < 0)
 			return -1;
 	}
@@ -21,8 +21,8 @@ int xtea_encode(buf_t *buf, uint32_t const key[4])
 	if (buf_pad(buf, 2) < 0)
 		return -1;
 
-	n = buf_len(buf) / 4;
-	v = (uint32_t *)buf_data(buf);
+	n = buf->len / 4;
+	v = (uint32_t *)buf->data;
 
 	rounds = 6 + 52 / n;
 	sum = 0;
@@ -46,11 +46,11 @@ int xtea_decode(buf_t *buf, uint32_t const key[4])
 	unsigned p, rounds, e, n;
 
 	/* the buffer must be a multiple of 4 */
-	if (buf_len(buf) & 0x3)
+	if (buf->len & 0x3)
 		return -1;
 
-	n = buf_len(buf) / 4;
-	v = (uint32_t *)buf_data(buf);
+	n = buf->len / 4;
+	v = (uint32_t *)buf->data;
 
 	rounds = 6 + 52 / n;
 	sum = rounds * DELTA;
@@ -90,24 +90,24 @@ int main(int argc, char **argv)
 		fprintf(stderr, "string too big\n");
 		return -1;
 	}
-	printf("\nplaintext buf (len:%d): %s\n", buf_len(&buf), buf.data);
-	printf("plaintext buf hex (len:%d):\n", buf_len(&buf));
+	printf("\nplaintext buf (len:%d): %s\n", buf->len, buf.data);
+	printf("plaintext buf hex (len:%d):\n", buf->len);
 	buf_print_hex(&buf);
 
 	if (xtea_encode(&buf, key) < 0) {
 		fprintf(stderr, "failed to encode\n");
 		return -1;
 	}
-	printf("\nencoded buf (len:%d):\n", buf_len(&buf));
+	printf("\nencoded buf (len:%d):\n", buf->len);
 	buf_print_hex(&buf);
 
 	if (xtea_decode(&buf, key) < 0) {
 		fprintf(stderr, "failed to decode\n");
 		return -1;
 	}
-	printf("decoded buf hex (len:%d):\n", buf_len(&buf));
+	printf("decoded buf hex (len:%d):\n", buf->len);
 	buf_print_hex(&buf);
-	printf("plaintext buf (len:%d): %s\n", buf_len(&buf), buf.data);
+	printf("plaintext buf (len:%d): %s\n", buf->len, buf.data);
 	return 0;
 }
 #endif

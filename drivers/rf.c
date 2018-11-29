@@ -224,7 +224,7 @@ static int rf_snd(rf_ctx_t *ctx)
 	if (byte_is_empty(&ctx->snd_data.byte)) {
 		uint8_t c;
 
-		if (buf_len(&ctx->snd_data.buf) == 0) {
+		if (ctx->snd_data.buf.len == 0) {
 			if ((RF_SND_PORT & (1 << RF_SND_PIN_NB)) == 0) {
 				RF_SND_PORT |= 1 << RF_SND_PIN_NB;
 				return 0;

@@ -921,7 +921,7 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 		return -1;
 	*addrlen = sizeof(struct sockaddr_in);
 	__len = MIN((int)len, pkt->buf.len);
-	memcpy(buf, buf_data(&pkt->buf), __len);
+	memcpy(buf, pkt->buf.data, __len);
 	pkt_free(pkt);
 	return __len;
 }

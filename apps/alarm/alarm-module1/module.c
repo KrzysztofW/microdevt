@@ -667,7 +667,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 
 		while ((pkt = swen_l3_get_pkt(&mod1_assoc)) != NULL) {
 			DEBUG_LOG("got pkt of len:%d from mod%d\n",
-				  buf_len(&pkt->buf), id);
+				  pkt->buf.len, id);
 			module1_parse_commands(&pkt->buf);
 			pkt_free(pkt);
 		}
