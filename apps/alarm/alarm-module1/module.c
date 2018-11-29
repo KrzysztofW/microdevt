@@ -148,8 +148,7 @@ static void sensor_report_value(void)
 	if (sensor_report_elapsed_secs >=
 	    module_cfg.sensor.report_interval) {
 		sensor_report_elapsed_secs = 0;
-		module_add_op(tx_queue, CMD_SENSOR_REPORT);
-		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		module_add_op(tx_queue, CMD_SENSOR_REPORT, &mod1_assoc.event);
 	} else
 		sensor_report_elapsed_secs++;
 }
@@ -180,8 +179,8 @@ static void timer_1sec_cb(void *arg)
 		if (pwr_state_report > 1)
 			pwr_state_report--;
 		else if (pwr_state_report) {
-			module_add_op(urgent_tx_queue, pwr_state);
-			swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+			module_add_op(urgent_tx_queue, pwr_state,
+				      &mod1_assoc.event);
 			pwr_state_report = 0;
 		}
 		sensor_report_value();
@@ -246,9 +245,7 @@ ISR(PCINT2_vect)
 	    timer_is_pending(&siren_timer))
 		return;
 
-	module_add_op(urgent_tx_queue, CMD_NOTIF_ALARM_ON);
-	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
-
+	module_add_op(urgent_tx_queue, CMD_NOTIF_ALARM_ON, &mod1_assoc.event);
 	if (module_cfg.siren_timeout)
 		timer_add(&siren_timer, module_cfg.siren_timeout * 1000000,
 			  siren_on_tim_cb, NULL);
@@ -360,8 +357,7 @@ static inline void cfg_update(void)
 	if (eeprom_update_and_check(&persistent_cfg, &module_cfg,
 				    sizeof(module_cfg_t)))
 		return;
-	module_add_op(tx_queue, CMD_STORAGE_ERROR);
-	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+	module_add_op(tx_queue, CMD_STORAGE_ERROR, &mod1_assoc.event);
 }
 
 static void cfg_load(void)
@@ -371,7 +367,8 @@ static void cfg_load(void)
 #endif
 		module_set_default_cfg(&module_cfg);
 		if (!module_update_magic())
-			module_add_op(tx_queue, CMD_STORAGE_ERROR);
+			module_add_op(tx_queue, CMD_STORAGE_ERROR,
+				      &mod1_assoc.event);
 		else
 			cfg_update();
 		return;
@@ -489,8 +486,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 	DEBUG_LOG("mod1: got cmd:0x%X\n", cmd);
 	switch (cmd) {
 	case CMD_GET_FEATURES:
-		module_add_op(urgent_tx_queue, CMD_FEATURES);
-		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		module_add_op(urgent_tx_queue, CMD_FEATURES, &mod1_assoc.event);
 		return;
 	case CMD_ARM:
 		module_arm(1);
@@ -536,12 +532,10 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 		module_cfg.siren_timeout = val1;
 		break;
 	case CMD_GET_STATUS:
-		module_add_op(tx_queue, CMD_STATUS);
-		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		module_add_op(tx_queue, CMD_STATUS, &mod1_assoc.event);
 		return;
 	case CMD_GET_SENSOR_VALUES:
-		module_add_op(tx_queue, CMD_SENSOR_VALUES);
-		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		module_add_op(tx_queue, CMD_SENSOR_VALUES, &mod1_assoc.event);
 		return;
 	case CMD_GET_SENSOR_REPORT:
 		if (val2 == rf_addr)
@@ -565,8 +559,8 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 		swen_generic_cmds_start_recording(val1);
 		return;
 	case CMD_GENERIC_COMMANDS_LIST:
-		module_add_op(tx_queue, CMD_GENERIC_COMMANDS_LIST);
-		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
+		module_add_op(tx_queue, CMD_GENERIC_COMMANDS_LIST,
+			      &mod1_assoc.event);
 		return;
 	case CMD_GENERIC_COMMANDS_DELETE:
 		swen_generic_cmds_delete_recorded_cmd(val1);

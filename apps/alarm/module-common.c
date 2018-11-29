@@ -49,7 +49,7 @@ int8_t module_update_magic(void)
 	return eeprom_update_and_check(&eeprom_magic, &magic, sizeof(magic));
 }
 
-int module_add_op(ring_t *queue, uint8_t op)
+int module_add_op(ring_t *queue, uint8_t op, event_t *event)
 {
 	uint8_t cur_op;
 	int rlen = ring_len(queue);
@@ -60,7 +60,10 @@ int module_add_op(ring_t *queue, uint8_t op)
 		if (cur_op == op)
 			return 0;
 	}
-	return ring_addc(queue, op);
+	if (ring_addc(queue, op) < 0)
+		return -1;
+	event_set_mask(event, EV_READ | EV_WRITE);
+	return 0;
 }
 
 int module_get_op(ring_t *queue, uint8_t *op)

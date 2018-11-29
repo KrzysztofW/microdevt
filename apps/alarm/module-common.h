@@ -194,7 +194,7 @@ void module_init_iface(iface_t *iface, uint8_t *addr);
 int module_check_magic(void);
 int8_t module_update_magic(void);
 
-int module_add_op(ring_t *queue, uint8_t op);
+int module_add_op(ring_t *queue, uint8_t op, event_t *event);
 int module_get_op(ring_t *queue, uint8_t *op);
 void module_skip_op(ring_t *queue);
 int module_get_op2(uint8_t *op, ring_t *q1, ring_t *q2);

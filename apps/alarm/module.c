@@ -438,8 +438,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		return;
 	}
 
-	module_add_op(&modules[id].op_queue, cmd);
-	swen_l3_event_set_mask(assoc, EV_READ | EV_WRITE);
+	module_add_op(&modules[id].op_queue, cmd, &assoc->event);
 }
 
 static int fill_args(uint8_t arg, buf_t *args, buf_t *buf)
@@ -626,7 +625,10 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 {
 	ring_t *op_queue = &modules[id].op_queue;
 	swen_l3_assoc_t *assoc = &modules[id].assoc;
-	uint8_t op, queue_len = ring_len(op_queue);
+	uint8_t op;
+#ifdef DEBUG
+	uint8_t queue_len = ring_len(op_queue);
+#endif
 
 	if (cfg->state != status->state) {
 		switch (cfg->state) {
@@ -645,29 +647,29 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 			swen_l3_disassociate(assoc);
 			return;
 		}
-		if (module_add_op(op_queue, op) < 0)
+		if (module_add_op(op_queue, op, &assoc->event) < 0)
 			goto error;
 	}
 
 	if ((cfg->sensor.report_interval != status->sensor.report_interval
 	     || cfg->sensor.notif_addr != status->sensor.notif_addr)
-	    && module_add_op(op_queue, CMD_GET_SENSOR_REPORT) < 0)
+	    && module_add_op(op_queue, CMD_GET_SENSOR_REPORT, &assoc->event) < 0)
 		goto error;
 	if (cfg->sensor.humidity_threshold != status->sensor.humidity_threshold
-	    && module_add_op(op_queue, CMD_SET_HUM_TH) < 0)
+	    && module_add_op(op_queue, CMD_SET_HUM_TH, &assoc->event) < 0)
 		goto error;
 	if (!cfg->fan_enabled && (status->flags & STATUS_FLAGS_FAN_ENABLED) &&
-	    module_add_op(op_queue, CMD_DISABLE_FAN) < 0)
+	    module_add_op(op_queue, CMD_DISABLE_FAN, &assoc->event) < 0)
 		goto error;
 	if (cfg->fan_enabled && !(status->flags & STATUS_FLAGS_FAN_ENABLED) &&
-	    module_add_op(op_queue, CMD_ENABLE_FAN) < 0)
+	    module_add_op(op_queue, CMD_ENABLE_FAN, &assoc->event) < 0)
 		goto error;
 
 	if (cfg->siren_duration != status->siren.duration &&
-	    module_add_op(op_queue, CMD_SET_SIREN_DURATION) < 0)
+	    module_add_op(op_queue, CMD_SET_SIREN_DURATION, &assoc->event) < 0)
 		goto error;
 	if (cfg->siren_timeout != status->siren.timeout &&
-	    module_add_op(op_queue, CMD_SET_SIREN_TIMEOUT) < 0)
+	    module_add_op(op_queue, CMD_SET_SIREN_TIMEOUT, &assoc->event) < 0)
 		goto error;
 
 	if (modules[id].main_pwr_state == -1)
@@ -687,12 +689,13 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 			modules[id].main_pwr_state = POWER_STATE_OFF;
 	}
 
+#ifdef DEBUG
 	if (ring_len(op_queue) > queue_len) {
 		DEBUG_LOG("wrong status, updating...\n");
-		swen_l3_event_set_mask(assoc, EV_READ|EV_WRITE);
 		return;
 	}
 	DEBUG_LOG("status OK\n");
+#endif
 	return;
  error:
 	DEBUG_LOG("failed checking mod%d status\n", id);
@@ -788,7 +791,8 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		if (buf->len < sizeof(uint8_t))
 			goto error;
 		if (cfg.features == 0)
-			module_add_op(&modules[id].op_queue, CMD_GET_STATUS);
+			module_add_op(&modules[id].op_queue, CMD_GET_STATUS,
+				      &modules[id].assoc.event);
 		cfg.features = buf->data[0];
 		cfg_update(&cfg, id);
 		LOG("mod%d: features updated\n", id);
@@ -911,8 +915,6 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			module0_parse_commands(assoc->dst, &pkt->buf);
 			pkt_free(pkt);
 		}
-		if (module_op_pending(&module->op_queue))
-			swen_l3_event_set_mask(assoc, EV_READ|EV_WRITE);
 	}
 	if (events & (EV_ERROR | EV_HUNGUP)) {
 		module_cfg_t cfg;
