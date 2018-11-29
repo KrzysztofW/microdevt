@@ -8,10 +8,6 @@ const uint32_t rf_enc_defkey[4] = {
 #define MAGIC 0xA2
 static uint8_t EEMEM eeprom_magic;
 
-#define TX_QUEUE_SIZE 4
-STATIC_RING_DECL(tx_queue, TX_QUEUE_SIZE);
-STATIC_RING_DECL(urgent_tx_queue, TX_QUEUE_SIZE);
-
 static struct iface_queues {
 	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
 	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
@@ -53,14 +49,7 @@ int8_t module_update_magic(void)
 	return eeprom_update_and_check(&eeprom_magic, &magic, sizeof(magic));
 }
 
-static void module_task_cb(void *arg)
-{
-	uint8_t op = (uintptr_t)arg;
-
-	module_add_op(op, 1);
-}
-
-int __module_add_op(ring_t *queue, uint8_t op)
+int module_add_op(ring_t *queue, uint8_t op)
 {
 	uint8_t cur_op;
 	int rlen = ring_len(queue);
@@ -74,18 +63,7 @@ int __module_add_op(ring_t *queue, uint8_t op)
 	return ring_addc(queue, op);
 }
 
-void module_add_op(uint8_t op, uint8_t urgent)
-{
-	ring_t *queue = urgent ? urgent_tx_queue : tx_queue;
-
-	if (__module_add_op(queue, op) < 0) {
-		assert(0);
-		if (urgent)
-			schedule_task(module_task_cb, (void *)(uintptr_t)op);
-	}
-}
-
-int __module_get_op(ring_t *queue, uint8_t *op)
+int module_get_op(ring_t *queue, uint8_t *op)
 {
 	if (ring_is_empty(queue))
 		return -1;
@@ -93,38 +71,24 @@ int __module_get_op(ring_t *queue, uint8_t *op)
 	return 0;
 }
 
-int module_get_op(uint8_t *op)
+void module_skip_op(ring_t *queue)
 {
-	if (__module_get_op(urgent_tx_queue, op) < 0)
-		return __module_get_op(tx_queue, op);
+	if (!ring_is_empty(queue))
+		__ring_skip(queue, 1);
+}
+
+int module_get_op2(uint8_t *op, ring_t *q1, ring_t *q2)
+{
+	if (module_get_op(q1, op) < 0)
+		return module_get_op(q2, op);
 	return 0;
 }
 
-void __module_skip_op(ring_t *queue)
+void module_skip_op2(ring_t *q1, ring_t *q2)
 {
-	__ring_skip(queue, 1);
-}
+	ring_t *ring = module_op_pending(q1) ? q1 : q2;
 
-void __module_reset_op_queue(ring_t *queue)
-{
-	ring_reset(queue);
-}
-
-void module_reset_op_queues(void)
-{
-	ring_reset(urgent_tx_queue);
-	ring_reset(tx_queue);
-}
-
-void module_skip_op(void)
-{
-	ring_t *ring;
-
-	if (!ring_is_empty(urgent_tx_queue))
-		ring = urgent_tx_queue;
-	else
-		ring = tx_queue;
-	__module_skip_op(ring);
+	module_skip_op(ring);
 }
 
 int

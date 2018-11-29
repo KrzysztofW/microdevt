@@ -194,19 +194,15 @@ void module_init_iface(iface_t *iface, uint8_t *addr);
 int module_check_magic(void);
 int8_t module_update_magic(void);
 
-void module_add_op(uint8_t op, uint8_t urgent);
-int __module_add_op(ring_t *queue, uint8_t op);
-int module_get_op(uint8_t *op);
-int __module_get_op(ring_t *queue, uint8_t *op);
-void module_skip_op(void);
-void __module_skip_op(ring_t *queue);
-static inline int __module_op_pending(ring_t *queue)
+int module_add_op(ring_t *queue, uint8_t op);
+int module_get_op(ring_t *queue, uint8_t *op);
+void module_skip_op(ring_t *queue);
+int module_get_op2(uint8_t *op, ring_t *q1, ring_t *q2);
+void module_skip_op2(ring_t *q1, ring_t *q2);
+static inline int module_op_pending(ring_t *queue)
 {
 	return !ring_is_empty(queue);
 }
-void module_reset_op_queues(void);
-void __module_reset_op_queue(ring_t *queue);
-
 int
 send_rf_msg(swen_l3_assoc_t *assoc, uint8_t cmd, const void *data, int len);
 void module_set_default_cfg(module_cfg_t *cfg);

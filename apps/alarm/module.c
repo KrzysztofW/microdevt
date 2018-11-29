@@ -438,7 +438,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		return;
 	}
 
-	__module_add_op(&modules[id].op_queue, cmd);
+	module_add_op(&modules[id].op_queue, cmd);
 	swen_l3_event_set_mask(assoc, EV_READ | EV_WRITE);
 }
 
@@ -645,29 +645,29 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 			swen_l3_disassociate(assoc);
 			return;
 		}
-		if (__module_add_op(op_queue, op) < 0)
+		if (module_add_op(op_queue, op) < 0)
 			goto error;
 	}
 
 	if ((cfg->sensor.report_interval != status->sensor.report_interval
 	     || cfg->sensor.notif_addr != status->sensor.notif_addr)
-	    && __module_add_op(op_queue, CMD_GET_SENSOR_REPORT) < 0)
+	    && module_add_op(op_queue, CMD_GET_SENSOR_REPORT) < 0)
 		goto error;
 	if (cfg->sensor.humidity_threshold != status->sensor.humidity_threshold
-	    && __module_add_op(op_queue, CMD_SET_HUM_TH) < 0)
+	    && module_add_op(op_queue, CMD_SET_HUM_TH) < 0)
 		goto error;
 	if (!cfg->fan_enabled && (status->flags & STATUS_FLAGS_FAN_ENABLED) &&
-	    __module_add_op(op_queue, CMD_DISABLE_FAN) < 0)
+	    module_add_op(op_queue, CMD_DISABLE_FAN) < 0)
 		goto error;
 	if (cfg->fan_enabled && !(status->flags & STATUS_FLAGS_FAN_ENABLED) &&
-	    __module_add_op(op_queue, CMD_ENABLE_FAN) < 0)
+	    module_add_op(op_queue, CMD_ENABLE_FAN) < 0)
 		goto error;
 
 	if (cfg->siren_duration != status->siren.duration &&
-	    __module_add_op(op_queue, CMD_SET_SIREN_DURATION) < 0)
+	    module_add_op(op_queue, CMD_SET_SIREN_DURATION) < 0)
 		goto error;
 	if (cfg->siren_timeout != status->siren.timeout &&
-	    __module_add_op(op_queue, CMD_SET_SIREN_TIMEOUT) < 0)
+	    module_add_op(op_queue, CMD_SET_SIREN_TIMEOUT) < 0)
 		goto error;
 
 	if (modules[id].main_pwr_state == -1)
@@ -788,7 +788,7 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 		if (buf_len(buf) < sizeof(uint8_t))
 			goto error;
 		if (cfg.features == 0)
-			__module_add_op(&modules[id].op_queue, CMD_GET_STATUS);
+			module_add_op(&modules[id].op_queue, CMD_GET_STATUS);
 		cfg.features = buf_data(buf)[0];
 		cfg_update(&cfg, id);
 		LOG("mod%d: features updated\n", id);
@@ -911,7 +911,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 			module0_parse_commands(assoc->dst, &pkt->buf);
 			pkt_free(pkt);
 		}
-		if (__module_op_pending(&module->op_queue))
+		if (module_op_pending(&module->op_queue))
 			swen_l3_event_set_mask(assoc, EV_READ|EV_WRITE);
 	}
 	if (events & (EV_ERROR | EV_HUNGUP)) {
@@ -934,13 +934,13 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 	if (events & EV_WRITE) {
 		uint8_t op;
 
-		if (__module_get_op(&module->op_queue, &op) < 0) {
+		if (module_get_op(&module->op_queue, &op) < 0) {
 			swen_l3_event_set_mask(assoc, EV_READ);
 			return;
 		}
 		if (handle_tx_commands(module, op) >= 0) {
 			DEBUG_LOG("mod0: sending op:0x%X to mod%d\n", op, id);
-			__module_skip_op(&module->op_queue);
+			module_skip_op(&module->op_queue);
 		} else if (swen_l3_get_state(assoc) != S_STATE_CONNECTED) {
 			swen_l3_associate(assoc);
 			goto error;

@@ -52,6 +52,14 @@ static uint8_t init_time;
 static uint8_t pwr_state;
 static uint8_t pwr_state_report;
 
+#define TX_QUEUE_SIZE 4
+/* TX_QUEUE_SIZE must be equal to the number of urgent ops + 1:
+ * NOTIF_MAIN_PWR_UP, NOTIF_MAIN_PWR_DOWN and NOTIF_ALARM_ON
+ * (FEATURES is only sent once at boot).
+ */
+STATIC_RING_DECL(tx_queue, TX_QUEUE_SIZE);
+STATIC_RING_DECL(urgent_tx_queue, TX_QUEUE_SIZE);
+
 static module_cfg_t EEMEM persistent_cfg;
 
 typedef struct humidity_info {
@@ -72,7 +80,6 @@ static uint16_t read_sensor_val(uint8_t pin)
        return array_get_median(arr, ARRAY_LENGTH);
 }
 #undef ARRAY_LENGTH
-
 
 static inline uint8_t get_humidity_cur_value(void)
 {
@@ -144,7 +151,7 @@ static void sensor_report_value(void)
 	if (sensor_report_elapsed_secs >=
 	    module_cfg.sensor.report_interval) {
 		sensor_report_elapsed_secs = 0;
-		module_add_op(CMD_SENSOR_REPORT, 0);
+		module_add_op(tx_queue, CMD_SENSOR_REPORT);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 	} else
 		sensor_report_elapsed_secs++;
@@ -177,7 +184,7 @@ static void timer_1sec_cb(void *arg)
 			uint8_t cmd = pwr_state ? CMD_NOTIF_MAIN_PWR_UP
 				: CMD_NOTIF_MAIN_PWR_DOWN;
 
-			module_add_op(cmd, 1);
+			module_add_op(urgent_tx_queue, cmd);
 			swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 			pwr_state_report = 0;
 		}
@@ -243,7 +250,7 @@ ISR(PCINT2_vect)
 	    timer_is_pending(&siren_timer))
 		return;
 
-	module_add_op(CMD_NOTIF_ALARM_ON, 1);
+	module_add_op(urgent_tx_queue, CMD_NOTIF_ALARM_ON);
 	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 
 	if (module_cfg.siren_timeout)
@@ -357,7 +364,7 @@ static inline void cfg_update(void)
 	if (eeprom_update_and_check(&persistent_cfg, &module_cfg,
 				    sizeof(module_cfg_t)))
 		return;
-	module_add_op(CMD_STORAGE_ERROR, 0);
+	module_add_op(tx_queue, CMD_STORAGE_ERROR);
 	swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 }
 
@@ -368,7 +375,7 @@ static void cfg_load(void)
 #endif
 		module_set_default_cfg(&module_cfg);
 		if (!module_update_magic())
-			module_add_op(CMD_STORAGE_ERROR, 0);
+			module_add_op(tx_queue, CMD_STORAGE_ERROR);
 		else
 			cfg_update();
 		return;
@@ -486,7 +493,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 	DEBUG_LOG("mod1: got cmd:0x%X\n", cmd);
 	switch (cmd) {
 	case CMD_GET_FEATURES:
-		module_add_op(CMD_FEATURES, 1);
+		module_add_op(urgent_tx_queue, CMD_FEATURES);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
 	case CMD_ARM:
@@ -533,11 +540,11 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 		module_cfg.siren_timeout = val1;
 		break;
 	case CMD_GET_STATUS:
-		module_add_op(CMD_STATUS, 0);
+		module_add_op(tx_queue, CMD_STATUS);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
 	case CMD_GET_SENSOR_VALUES:
-		module_add_op(CMD_SENSOR_VALUES, 0);
+		module_add_op(tx_queue, CMD_SENSOR_VALUES);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
 	case CMD_GET_SENSOR_REPORT:
@@ -562,7 +569,7 @@ static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 		swen_generic_cmds_start_recording(val1);
 		return;
 	case CMD_GENERIC_COMMANDS_LIST:
-		module_add_op(CMD_GENERIC_COMMANDS_LIST, 0);
+		module_add_op(tx_queue, CMD_GENERIC_COMMANDS_LIST);
 		swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 		return;
 	case CMD_GENERIC_COMMANDS_DELETE:
@@ -679,13 +686,13 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 	if (events & EV_WRITE) {
 		uint8_t op;
 
-		if (module_get_op(&op) < 0) {
+		if (module_get_op2(&op, urgent_tx_queue, tx_queue) < 0) {
 			swen_l3_event_set_mask(&mod1_assoc, EV_READ);
 			return;
 		}
 		DEBUG_LOG("mod1: sending op:0x%X to mod%d\n", op, id);
 		if (handle_tx_commands(op) >= 0) {
-			module_skip_op();
+			module_skip_op2(urgent_tx_queue, tx_queue);
 			return;
 		}
 		if (swen_l3_get_state(&mod1_assoc) != S_STATE_CONNECTED) {
@@ -719,7 +726,7 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 		uint8_t flags = EV_READ;
 
 		DEBUG_LOG("connected to mod%d\n", id);
-		if (module_get_op(&op) >= 0)
+		if (module_get_op2(&op, urgent_tx_queue, tx_queue) >= 0)
 			flags |= EV_WRITE;
 		swen_l3_event_register(&mod1_assoc, flags, rf_event_cb);
 	}
