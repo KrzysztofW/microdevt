@@ -49,7 +49,7 @@ static swen_l3_assoc_t mod1_assoc;
 static uint16_t sensor_report_elapsed_secs;
 static sensor_report_t sensor_report;
 static uint8_t init_time;
-static uint8_t pwr_state;
+static uint8_t pwr_state = CMD_NOTIF_MAIN_PWR_DOWN;
 static uint8_t pwr_state_report;
 
 #define TX_QUEUE_SIZE 4
@@ -180,11 +180,10 @@ static void timer_1sec_cb(void *arg)
 #endif
 
 	if (module_cfg.state != MODULE_STATE_DISABLED) {
-		if (pwr_state_report) {
-			uint8_t cmd = pwr_state ? CMD_NOTIF_MAIN_PWR_UP
-				: CMD_NOTIF_MAIN_PWR_DOWN;
-
-			module_add_op(urgent_tx_queue, cmd);
+		if (pwr_state_report > 1)
+			pwr_state_report--;
+		else if (pwr_state_report) {
+			module_add_op(urgent_tx_queue, pwr_state);
 			swen_l3_event_set_mask(&mod1_assoc, EV_READ | EV_WRITE);
 			pwr_state_report = 0;
 		}
@@ -231,13 +230,13 @@ ISR(PCINT0_vect)
 	if (module_cfg.state == MODULE_STATE_DISABLED)
 		return;
 	pwr_on = gpio_is_main_pwr_on();
-	if (pwr_on && !pwr_state)
-		pwr_state = 1;
-	else if (!pwr_on && pwr_state)
-		pwr_state = 0;
+	if (pwr_on && pwr_state == CMD_NOTIF_MAIN_PWR_DOWN)
+		pwr_state = CMD_NOTIF_MAIN_PWR_UP;
+	else if (!pwr_on && pwr_state == CMD_NOTIF_MAIN_PWR_UP)
+		pwr_state = CMD_NOTIF_MAIN_PWR_DOWN;
 	else
 		return;
-	pwr_state_report = 1;
+	pwr_state_report = 2;
 #ifdef CONFIG_POWER_MANAGEMENT
 	power_management_pwr_down_reset();
 #endif
@@ -349,7 +348,7 @@ static void get_status(module_status_t *status)
 	if (gpio_is_siren_on())
 		status->flags |= STATUS_FLAGS_SIREN_ON;
 
-	if (pwr_state)
+	if (pwr_state == CMD_NOTIF_MAIN_PWR_UP)
 		status->flags |= STATUS_FLAGS_MAIN_PWR_ON;
 
 	status->state = module_cfg.state;
@@ -734,7 +733,8 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events)
 
 void module1_init(void)
 {
-	pwr_state = gpio_is_main_pwr_on();
+	if (gpio_is_main_pwr_on())
+		pwr_state = CMD_NOTIF_MAIN_PWR_UP;
 
 	module_init_iface(&rf_iface, &rf_addr);
 #ifdef CONFIG_RF_CHECKS
