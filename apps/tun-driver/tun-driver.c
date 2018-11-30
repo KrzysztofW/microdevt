@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
 		if (tun_receive_pkt(&iface) >= 0)
 			iface.if_input(&iface);
 
-		scheduler_run_tasks();
+		scheduler_run_task();
 #if defined(CONFIG_TCP) && !defined(CONFIG_EVENT)
 		udp_app();
 #endif

@@ -26,7 +26,7 @@ STATIC_RING_DECL(ring_irq, roundup_pwr2(RING_SIZE));
 static uint8_t idle;
 #endif
 
-static void __scheduler_run_tasks(ring_t *r)
+static void __scheduler_run_task(ring_t *r)
 {
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));
@@ -60,7 +60,7 @@ void schedule_task(void (*cb)(void *arg), void *arg)
 	DEBUG_LOG("cannot schedule task %p from %s:%d\n", cb, func, line);
 }
 
-void scheduler_run_tasks(void)
+void scheduler_run_task(void)
 {
 	int irq_rlen = ring_len(ring_irq);
 
@@ -72,11 +72,11 @@ void scheduler_run_tasks(void)
 			irq_disable();
 		else
 			irq_enable();
-		__scheduler_run_tasks(ring_irq);
+		__scheduler_run_task(ring_irq);
 	}
 
 	if (ring_len(ring))
-		__scheduler_run_tasks(ring);
+		__scheduler_run_task(ring);
 
 #ifdef CONFIG_POWER_MANAGEMENT
 	if (idle) {

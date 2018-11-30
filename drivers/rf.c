@@ -414,7 +414,7 @@ static void rf_receive_checks(iface_t *iface)
 	sbuf_init(&sbuf, data, sizeof(data));
 	rf_simulate_sending_data(iface, &sbuf);
 	while (received == 0)
-		scheduler_run_tasks();
+		scheduler_run_task();
 
 	/* restore address */
 	iface->hw_addr = cur_addr;

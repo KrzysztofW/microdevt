@@ -500,7 +500,7 @@ static void net_swen_l3_flush_scheduler(void)
 	int i;
 
 	for (i = 0; i < 10; i++)
-		scheduler_run_tasks();
+		scheduler_run_task();
 }
 
 static int driver_rf_checks(void)

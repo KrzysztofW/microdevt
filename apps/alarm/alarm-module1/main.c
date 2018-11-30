@@ -75,7 +75,7 @@ int main(void)
 
 	/* interruptible functions */
 	while (1) {
-		scheduler_run_tasks();
+		scheduler_run_task();
 #ifndef CONFIG_AVR_SIMU
 		watchdog_reset();
 #endif

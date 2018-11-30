@@ -10,6 +10,12 @@ void schedule_task(void (*cb)(void *arg), void *arg);
 #endif
 
 /* run bottom halves */
-void scheduler_run_tasks(void);
+void scheduler_run_task(void);
+
+static inline void scheduler_run_tasks(void)
+{
+	for (;;)
+		scheduler_run_task();
+}
 
 #endif

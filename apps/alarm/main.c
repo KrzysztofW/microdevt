@@ -109,7 +109,7 @@ int main(void)
 #ifdef CONFIG_NETWORKING
 		alarm_network_loop();
 #endif
-		scheduler_run_tasks();
+		scheduler_run_task();
 #ifndef CONFIG_AVR_SIMU
 		watchdog_reset();
 #endif
