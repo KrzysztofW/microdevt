@@ -10,7 +10,7 @@
 #define TIMER_TABLE_SIZE 16
 #define TIMER_TABLE_MASK (TIMER_TABLE_SIZE - 1)
 
-static unsigned int cur_idx;
+static uint8_t cur_idx;
 static list_t timer_list[TIMER_TABLE_SIZE];
 
 #ifdef TIMER_DEBUG
@@ -44,9 +44,9 @@ void timer_dump(void)
 }
 #endif
 
-static unsigned ticks_to_idx(uint32_t *delta_ticks)
+static uint8_t ticks_to_idx(uint32_t *delta_ticks)
 {
-	unsigned idx;
+	uint8_t idx;
 
 	if (*delta_ticks >= TIMER_TABLE_SIZE) {
 		idx = cur_idx - 1;
@@ -68,9 +68,8 @@ void timer_process(void)
 						list);
 
 		if (timer->ticks > 0) {
-			unsigned i;
+			uint8_t i = ticks_to_idx(&timer->ticks);
 
-			i = ticks_to_idx(&timer->ticks);
 			list_move_tail(&timer->list, &timer_list[i]);
 			continue;
 		}
@@ -83,6 +82,7 @@ void timer_subsystem_init(void)
 {
 	int i;
 
+	STATIC_ASSERT(TIMER_TABLE_SIZE < MAX_VALUE_UNSIGNED(cur_idx));
 	for (i = 0; i < TIMER_TABLE_SIZE; i++)
 		INIT_LIST_HEAD(&timer_list[i]);
 	__timer_subsystem_init();
@@ -102,7 +102,7 @@ void timer_init(tim_t *timer)
 
 void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 {
-	unsigned int idx;
+	uint8_t idx;
 	uint8_t flags;
 
 	assert(!timer_is_pending(timer));

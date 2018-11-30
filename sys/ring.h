@@ -76,7 +76,7 @@ static inline void ring_reset(ring_t *ring)
 static inline void ring_init(ring_t *ring, int size)
 {
 #ifdef CONFIG_AVR_MCU
-	if (size > 256)
+	if (size > MAX_VALUE(ring->mask))
 		__abort();
 #endif
 	if (!POWEROF2(size))

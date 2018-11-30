@@ -2,6 +2,7 @@
 #define _UTILS_H_
 #include <stdint.h>
 #include <common.h>
+#include <limits.h>
 
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
@@ -36,6 +37,14 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 #define roundup_pwr2(x) (1 << ((sizeof(int) * 8) - __builtin_clz(x - 1)))
+
+/* the checked value must be of type < (unsigned long long) */
+#define IS_UNSIGNED(a) ((a) >= 0 && (typeof(a))~(a) >= 0)
+#define MAX_VALUE_UNSIGNED(a)					\
+	(((unsigned long long)1 << (sizeof(a) * CHAR_BIT)))
+#define MAX_VALUE_SIGNED(a) (MAX_VALUE_UNSIGNED(a) >> 1)
+#define MAX_VALUE(a)							\
+	(IS_UNSIGNED(a) ? MAX_VALUE_UNSIGNED(a) : MAX_VALUE_SIGNED(a) - 1)
 
 static inline long
 map(long x, long in_min, long in_max, long out_min, long out_max)
