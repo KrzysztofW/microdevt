@@ -38,7 +38,7 @@ libnet:
 
 $(EXE): revision $(OBJ) $(STATIC_LIBS) config
 	$(AR) -cr $(EXE).a $(OBJ)
-	ranlib $(EXE).a
+	avr-ranlib $(EXE).a
 	$(CC) $(EXE).a $(STATIC_LIBS) $(EXE).a $(LDFLAGS) -o $@
 
 %.c:
