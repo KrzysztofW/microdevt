@@ -21,7 +21,7 @@ typedef enum swen_l3_op {
 #ifdef CONFIG_AVR_SIMU
 #define SWEN_L3_MAX_RETRIES 3
 #else
-#define SWEN_L3_MAX_RETRIES 15
+#define SWEN_L3_MAX_RETRIES 60
 #endif
 
 /* reserve one byte for retry info and one byte for seqid */
