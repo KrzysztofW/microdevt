@@ -727,7 +727,11 @@ void module1_init(void)
 	if (gpio_is_main_pwr_on())
 		pwr_state = CMD_NOTIF_MAIN_PWR_UP;
 
+#ifdef RF_DEBUG
+	module_init_debug_iface(&rf_iface, &rf_addr);
+#else
 	module_init_iface(&rf_iface, &rf_addr);
+#endif
 #ifdef CONFIG_RF_CHECKS
 	if (rf_checks(&rf_iface) < 0)
 		__abort();

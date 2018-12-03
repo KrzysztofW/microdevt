@@ -19,6 +19,36 @@ static struct iface_queues {
 };
 static rf_ctx_t ctx;
 
+#ifdef RF_DEBUG
+#ifndef CONFIG_AVR_SIMU
+#error "CONFIG_AVR_SIMU must be enabled with RF_DEBUG"
+#endif
+static struct debug_iface_queues {
+	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
+	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
+	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
+} debug_iface_queues = {
+	.pkt_pool = RING_INIT(debug_iface_queues.pkt_pool),
+	.rx = RING_INIT(debug_iface_queues.rx),
+	.tx = RING_INIT(debug_iface_queues.tx),
+};
+static rf_ctx_t debug_ctx;
+void module_init_debug_iface(iface_t *iface, uint8_t *addr)
+{
+	iface->hw_addr = addr;
+#ifdef CONFIG_RF_RECEIVER
+	iface->recv = rf_input;
+#endif
+#ifdef CONFIG_RF_SENDER
+	iface->send = rf_output;
+#endif
+	iface->flags = IF_UP|IF_RUNNING|IF_NOARP;
+	if_init(iface, IF_TYPE_RF, &debug_iface_queues.pkt_pool,
+		&debug_iface_queues.rx, &debug_iface_queues.tx, 1);
+	rf_init(iface, &debug_ctx, 1);
+}
+#endif
+
 void module_init_iface(iface_t *iface, uint8_t *addr)
 {
 	iface->hw_addr = addr;

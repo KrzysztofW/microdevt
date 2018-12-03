@@ -191,6 +191,7 @@ static inline uint8_t addr_to_module_id(uint8_t addr)
 }
 
 void module_init_iface(iface_t *iface, uint8_t *addr);
+void module_init_debug_iface(iface_t *iface, uint8_t *addr);
 int module_check_magic(void);
 int8_t module_update_magic(void);
 
