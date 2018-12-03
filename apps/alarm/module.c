@@ -3,11 +3,11 @@
 #include <net/swen.h>
 #include <net/swen-rc.h>
 #include <net/swen-l3.h>
-#include <adc.h>
 #include <interrupts.h>
 #include <drivers/sensors.h>
 #include <eeprom.h>
 #include "module-common.h"
+#include "gpio.h"
 
 #define THIS_MODULE_FEATURES MODULE_FEATURE_TEMPERATURE |		\
 	MODULE_FEATURE_SIREN | MODULE_FEATURE_LAN | MODULE_FEATURE_RF
@@ -254,7 +254,8 @@ static void rf_connecting_on_event(event_t *ev, uint8_t events);
 static void module_get_master_sensor_value(sensor_value_t *value)
 {
 	memset(value, 0, sizeof(sensor_value_t));
-	value->temperature = LM35DZ_TO_C_DEGREES(adc_read_mv(3));
+	value->temperature = adc_read_mv(TEMPERATURE_ANALOG_PIN);
+	value->temperature = LM35DZ_TO_C_DEGREES(value->temperature);
 }
 
 static void module_get_master_status(module_status_t *status)

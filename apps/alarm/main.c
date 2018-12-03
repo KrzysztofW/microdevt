@@ -3,7 +3,6 @@
 #include <usart.h>
 #include <common.h>
 #include <watchdog.h>
-#include <adc.h>
 #include <timer.h>
 #include <scheduler.h>
 #include <net/pkt-mempool.h>
@@ -11,6 +10,7 @@
 #include "version.h"
 #include "alarm.h"
 #include "module-common.h"
+#include "gpio.h"
 
 #if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 #define UART_RING_SIZE 32
@@ -76,10 +76,8 @@ int main(void)
 	watchdog_shutdown();
 	timer_checks();
 #endif
-#if defined CONFIG_RF_RECEIVER || defined CONFIG_RF_SENDER	\
-	|| defined CONFIG_NETWORKING
+	gpio_init();
 	pkt_mempool_init();
-#endif
 	timer_add(&timer_led, 0, blink_led, &timer_led);
 
 #ifndef CONFIG_AVR_SIMU
@@ -93,16 +91,8 @@ int main(void)
 	alarm_gsm_init();
 #endif
 
-#ifdef CONFIG_RF_RECEIVER
-#endif
-
-#ifdef CONFIG_RF_SENDER
 	/* port F used by the RF sender */
-	DDRF = (1 << PF1);
-#ifdef CONFIG_RF_RECEIVER
 	master_module_init();
-#endif
-#endif
 
 	/* interruptible functions */
 	while (1) {

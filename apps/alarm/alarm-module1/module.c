@@ -18,9 +18,7 @@
 
 #define ONE_SECOND 1000000
 #define ONE_HOUR (3600 * 1000000U)
-#define HUMIDITY_ANALOG_PIN 1
 #define FAN_ON_DURATION (4 * 3600) /* max 4h of activity */
-#define TEMPERATURE_ANALOG_PIN 3
 #define SENSOR_SAMPLING 30 /* sample every 30s */
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define MAX_HUMIDITY_VALUE 80
