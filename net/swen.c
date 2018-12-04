@@ -307,9 +307,18 @@ swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
 
 int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf)
 {
-	pkt_t *pkt = pkt_alloc();
+	pkt_t *pkt;
 
-	if (pkt == NULL)
+	if (to == iface->hw_addr[0]) {
+		buf_t buf = sbuf2buf(sbuf);
+
+		if (swen_event_cb) {
+			swen_event_cb(to, EV_READ, &buf);
+		}
+		return 0;
+	}
+
+	if ((pkt = pkt_alloc()) == NULL)
 		return -1;
 
 	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
