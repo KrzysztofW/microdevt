@@ -531,15 +531,8 @@ int rf_checks(iface_t *iface)
 void rf_init(iface_t *iface, rf_ctx_t *ctx, uint8_t burst)
 {
 	timer_init(&ctx->timer);
-#ifdef CONFIG_RF_RECEIVER
-#if !defined(X86) && !defined(RF_DEBUG)
-	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);
-#else
-	(void)rf_rcv_tim_cb;
-#endif
-#ifndef RF_ANALOG_SAMPLING
+#if defined (CONFIG_RF_RECEIVER) && defined (RF_ANALOG_SAMPLING)
 	RF_RCV_PORT &= ~(1 << RF_RCV_PIN_NB);
-#endif
 #endif
 
 #if defined (CONFIG_RF_SENDER) && defined (CONFIG_RF_BURST)
@@ -551,6 +544,11 @@ void rf_init(iface_t *iface, rf_ctx_t *ctx, uint8_t burst)
 #endif
 #endif
 	iface->priv = ctx;
+#if defined (CONFIG_RF_RECEIVER) && !defined(X86) && !defined(RF_DEBUG)
+	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);
+#else
+	(void)rf_rcv_tim_cb;
+#endif
 }
 
 /* XXX Will never be used in an infinite loop. Save space, don't compile it */
