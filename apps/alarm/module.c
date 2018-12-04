@@ -3,6 +3,7 @@
 #include <net/swen.h>
 #include <net/swen-rc.h>
 #include <net/swen-l3.h>
+#include <power-management.h>
 #include <interrupts.h>
 #include <drivers/sensors.h>
 #include <eeprom.h>
@@ -12,19 +13,23 @@
 #define THIS_MODULE_FEATURES MODULE_FEATURE_TEMPERATURE |		\
 	MODULE_FEATURE_SIREN | MODULE_FEATURE_LAN | MODULE_FEATURE_RF
 
-#if defined (CONFIG_RF_RECEIVER) || defined (CONFIG_RF_SENDER)
+#define FEATURE_TEMPERATURE
+#define FEATURE_SIREN
+#define FEATURE_PWR
+
+#include "module-common.inc.c"
+
 static uint8_t rf_addr = RF_MASTER_MOD_HW_ADDR;
 static iface_t rf_iface;
 #ifdef RF_DEBUG
 iface_t *rf_debug_iface1 = &rf_iface;
-#endif
 #endif
 
 #ifdef CONFIG_NETWORKING
 extern iface_t eth_iface;
 #endif
 
-static tim_t siren_timer = TIMER_INIT(siren_timer);
+static tim_t timer_1sec = TIMER_INIT(timer_1sec);
 
 static sbuf_t s_disarm = SBUF_INITS("disarm");
 static sbuf_t s_arm = SBUF_INITS("arm");
@@ -107,7 +112,7 @@ static cmd_t cmds[] = {
 
 #define NB_MODULES 2
 static module_t modules[NB_MODULES];
-static module_cfg_t master_cfg;
+static module_cfg_t module_cfg;
 static module_cfg_t EEMEM module_cfgs[NB_MODULES];
 
 static void cfg_load(module_cfg_t *cfg, uint8_t id)
@@ -124,27 +129,35 @@ static void cfg_update(module_cfg_t *cfg, uint8_t id)
 
 static inline void cfg_update_master(void)
 {
-	cfg_update(&master_cfg, 0);
+	cfg_update(&module_cfg, 0);
 }
 
-static inline void set_siren_off(void)
+static void power_action(uint8_t state)
 {
-	PORTB &= ~(1 << PB0);
+	LOG("mod0 power %s\n", state == CMD_NOTIF_MAIN_PWR_DOWN ? "down":"up");
 }
 
-static void siren_tim_cb(void *arg)
+static void sensor_action(void)
 {
-	set_siren_off();
+	send_sensor_report(&rf_iface, module_cfg.sensor.notif_addr);
 }
 
-static void set_siren_on(uint8_t force)
+static void timer_1sec_cb(void *arg)
 {
-	if (master_cfg.state == MODULE_STATE_ARMED || force) {
-		PORTB |= 1 << PB0;
-		timer_del(&siren_timer);
-		timer_add(&siren_timer, master_cfg.siren_duration * 1000000,
-			  siren_tim_cb, NULL);
-	}
+	timer_reschedule(&timer_1sec, ONE_SECOND);
+	cron_func(&module_cfg, power_action, sensor_action);
+}
+
+ISR(PCINT0_vect)
+{
+	power_interrupt(&module_cfg);
+}
+
+static void pir_interrupt_cb(void) {}
+
+ISR(PCINT1_vect)
+{
+	pir_interrupt(&module_cfg, pir_interrupt_cb);
 }
 
 static const char *state_to_string(uint8_t state)
@@ -210,14 +223,14 @@ static void print_sensor_values(const module_cfg_t *cfg, uint8_t id,
 		LOG(" Temperatue: %d\n", value->temperature);
 }
 
-static void print_status(const module_cfg_t *cfg, uint8_t id,
-			 const module_status_t *status)
+static void print_module_status(const module_cfg_t *cfg, uint8_t id,
+				const module_status_t *status)
 {
 	uint8_t features = cfg->features;
 
 	LOG("\nModule %d:\n", id);
 	LOG(" State:  %s\n", state_to_string(status->state));
-	if (features & MODULE_FEATURE_HUMIDITY) {
+	if (features & (MODULE_FEATURE_HUMIDITY | MODULE_FEATURE_TEMPERATURE)) {
 		LOG(" Sensor report interval: %u secs\n"
 		    " Sensor report module: %u\n",
 		    status->sensor.report_interval,
@@ -251,23 +264,6 @@ static void print_status(const module_cfg_t *cfg, uint8_t id,
 
 static void rf_connecting_on_event(event_t *ev, uint8_t events);
 
-static void module_get_master_sensor_value(sensor_value_t *value)
-{
-	memset(value, 0, sizeof(sensor_value_t));
-	value->temperature = adc_read_mv(TEMPERATURE_ANALOG_PIN);
-	value->temperature = LM35DZ_TO_C_DEGREES(value->temperature);
-}
-
-static void module_get_master_status(module_status_t *status)
-{
-	status->siren.duration = master_cfg.siren_duration;
-	status->siren.timeout = master_cfg.siren_timeout;
-	status->state = master_cfg.state;
-	adc_shutdown();
-	status->flags = STATUS_FLAGS_CONN_RF_UP |
-		(PORTB & (1 << PB0)) ? STATUS_FLAGS_SIREN_ON : 0;
-}
-
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 static void show_recordable_cmds(void)
 {
@@ -289,7 +285,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 	uint8_t mod_id;
 
 	if (id == 0)
-		cfg = &master_cfg;
+		cfg = &module_cfg;
 	else
 		cfg = &c;
 	cfg_load(cfg, id);
@@ -315,12 +311,15 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 
 	switch (cmd) {
 	case CMD_ARM:
-		cfg->state = MODULE_STATE_ARMED;
+		if (id == 0)
+			module_arm(&module_cfg, 1);
+		else
+			cfg->state = MODULE_STATE_ARMED;
 		break;
 	case CMD_DISARM:
 		cfg->state = MODULE_STATE_DISARMED;
 		if (id == 0)
-			set_siren_off();
+			module_arm(&module_cfg, 0);
 		break;
 	case CMD_SET_HUM_TH:
 		__buf_getc(args, &cfg->sensor.humidity_threshold);
@@ -346,8 +345,8 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		if (id == 0) {
 			module_status_t master_status;
 
-			module_get_master_status(&master_status);
-			print_status(cfg, 0, &master_status);
+			get_module_status(&master_status, &module_cfg, NULL);
+			print_module_status(cfg, 0, &master_status);
 			return;
 		}
 		break;
@@ -355,7 +354,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		if (id == 0) {
 			sensor_value_t master_sensor_value;
 
-			module_get_master_sensor_value(&master_sensor_value);
+			get_sensor_values(&master_sensor_value);
 			print_sensor_values(cfg, 0, &master_sensor_value);
 			return;
 		}
@@ -363,11 +362,11 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 
 	case CMD_SIREN_ON:
 		if (id == 0)
-			set_siren_on(1);
+			set_siren_on(&module_cfg, 1);
 		break;
 	case CMD_SIREN_OFF:
 		if (id == 0)
-			set_siren_off();
+			gpio_siren_off();
 		break;
 	case CMD_DISABLE:
 		if (id == 0)
@@ -749,7 +748,7 @@ static void generic_cmds_handle_answer(buf_t *buf)
 }
 #endif
 
-static void module0_parse_commands(uint8_t addr, buf_t *buf)
+static void module_parse_commands(uint8_t addr, buf_t *buf)
 {
 	uint8_t cmd;
 	uint8_t id = addr_to_module_id(addr);
@@ -768,7 +767,7 @@ static void module0_parse_commands(uint8_t addr, buf_t *buf)
 	case CMD_STATUS:
 		if (module_parse_status(&cfg, id, buf, &status) < 0)
 			goto error;
-		print_status(&cfg, id, &status);
+		print_module_status(&cfg, id, &status);
 		module_check_slave_status(id, &cfg, &status);
 		return;
 	case CMD_SENSOR_VALUES:
@@ -913,7 +912,7 @@ static void rf_event_cb(event_t *ev, uint8_t events)
 		while ((pkt = swen_l3_get_pkt(assoc)) != NULL) {
 			DEBUG_LOG("got pkt of len:%d from mod%d\n",
 				  pkt->buf.len, id);
-			module0_parse_commands(assoc->dst, &pkt->buf);
+			module_parse_commands(assoc->dst, &pkt->buf);
 			pkt_free(pkt);
 		}
 	}
@@ -1001,17 +1000,17 @@ void master_module_init(void)
 
 	if (initialized) {
 		/* load master module configuration */
-		cfg_load(&master_cfg, 0);
+		cfg_load(&module_cfg, 0);
 	} else {
-		module_set_default_cfg(&master_cfg);
-		master_cfg.state = MODULE_STATE_DISARMED;
-		master_cfg.features = THIS_MODULE_FEATURES;
+		module_set_default_cfg(&module_cfg);
+		module_cfg.state = MODULE_STATE_DISARMED;
+		module_cfg.features = THIS_MODULE_FEATURES;
 		cfg_update_master();
 		module_update_magic();
 	}
 	module_init_iface(&rf_iface, &rf_addr);
 	swen_ev_set(sensor_report_cb);
-
+	timer_add(&timer_1sec, ONE_SECOND, timer_1sec_cb, NULL);
 #ifdef RF_DEBUG
 	module1_init();
 #endif
@@ -1019,6 +1018,11 @@ void master_module_init(void)
 #if defined(CONFIG_RF_GENERIC_COMMANDS) && !defined(CONFIG_AVR_SIMU)
 	swen_generic_cmds_init(generic_cmds_cb);
 #endif
+#ifdef CONFIG_POWER_MANAGEMENT
+	power_management_power_down_init(INACTIVITY_TIMEOUT, pwr_mgr_on_sleep,
+					 &module_cfg);
+#endif
+
 	for (i = 0; i < NB_MODULES; i++) {
 		module_t *module = &modules[i];
 		module_cfg_t cfg;

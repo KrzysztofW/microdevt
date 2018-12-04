@@ -68,10 +68,8 @@ int main(void)
 #endif
 	gpio_init();
 
-#if defined (CONFIG_RF_RECEIVER) && defined (CONFIG_RF_SENDER)
 	pkt_mempool_init();
 	module1_init();
-#endif
 
 	/* interruptible functions */
 	while (1) {

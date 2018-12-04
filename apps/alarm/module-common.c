@@ -33,6 +33,7 @@ static struct debug_iface_queues {
 	.tx = RING_INIT(debug_iface_queues.tx),
 };
 static rf_ctx_t debug_ctx;
+
 void module_init_debug_iface(iface_t *iface, uint8_t *addr)
 {
 	iface->hw_addr = addr;

@@ -29,8 +29,7 @@ SOURCES += ../../../sys/random.c
 endif
 
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
-SOURCES += ../module-common.c module.c ../../../crypto/xtea.c ../../../sys/array.c
-SOURCES += ../../../drivers/rf.c ../../../sys/chksum.c
+SOURCES += ../../../crypto/xtea.c ../../../drivers/rf.c
 endif
 ifdef CONFIG_RF_RECEIVER
 CFLAGS += -DCONFIG_RF_RECEIVER

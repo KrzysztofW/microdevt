@@ -46,18 +46,8 @@ ISR(USART0_RX_vect)
 }
 #endif
 
-static void blink_led(void *arg)
-{
-	tim_t *tim = arg;
-
-	PORTB ^= (1 << PB7);
-	timer_reschedule(tim, 10000000UL);
-}
-
 int main(void)
 {
-	tim_t timer_led = TIMER_INIT(timer_led);
-
 	init_stream0(&stdout, &stdin, 1);
 #ifdef DEBUG
 	DEBUG_LOG("KW alarm v0.2 (%s)\n", revision);
@@ -78,7 +68,6 @@ int main(void)
 #endif
 	gpio_init();
 	pkt_mempool_init();
-	timer_add(&timer_led, 0, blink_led, &timer_led);
 
 #ifndef CONFIG_AVR_SIMU
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);

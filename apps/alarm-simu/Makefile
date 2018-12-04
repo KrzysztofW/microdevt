@@ -7,8 +7,9 @@ CFLAGS = -Wall -Werror -Os -g -c -DRF_DEBUG
 # definition to fake the simulator
 CFLAGS += -DUSART0_RX_vect=USART_RX_vect -DDDRF=DDRD -DPORTF=PORTD -DPF1=PD1
 
-SOURCES = main.c ../../scheduler.c
-SOURCES += ../alarm/alarm-module1/module.c ../../sys/array.c
+SOURCES = main.c ../../scheduler.c  ../../sys/array.c
+SOURCES += module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
+SOURCES += ../alarm/alarm-module1/module.c
 
 include config
 include build.mk
