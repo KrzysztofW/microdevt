@@ -44,11 +44,9 @@ static iface_t iface = {
 };
 
 static struct iface_queues {
-	RING_DECL_IN_STRUCT(pkt_pool, CONFIG_PKT_DRIVER_NB_MAX);
 	RING_DECL_IN_STRUCT(rx, CONFIG_PKT_NB_MAX);
 	RING_DECL_IN_STRUCT(tx, CONFIG_PKT_NB_MAX);
 } iface_queues = {
-	.pkt_pool = RING_INIT(iface_queues.pkt_pool),
 	.rx = RING_INIT(iface_queues.rx),
 	.tx = RING_INIT(iface_queues.tx),
 };
@@ -222,7 +220,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 	pkt_mempool_init();
-	if_init(&iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
+	if_init(&iface, IF_TYPE_ETHERNET, NULL,
 		&iface_queues.rx, &iface_queues.tx, 0);
 
 	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
