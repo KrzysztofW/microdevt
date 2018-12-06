@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
 	}
 	if (!cap_permitted) {
 		fprintf(stderr, "%s not permitted, exiting\n", capname);
-		exit(0);
+		exit(EXIT_FAILURE);
 	}
 
 	/* And retain only what we require */
@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
 #endif
 	tun_alloc(dev, tun_fds);
 	if (tun_fds[0].fd < 0)
-		exit(0);
+		exit(EXIT_FAILURE);
 
 	dev_name = argc ? dev : "tap0";
 	snprintf(cmd, 512, "sudo ip link set up dev %s && "
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
 
 	if (fcntl(tun_fds[0].fd, F_SETFL, O_NONBLOCK) < 0) {
 		fprintf(stderr, "cannot set non blocking tcp socket (%m)\n");
-		return -1;
+		exit(EXIT_FAILURE);
 	}
 
 	timer_subsystem_init();
@@ -247,19 +247,19 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_UDP
 	if (udp_app_init() < 0) {
 		fprintf(stderr, "cannot init udp sockets\n");
-		return -1;
+		exit(EXIT_FAILURE);
 	}
 #endif
 #ifdef CONFIG_TCP
 	if (tcp_app_init() < 0) {
 		fprintf(stderr, "cannot init tcp sockets\n");
-		return -1;
+		exit(EXIT_FAILURE);
 	}
 #endif
 #ifdef CONFIG_DNS
 	if (dns_resolver_init() < 0) {
 		fprintf(stderr, "cannot init dns resolver\n");
-		return -1;
+		exit(EXIT_FAILURE);
 	}
 #endif
 	while (1) {
