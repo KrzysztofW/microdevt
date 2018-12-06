@@ -12,6 +12,7 @@
 		exit(1);						\
 	} while (0)
 
+#ifdef DEBUG
 #define assert(cond) do {			\
 		if (!(cond)) {			\
 			DEBUG_LOG("%s:%d assert failed\n",		\
@@ -19,5 +20,7 @@
 			exit(1);					\
 		}							\
 	} while (0)
-
+#else
+#define assert(cond)
+#endif
 #endif

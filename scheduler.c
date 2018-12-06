@@ -30,11 +30,12 @@ static void __scheduler_run_task(ring_t *r)
 {
 	task_t task;
 	buf_t buf = BUF_INIT(&task, sizeof(task_t));
+#ifdef DEBUG
 	int rlen = ring_len(r);
 
 	assert(rlen > 0);
 	assert(rlen % sizeof(task_t) == 0);
-
+#endif
 	__ring_get_buf(r, &buf);
 	task.cb(task.arg);
 #ifdef CONFIG_POWER_MANAGEMENT
