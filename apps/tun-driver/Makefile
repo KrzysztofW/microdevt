@@ -36,7 +36,7 @@ libnet:
 
 $(EXE): revision $(OBJ) $(STATIC_LIBS)
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
-	@if [ -f tun-driver ]; then sudo setcap cap_net_raw,cap_net_admin=eip tun-driver; fi
+	@if [ -f $(EXE) ]; then sudo setcap cap_net_raw,cap_net_admin=eip $(EXE); fi
 
 run: all
 	LD_LIBRARY_PATH=../../net ./tun-driver

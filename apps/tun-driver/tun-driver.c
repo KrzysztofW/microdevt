@@ -9,11 +9,6 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#ifdef CONFIG_USE_CAPABILITIES
-#include <sys/capability.h>
-#define STRING(e) #e
-#endif
-
 #include <timer.h>
 #include <scheduler.h>
 #include <net/eth.h>
@@ -90,8 +85,7 @@ static int tun_receive_pkt(const iface_t *iface)
 	if (nread < 0) {
 		if (errno == EAGAIN)
 			return -1;
-		fprintf(stderr, "%s: reading tun device failed (%m)\n",
-			__func__);
+		fprintf(stderr, "reading tun device failed (%m)\n");
 		exit(EXIT_FAILURE);
 	}
 	if (nread == 0)
@@ -124,81 +118,12 @@ int main(int argc, char *argv[])
 	char dev[256];
 	char *dev_name;
 	char cmd[512];
-#ifdef CONFIG_USE_CAPABILITIES
-	cap_t caps;
-	cap_value_t cap = CAP_NET_ADMIN;
-	const char *capname = STRING(CAP_NET_ADMIN);
-	cap_flag_value_t cap_effective;
-	cap_flag_value_t cap_inheritable;
-	cap_flag_value_t cap_permitted;
-#endif
 
 	LOG("Tun-driver version %s\n", revision);
 	memset(dev, 0, sizeof(dev));
 	if (argc > 1)
 		strncpy(dev, argv[1], sizeof(dev) - 1);
 
-#ifdef CONFIG_USE_CAPABILITIES
-	if ((caps = cap_get_proc()) == NULL) {
-		fprintf(stderr, "%s: cannot get capabilities (%m)\n", __func__);
-		exit(EXIT_FAILURE);
-	}
-
-	/* Check that we have the required capabilities */
-	/* At this point we only require CAP_NET_ADMIN to be permitted, */
-	/* not effective as we will be enabling it later. */
-	if (cap_get_flag(caps, cap, CAP_PERMITTED, &cap_permitted) < 0) {
-		fprintf(stderr,
-			"%s: cannot get capabilities PERMITTED flag (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-
-	if (cap_get_flag(caps, cap, CAP_EFFECTIVE, &cap_effective) < 0) {
-		fprintf(stderr,
-			"%s: cannot get capabilities EFFECTIVE flag (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-	if (cap_get_flag(caps, cap, CAP_INHERITABLE, &cap_inheritable) < 0) {
-		fprintf(stderr,
-			"%s: cannot get capabilities INHERITABLE flag (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-	if (!cap_permitted) {
-		fprintf(stderr, "%s not permitted, exiting\n", capname);
-		exit(EXIT_FAILURE);
-	}
-
-	/* And retain only what we require */
-	if (cap_clear(caps) < 0) {
-		fprintf(stderr, "%s: cannot clear capabilities (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-	/* We must leave it permitted */
-	if (cap_set_flag(caps, CAP_PERMITTED, 1, &cap, CAP_SET) < 0) {
-		fprintf(stderr,
-			"%s: cannot set capabilities PERMITTED flag (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-	/* but also make it effective */
-	if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, CAP_SET) < 0) {
-		fprintf(stderr,
-			"%s: cannot set capabilities EFFECTIVE flag (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-	if (cap_set_proc(caps) < 0) {
-		fprintf(stderr,
-			"%s: cannot set capabilities (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-
-#endif
 	tun_alloc(dev, tun_fds);
 	if (tun_fds[0].fd < 0)
 		exit(EXIT_FAILURE);
@@ -211,14 +136,6 @@ int main(int argc, char *argv[])
 	printf("the system is available on IP address 1.1.2.2 (interface: %s)\n",
 	       dev_name);
 
-#ifdef CONFIG_USE_CAPABILITIES
-	/* And before anything else, clear all our capabilities */
-	if (cap_clear(caps) < 0 || cap_set_proc(caps) < 0 || cap_free(caps) < 0) {
-		fprintf(stderr, "%s: cannot free capabilities (%m)\n",
-			__func__);
-		exit(EXIT_FAILURE);
-	}
-#endif
 	pkt_mempool_init();
 	if_init(&iface, IF_TYPE_ETHERNET, NULL,
 		&iface_queues.rx, &iface_queues.tx, 0);
