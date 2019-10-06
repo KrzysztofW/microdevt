@@ -723,7 +723,7 @@ static void generic_cmds_print_status(uint8_t status)
 		LOG("TIMEOUT\n");
 		break;
 	default:
-		assert(0);
+		LOG("Unhandled status: %u\n", status);
 	}
 }
 
