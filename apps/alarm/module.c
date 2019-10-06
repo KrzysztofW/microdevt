@@ -354,7 +354,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		if (id == 0) {
 			sensor_value_t master_sensor_value;
 
-			get_sensor_values(&master_sensor_value);
+			get_sensor_values(&master_sensor_value, &module_cfg);
 			print_sensor_values(cfg, 0, &master_sensor_value);
 			return;
 		}

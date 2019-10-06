@@ -122,7 +122,7 @@ static void set_fan_on(void)
 	fan_sec_cnt = FAN_ON_DURATION;
 }
 
-static uint8_t get_hum_tendency(void)
+static uint8_t get_hum_tendency(uint8_t threshold)
 {
 	int val;
 
@@ -132,21 +132,21 @@ static uint8_t get_hum_tendency(void)
 	val = global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
 		- global_humidity_array[0];
 
-	if (abs(val) < DEFAULT_HUMIDITY_THRESHOLD)
+	if (abs(val) < threshold)
 		return HUMIDITY_TENDENCY_STABLE;
 	if (val < 0)
 		return HUMIDITY_TENDENCY_FALLING;
 	return HUMIDITY_TENDENCY_RISING;
 }
 
-static void set_humidity_info(humidity_info_t *info)
+static void set_humidity_info(humidity_info_t *info, module_cfg_t *cfg)
 {
 	uint8_t tendency;
 
 	array_left_shift(global_humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH, 1);
 	global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1] =
 		sensor_report.humidity;
-	tendency = get_hum_tendency();
+	tendency = get_hum_tendency(cfg->sensor.humidity_threshold);
 	if (info->tendency != tendency)
 		prev_tendency = info->tendency;
 	info->tendency = tendency;
@@ -215,7 +215,7 @@ static void sensor_status_on_ready_cb(void *arg)
 
 	read_sensor_values();
 #ifdef FEATURE_HUMIDITY
-	set_humidity_info(&info);
+	set_humidity_info(&info, cfg);
 
 	if (!cfg->fan_enabled || global_humidity_array[0] == 0)
 		return;
@@ -238,7 +238,7 @@ static void sensor_sampling_task_cb(void *arg)
 	timer_add(&sensor_timer, 800, sensor_status_on_ready_cb, arg);
 }
 
-static void get_sensor_values(sensor_value_t *value)
+static void get_sensor_values(sensor_value_t *value, module_cfg_t *cfg)
 {
 #ifdef FEATURE_HUMIDITY
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
@@ -248,7 +248,8 @@ static void get_sensor_values(sensor_value_t *value)
 		   GLOBAL_HUMIDITY_ARRAY_LENGTH);
 	value->humidity.global_val =
 		array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH);
-	value->humidity.tendency = get_hum_tendency();
+	value->humidity.tendency =
+		get_hum_tendency(cfg->sensor.humidity_threshold);
 #endif
 #ifdef FEATURE_TEMPERATURE
 	value->temperature = sensor_report.temperature;

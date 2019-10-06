@@ -136,7 +136,7 @@ static int handle_tx_commands(uint8_t cmd)
 		len = sizeof(module_status_t);
 		break;
 	case CMD_SENSOR_VALUES:
-		get_sensor_values(&sensor_value);
+		get_sensor_values(&sensor_value, &module_cfg);
 		data = &sensor_value;
 		len = sizeof(sensor_value_t);
 		break;
@@ -295,7 +295,8 @@ static void module_print_status(void)
 	    " Humidity threshold:  %u%%\n",
 	    sensor_report.humidity,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
-	    get_hum_tendency(), module_cfg.sensor.humidity_threshold);
+	    get_hum_tendency(module_cfg.sensor.humidity_threshold),
+	    module_cfg.sensor.humidity_threshold);
 	LOG(" Temperature:  %d\n", sensor_report.temperature);
 	LOG(" Fan: %d\n Fan enabled: %d\n", gpio_is_fan_on(),
 	    module_cfg.fan_enabled);
