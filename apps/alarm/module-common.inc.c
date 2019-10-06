@@ -174,6 +174,7 @@ static inline uint8_t get_humidity_cur_value(void)
 
 	ADC_SET_REF_VOLTAGE_AVCC();
 	val = read_sensor_val(HUMIDITY_ANALOG_PIN);
+	val = hih_4000_to_rh(adc_to_millivolt(val));
 
 	/* Prepare the ADC for internal REF voltage p243 24.6 (Atmega328).
 	 * This shuts the AREF pin down which is needed to stabilize
@@ -181,7 +182,7 @@ static inline uint8_t get_humidity_cur_value(void)
 	 */
 	ADC_SET_REF_VOLTAGE_INTERNAL();
 
-	return HIH_4000_TO_RH(adc_to_millivolt(val));
+	return val;
 }
 #endif
 

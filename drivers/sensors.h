@@ -2,7 +2,16 @@
 #define _SENSORS_H_
 
 /* HIH Honeywell humidity sensor */
-#define HIH_4000_TO_RH(millivolts) (((millivolts) - 826) / 31)
+#define HIH_4000_ZERO_OFFSET_MV 826
+static inline uint8_t hih_4000_to_rh(uint16_t millivolts)
+{
+	uint16_t ret;
+
+	if (millivolts < HIH_4000_ZERO_OFFSET_MV)
+		return 0;
+	ret = (millivolts - HIH_4000_ZERO_OFFSET_MV) / 31;
+	return ret > 100 ? 100 : ret;
+}
 
 /* tmp36gz temperature sensor */
 #define TMP36GZ_TO_C_DEGREES(millivolts) (((millivolts) - 500) / 10)

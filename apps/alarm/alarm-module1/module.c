@@ -289,11 +289,11 @@ static void module_print_status(void)
 	LOG("\nStatus:\n");
 	LOG(" State:  %s\n",
 	    module_cfg.state == MODULE_STATE_ARMED ? "armed" : "disarmed");
-	LOG(" Humidity value:  %ld%%\n"
+	LOG(" Humidity value:  %u%%\n"
 	    " Global humidity value:  %d%%\n"
 	    " Humidity tendency:  %u\n"
 	    " Humidity threshold:  %u%%\n",
-	    sensor_report.humidity > 100 ? 0 : sensor_report.humidity,
+	    sensor_report.humidity,
 	    array_get_median(humidity_array, GLOBAL_HUMIDITY_ARRAY_LENGTH),
 	    get_hum_tendency(), module_cfg.sensor.humidity_threshold);
 	LOG(" Temperature:  %d\n", sensor_report.temperature);
