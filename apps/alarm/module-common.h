@@ -12,8 +12,13 @@
 #define RF_GENERIC_MOD_HW_ADDR 0x02
 #define RF_INIT_ADDR 0xFE
 
+#ifndef CONFIG_AVR_SIMU
 #define ONE_SECOND 1000000
-#define ONE_MINUTE (60 * 1000000)
+#else
+/* accelerate the processing on simulator */
+#define ONE_SECOND 100000
+#endif
+#define ONE_MINUTE (60 * ONE_SECOND)
 
 #define FAN_ON_DURATION (4 * 3600) /* max 4h of activity */
 #define SENSOR_SAMPLING 30
@@ -147,7 +152,7 @@ typedef enum commands {
 	CMD_ENABLE_FAN,
 	CMD_SIREN_ON,
 	CMD_SIREN_OFF,
-	CMD_SET_SIREN_DURATION,
+	CMD_SET_SIREN_DURATION, // 10
 	CMD_SET_SIREN_TIMEOUT,
 	CMD_GET_STATUS,
 	CMD_STATUS,
@@ -157,7 +162,7 @@ typedef enum commands {
 	CMD_CONNECT,
 	CMD_DISABLE,
 	CMD_GET_SENSOR_REPORT,
-	CMD_SENSOR_REPORT,
+	CMD_SENSOR_REPORT, // 20
 	CMD_NOTIF_MAIN_PWR_DOWN,
 	CMD_NOTIF_MAIN_PWR_UP,
 	CMD_DISABLE_PWR_DOWN,
