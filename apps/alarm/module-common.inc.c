@@ -359,7 +359,7 @@ cron_func(module_cfg_t *cfg,
 	/* skip sampling when the siren is on */
 	if (sensor_sampling_update++ >= SENSOR_SAMPLING &&
 	    !timer_is_pending(&siren_timer) && !gpio_is_siren_on())
-		schedule_task(sensor_sampling_task_cb, NULL);
+		schedule_task(sensor_sampling_task_cb, cfg);
 #endif
 	gpio_led_toggle();
 
