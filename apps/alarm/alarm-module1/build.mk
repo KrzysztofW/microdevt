@@ -75,9 +75,10 @@ ifdef CONFIG_SWEN_L3
 CFLAGS += -DCONFIG_SWEN_L3
 endif
 
+ifdef CONFIG_AVR_SIMU
+undefine CONFIG_POWER_MANAGEMENT
+endif
 ifdef CONFIG_POWER_MANAGEMENT
-ifeq ($(CONFIG_AVR_SIMU), "")
 CFLAGS += -DCONFIG_POWER_MANAGEMENT
 SOURCES += ../../../power-management.c
-endif
 endif
