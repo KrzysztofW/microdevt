@@ -8,7 +8,6 @@ SOURCES += ../module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config
 include build.mk
-include ../../../common.mk
 
 ARCH_DIR=../../../arch
 include ../../../arch/build.mk
@@ -28,8 +27,10 @@ CFLAGS += -I../../.. -I.
 STATIC_LIBS = ../../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
-all: revision libnet $(SOURCES) $(EXE)
-optimized: revision libnet $(SOURCES) $(EXE)_optimized
+all: libnet $(SOURCES) $(EXE)
+include ../../../common.mk
+
+optimized: libnet $(SOURCES) $(EXE)_optimized
 
 libnet:
 	make -C ../../../net

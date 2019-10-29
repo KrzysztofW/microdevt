@@ -18,7 +18,6 @@
 #undef SOCKLEN_DEFINED
 #include <net-apps/net-apps.h>
 #include <net/pkt-mempool.h>
-#include "version.h"
 #include "tun.h"
 
 static uint8_t ip[] = { 1, 1, 2, 2 };
@@ -119,7 +118,7 @@ int main(int argc, char *argv[])
 	char *dev_name;
 	char cmd[512];
 
-	LOG("Tun-driver version %s\n", revision);
+	LOG("Tun-driver version %s\n", VERSION);
 	memset(dev, 0, sizeof(dev));
 	if (argc > 1)
 		strncpy(dev, argv[1], sizeof(dev) - 1);

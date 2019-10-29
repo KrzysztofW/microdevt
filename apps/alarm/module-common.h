@@ -39,8 +39,8 @@ enum features {
 };
 typedef enum __attribute__ ((__packed__)) features features_t;
 
-#define DEFAULT_HUMIDITY_THRESHOLD  3
-#define DEFAULT_SIREN_ON_DURATION  60
+#define DEFAULT_HUMIDITY_THRESHOLD 2
+#define DEFAULT_SIREN_ON_DURATION 60
 #define DEFAULT_SIREN_ON_TIMEOUT 5
 
 typedef enum module_state {

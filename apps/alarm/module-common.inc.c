@@ -223,8 +223,10 @@ static void sensor_status_on_ready_cb(void *arg)
 	    global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
 	    >= MAX_HUMIDITY_VALUE) {
 		set_fan_on();
-	} else if (info.tendency == HUMIDITY_TENDENCY_STABLE)
+	} else if (info.tendency == HUMIDITY_TENDENCY_STABLE &&
+		   fan_sec_cnt == 0) {
 		gpio_fan_off();
+	}
 #endif
 }
 

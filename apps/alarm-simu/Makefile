@@ -37,12 +37,12 @@ CFLAGS += -I../.. -I.
 STATIC_LIBS = ../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
-all: revision libnet $(SOURCES) $(EXE)
+all: libnet $(SOURCES) $(EXE)
 
 libnet:
 	make -C ../../net
 
-$(EXE): revision $(OBJ) $(STATIC_LIBS) config
+$(EXE): $(OBJ) $(STATIC_LIBS) config
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $@
 
 %.c:

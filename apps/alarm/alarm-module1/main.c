@@ -7,7 +7,6 @@
 #include <timer.h>
 #include <scheduler.h>
 #include <interrupts.h>
-#include "version.h"
 #include "alarm-module1.h"
 #include "gpio.h"
 #include "../module-common.h"
@@ -48,7 +47,7 @@ int main(void)
 {
 #ifdef DEBUG
 	init_stream0(&stdout, &stdin, 1);
-	DEBUG_LOG("KW alarm module 1 (%s)\n", revision);
+	DEBUG_LOG("KW alarm module 1 (%s)\n", VERSION);
 #ifndef CONFIG_AVR_SIMU
 	DEBUG_LOG("MCUSR:%X\n", MCUSR);
 	MCUSR = 0;

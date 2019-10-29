@@ -7,7 +7,6 @@
 #include <scheduler.h>
 #include <net/pkt-mempool.h>
 #include <interrupts.h>
-#include "version.h"
 #include "alarm.h"
 #include "module-common.h"
 #include "gpio.h"
@@ -50,7 +49,7 @@ int main(void)
 {
 	init_stream0(&stdout, &stdin, 1);
 #ifdef DEBUG
-	DEBUG_LOG("KW alarm v0.2 (%s)\n", revision);
+	DEBUG_LOG("KW alarm v0.2 (%s)\n", VERSION);
 #ifndef CONFIG_AVR_SIMU
 	DEBUG_LOG("MCUSR:%X\n", MCUSR);
 	MCUSR = 0;
