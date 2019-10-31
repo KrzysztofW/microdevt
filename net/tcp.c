@@ -76,13 +76,13 @@ static void tcp_retrn_wipe(tcp_conn_t *tcp_conn)
 {
 	tcp_retrn_pkt_t *retrn_pkt, *retrn_pkt_tmp;
 
+	timer_del(&tcp_conn->retrn.timer);
 	list_for_each_entry_safe(retrn_pkt, retrn_pkt_tmp,
 				 &tcp_conn->retrn.retrn_pkt_list, list) {
 		list_del(&retrn_pkt->list);
 		pkt_free(retrn_pkt->pkt);
 		free(retrn_pkt);
 	}
-	timer_del(&tcp_conn->retrn.timer);
 }
 #endif
 
@@ -101,7 +101,7 @@ static void tcp_close(tcp_conn_t *tcp_conn, pkt_t *fin_pkt)
 	tcp_conn->syn.seqid = htonl(ntohl(tcp_conn->syn.seqid) + 1);
 }
 
-static inline void __tcp_conn_delete(tcp_conn_t *tcp_conn)
+void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 {
 	sock_info_t *sock_info = tcp_conn->sock_info;
 	pkt_t *pkt, *pkt_tmp;
@@ -126,14 +126,11 @@ static inline void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 #endif
 	assert(tcp_conn_cnt <= CONFIG_TCP_MAX_CONNS);
 
-	if (!list_empty(&tcp_conn->list))
+	/* make sure tcp_conn is removed from the connection list */
+	if (!list_empty(&tcp_conn->list) && tcp_conn->list.next != LIST_POISON1)
 		list_del(&tcp_conn->list);
 	free(tcp_conn);
 	tcp_conn_cnt--;
-
-#ifdef CONFIG_EVENT
-	event_schedule_event(&sock_info->event, EV_ERROR);
-#endif
 }
 
 static tcp_conn_t *
@@ -201,6 +198,7 @@ int tcp_conn_add(tcp_conn_t *tcp_conn)
 
 void tcp_conn_delete(tcp_conn_t *tcp_conn)
 {
+	list_del(&tcp_conn->list);
 	__tcp_conn_delete(tcp_conn);
 }
 
@@ -254,6 +252,11 @@ static void __tcp_pkt_adj_reset(pkt_t *pkt, int len)
 	pkt_adj(pkt, len);
 }
 
+static void tcp_conn_delete_task(void *tcp_conn)
+{
+	tcp_conn_delete(tcp_conn);
+}
+
 static void tcp_retransmit(void *tcp_conn);
 static inline void tcp_arm_retrn_timer(tcp_conn_t *tcp_conn, pkt_t *pkt)
 {
@@ -284,13 +287,32 @@ static inline void tcp_arm_retrn_timer(tcp_conn_t *tcp_conn, pkt_t *pkt)
 		  * (tcp_conn->retrn.cnt + 1), tcp_retransmit, tcp_conn);
 }
 
+static void tcp_delayed_close(void *arg)
+{
+	tcp_conn_t *tcp_conn = arg;
+
+	if (list_empty(&tcp_conn->pkt_list_head)) {
+		schedule_task(tcp_conn_delete_task, tcp_conn);
+		return;
+	}
+	timer_add(&tcp_conn->retrn.timer,
+		  CONFIG_TCP_RETRANSMIT_TIMEOUT * 1000UL,
+		  tcp_delayed_close, tcp_conn);
+}
+
 static void tcp_conn_mark_closed(tcp_conn_t *tcp_conn, uint8_t error)
 {
 	tcp_conn->syn.status = SOCK_CLOSED;
+	tcp_conn->sock_info->trq.tcp_conn = NULL;
+	tcp_retrn_wipe(tcp_conn);
+	timer_add(&tcp_conn->retrn.timer,
+		  CONFIG_TCP_RETRANSMIT_TIMEOUT * 1000UL,
+		  tcp_delayed_close, tcp_conn);
 #ifdef CONFIG_EVENT
 	event_schedule_event(&tcp_conn->sock_info->event,
 			     error ? EV_ERROR : EV_HUNGUP);
 #endif
+	tcp_conn->sock_info = NULL;
 }
 
 static void tcp_retransmit(void *arg)
@@ -299,9 +321,11 @@ static void tcp_retransmit(void *arg)
 	tcp_conn_t *tcp_conn = arg;
 
 	if (tcp_conn->retrn.cnt >= TCP_IN_PROGRESS_RETRIES) {
+		tcp_retrn_wipe(tcp_conn);
 		if (tcp_conn->syn.status != SOCK_CLOSED)
 			tcp_conn_mark_closed(tcp_conn, 1);
-		tcp_retrn_wipe(tcp_conn);
+		else
+			tcp_delayed_close(tcp_conn);
 		return;
 	}
 
@@ -410,8 +434,8 @@ static void tcp_retrn_ack_pkts(tcp_conn_t *tcp_conn, uint32_t remote_ack)
 			break;
 #endif
 	}
-
-	if (list_empty(&tcp_conn->retrn.retrn_pkt_list))
+	if (list_empty(&tcp_conn->retrn.retrn_pkt_list) &&
+	    tcp_conn->retrn.timer.cb != tcp_delayed_close)
 		timer_del(&tcp_conn->retrn.timer);
 }
 #endif
@@ -541,8 +565,13 @@ void tcp_input(pkt_t *pkt)
 		uint32_t ack, seqid;
 
 		if (tcp_hdr->ctrl & TH_RST) {
-			if (tcp_conn->syn.status != SOCK_CLOSED)
+			if (tcp_conn->syn.status != SOCK_CLOSED) {
+#ifdef CONFIG_TCP_RETRANSMIT
 				tcp_conn_mark_closed(tcp_conn, 1);
+#else
+				tcp_conn_delete(tcp_conn);
+#endif
+			}
 			goto end;
 		}
 
@@ -573,7 +602,11 @@ void tcp_input(pkt_t *pkt)
 		} else if (tcp_hdr->ctrl == TH_ACK
 			   && tcp_conn->syn.status == SOCK_TCP_FIN_SENT
 			   && tcp_hdr->ack == tcp_conn->syn.seqid) {
-			tcp_conn_mark_closed(tcp_conn, 0);
+#ifdef CONFIG_TCP_RETRANSMIT
+				tcp_conn_mark_closed(tcp_conn, 0);
+#else
+				tcp_conn_delete(tcp_conn);
+#endif
 			goto end;
 		}
 
@@ -588,10 +621,20 @@ void tcp_input(pkt_t *pkt)
 		if (remote_seqid < ack)
 			tcp_send_pkt(ip_hdr, tcp_hdr, flags | TH_ACK,
 				     &tcp_conn->syn);
+#ifdef CONFIG_EVENT
+		if (pkt->buf.len)
+			event_schedule_event(&tcp_conn->sock_info->event,
+					     EV_READ);
+#endif
 
 		if (flags & TH_FIN) {
 			seqid++;
 			tcp_conn->syn.seqid = htonl(seqid);
+#ifdef CONFIG_TCP_RETRANSMIT
+			tcp_conn_mark_closed(tcp_conn, 0);
+#else
+			tcp_conn_delete(tcp_conn);
+#endif
 		}
 
 		if (pkt->buf.len == 0)
@@ -599,10 +642,6 @@ void tcp_input(pkt_t *pkt)
 
 		pkt_adj(pkt, -(tcp_hdr_len + ip_hdr_len));
 		socket_append_pkt(&tcp_conn->pkt_list_head, pkt);
-#ifdef CONFIG_EVENT
-		event_schedule_event(&tcp_conn->sock_info->event,
-				     EV_READ | EV_WRITE);
-#endif
 		return;
 	}
 
@@ -619,6 +658,7 @@ void tcp_input(pkt_t *pkt)
 
 	if (tcp_hdr->ctrl == (TH_SYN|TH_ACK)) {
 		uint32_t seqid;
+		event_flags_t event;
 
 		if (tcp_conn == NULL)
 			goto end;
@@ -642,11 +682,12 @@ void tcp_input(pkt_t *pkt)
 		tcp_retrn_ack_pkts(tcp_conn, remote_ack);
 #endif
 		if (tcp_conn_add(tcp_conn) < 0) {
+			event = EV_ERROR;
 			__tcp_conn_delete(tcp_conn);
-			goto end;
-		}
+		} else
+			event = EV_WRITE;
 #ifdef CONFIG_EVENT
-		event_schedule_event(&tcp_conn->sock_info->event, EV_WRITE);
+		event_schedule_event(&tcp_conn->sock_info->event, event);
 #endif
 		goto end;
 	}

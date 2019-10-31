@@ -296,10 +296,21 @@ static int unbind_port(sock_info_t *sock_info)
 #endif
 	sock_info->port = 0;
 #ifdef CONFIG_TCP
-	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn) {
-		tcp_conn_delete(sock_info->trq.tcp_conn);
-		sock_info->trq.tcp_conn = NULL;
+	if (sock_info->type == SOCK_STREAM && sock_info->trq.tcp_conn)
+		__tcp_conn_delete(sock_info->trq.tcp_conn);
+#ifdef CONFIG_EVENT
+	if (sock_info->event.rx_queue
+	    && !list_empty(sock_info->event.rx_queue)) {
+		pkt_t *pkt, *pkt_tmp;
+
+		list_for_each_entry_safe(pkt, pkt_tmp,
+					 sock_info->event.rx_queue, list) {
+
+			list_del(&pkt->list);
+			pkt_free(pkt);
+		}
 	}
+#endif
 #endif
 	list_del_init(&sock_info->list);
 	return 0;
@@ -854,7 +865,9 @@ int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pktp,
 #endif
 #ifdef CONFIG_TCP
 	tcp_hdr_t *tcp_hdr;
+#ifndef CONFIG_EVENT
 	tcp_conn_t *tcp_conn;
+#endif
 #endif
 
 	switch (sock_info->type) {
@@ -883,8 +896,22 @@ int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pktp,
 #endif
 #ifdef CONFIG_TCP
 	case SOCK_STREAM:
-		if ((tcp_conn = socket_get_tcp_conn(sock_info)) == NULL)
+#ifdef CONFIG_EVENT
+		if (list_empty(sock_info->event.rx_queue)) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EAGAIN;
+#endif
 			return -1;
+		}
+
+		pkt = list_first_entry(sock_info->event.rx_queue, pkt_t, list);
+#else  /* CONFIG_EVENT */
+		if ((tcp_conn = socket_get_tcp_conn(sock_info)) == NULL) {
+#ifdef CONFIG_BSD_COMPAT
+			errno = EBADF;
+#endif
+			return -1;
+		}
 
 		if (list_empty(&tcp_conn->pkt_list_head)) {
 #ifdef CONFIG_BSD_COMPAT
@@ -892,8 +919,8 @@ int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pktp,
 #endif
 			return -1;
 		}
-
 		pkt = list_first_entry(&tcp_conn->pkt_list_head, pkt_t, list);
+#endif
 		list_del(&pkt->list);
 
 		ip_hdr = btod(pkt);

@@ -141,6 +141,10 @@ typedef struct tcp_conn tcp_conn_t;
 tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid);
 int tcp_conn_add(tcp_conn_t *tcp_conn);
 void tcp_conn_delete(tcp_conn_t *tcp_conn);
+
+/* like tcp_conn_delete but does not remove tcp_conn from active connections */
+void __tcp_conn_delete(tcp_conn_t *tcp_conn);
+
 int
 tcp_connect(uint32_t dst_addr, uint16_t dst_port, void *sock_info);
 int tcp_output(pkt_t *pkt, tcp_conn_t *tcp_conn, uint8_t flags);

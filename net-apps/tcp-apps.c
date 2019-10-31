@@ -68,6 +68,7 @@ static void tcp_client_connect_cb(void *sock_info)
 static void tcp_app_client_init(void)
 {
 	DEBUG_LOG("%s\n", __func__);
+	timer_init(&tcp_client_timer);
 	timer_add(&tcp_client_timer, 0, tcp_client_connect_cb,
 		  &sock_info_client);
 }
@@ -242,42 +243,44 @@ static void ev_clients_cb(event_t *ev, uint8_t events)
 
 	ctx = container_of(sock_info, sock_info_client_ctx_t, sock_info);
 
-	if (events & (EV_ERROR | EV_HUNGUP)) {
-		DEBUG_LOG("[conn:%p] disconnected\n", ctx);
-		socket_event_unregister(sock_info);
-		sock_info_close(sock_info);
-		if (ctx->sb.len) {
-			sbuf_reset(&ctx->sb);
-			pkt_free(ctx->pkt);
-		}
-		return;
-	}
-
 	if (events & EV_READ) {
 		if (ctx->sb.len != 0) {
 			socket_event_set_mask(&ctx->sock_info, EV_WRITE);
 			return;
 		}
 		if (__socket_get_pkt(&ctx->sock_info, &ctx->pkt,
-				     &src_addr, &src_port) < 0)
-			return;
+				     &src_addr, &src_port) >= 0) {
+			ctx->sb = PKT2SBUF(ctx->pkt);
+			DEBUG_LOG("[conn:%p]: got (len:%d):%.*s (pkt:%p)\n",
+				  ctx, ctx->sb.len, ctx->sb.len, ctx->sb.data,
+				  ctx->pkt);
+			socket_event_set_mask(&ctx->sock_info,
+					      EV_READ | EV_WRITE);
+		}
+	}
 
-		ctx->sb = PKT2SBUF(ctx->pkt);
-		DEBUG_LOG("[conn:%p]: got (len:%d):%.*s (pkt:%p)\n", ctx,
-			  ctx->sb.len, ctx->sb.len,
-			  ctx->sb.data, ctx->pkt);
-		socket_event_set_mask(&ctx->sock_info, EV_READ|EV_WRITE);
+	if (events & (EV_ERROR | EV_HUNGUP)) {
+		LOG("[conn:%p] disconnected\n", ctx);
+		goto error;
 	}
 
 	if (events & EV_WRITE) {
 		if (__socket_put_sbuf(&ctx->sock_info, &ctx->sb, 0,
 				      0) < 0) {
-			socket_event_set_mask(&ctx->sock_info, EV_WRITE);
+			LOG("%s:%d write failed\n", __func__, __LINE__);
 			return;
 		}
 		pkt_free(ctx->pkt);
 		sbuf_reset(&ctx->sb);
 		socket_event_set_mask(&ctx->sock_info, EV_READ);
+	}
+	return;
+ error:
+	socket_event_unregister(sock_info);
+	sock_info_close(sock_info);
+	if (ctx->sb.len) {
+		sbuf_reset(&ctx->sb);
+		pkt_free(ctx->pkt);
 	}
 }
 
@@ -299,11 +302,12 @@ static void ev_accept_cb(event_t *ev, uint8_t events)
 		return;
 
 	for (i = 0; i < TCP_CLIENTS; i++) {
-		if (ctx[i].sock_info.trq.tcp_conn)
+		if (sock_info_state(&ctx[i].sock_info) != SOCK_CLOSED)
 			continue;
 		if (sock_info_accept(sock_info, &ctx[i].sock_info,
 				     &src_addr, &src_port) >= 0) {
-			DEBUG_LOG("accepted connection from:0x%X on port %u\n",
+			DEBUG_LOG("accepted connection [%p] from:0x%X on port %u\n",
+				  &ctx[i],
 				  (uint32_t)ntohl(src_addr),
 				  (uint16_t)ntohs(src_port));
 			socket_event_register(&ctx[i].sock_info, EV_READ,
