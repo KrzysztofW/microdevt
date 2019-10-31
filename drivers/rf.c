@@ -157,28 +157,11 @@ static void rf_rcv_tim_cb(void *arg)
 	iface_t *iface = arg;
 	rf_ctx_t *ctx = iface->priv;
 	uint8_t v, not_v;
-#ifdef RF_ANALOG_SAMPLING
-	uint16_t v_analog;
-#endif
+
 	timer_reschedule(&ctx->timer, RF_SAMPLING_US);
-
-#ifdef RF_ANALOG_SAMPLING
-	v_analog = analog_read(RF_RCV_PIN_NB);
-
-	if (v_analog < ANALOG_LOW_VAL)
-		v = 0;
-	else if (v_analog > ANALOG_HI_VAL)
-		v = 1;
-	else {
-#ifdef CONFIG_RF_SENDER
-		__rf_start_sending((iface_t *)iface);
-#endif
-		return;
-	}
-#else
 	v = RF_RCV_PIN & (1 << RF_RCV_PIN_NB);
-#endif
 	not_v = !v;
+
 	if (ctx->rcv.prev_val == not_v) {
 		ctx->rcv.prev_val = v;
 		rf_fill_data(iface, not_v);
@@ -555,10 +538,6 @@ int rf_checks(iface_t *iface)
 void rf_init(iface_t *iface, rf_ctx_t *ctx, uint8_t burst)
 {
 	timer_init(&ctx->timer);
-#if defined (CONFIG_RF_RECEIVER) && defined (RF_ANALOG_SAMPLING)
-	RF_RCV_PORT &= ~(1 << RF_RCV_PIN_NB);
-#endif
-
 #if defined (CONFIG_RF_SENDER) && defined (CONFIG_RF_BURST)
 #ifdef RF_DEBUG
 	ctx->burst = 0;
