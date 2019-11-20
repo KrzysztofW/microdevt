@@ -313,8 +313,8 @@ static void module_print_status(void)
 	LOG("\nStatus:\n");
 	LOG(" State:  %s\n",
 	    module_cfg.state == MODULE_STATE_ARMED ? "armed" : "disarmed");
-	LOG(" Humidity value:  %u%%\n"
-	    " Global humidity value:  %d%%\n"
+	LOG(" Humidity:  %u%%\n"
+	    " Global humidity:  %d%%\n"
 	    " Humidity tendency:  %u\n"
 	    " Humidity threshold:  %u%%\n",
 	    sensor_report.humidity,

@@ -234,8 +234,8 @@ static void print_sensor_values(const module_cfg_t *cfg, uint8_t id,
 
 	LOG("\nModule %d:\n", id);
 	if (features & MODULE_FEATURE_HUMIDITY) {
-		LOG(" Humidity value: %u%%\n"
-		    " Global humidity value: %u%%\n"
+		LOG(" Humidity: %u%%\n"
+		    " Global humidity: %u%%\n"
 		    " Humidity tendency: %s\n"
 		    " Humidity threshold: %u%%\n",
 		    value->humidity.val,
@@ -874,7 +874,7 @@ static void sensor_report_cb(uint8_t from, uint8_t events, buf_t *buf)
 	if (cfg.features & MODULE_FEATURE_HUMIDITY) {
 		if (buf_getc(buf, &sensor_report.humidity) < 0)
 			goto error;
-		LOG("humidity value: %u%%\n", sensor_report.humidity);
+		LOG("humidity: %u%%\n", sensor_report.humidity);
 	}
 	if (cfg.features & MODULE_FEATURE_TEMPERATURE) {
 		if (buf_getc(buf, (uint8_t *)&sensor_report.temperature) < 0)
