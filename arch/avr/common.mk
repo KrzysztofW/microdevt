@@ -45,7 +45,7 @@ write_fuses:
 erase:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
 
-run_simu: all
+run_simu: all_not_optimized
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
 
 # not supported by the simulator

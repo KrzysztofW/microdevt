@@ -64,10 +64,11 @@ FUSES = -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0xfd:m
 CFLAGS += -I../../.. -I.
 
 all: libnet $(SOURCES) $(EXE)
+all_not_optimized: libnet $(SOURCES) $(EXE)_not_optimized
 include ../../../common.mk
 
 libnet:
 	make -C ../../../net
 
 include ../../../arch/avr/common.mk
-.PHONY: all
+.PHONY: all all_not_optimized

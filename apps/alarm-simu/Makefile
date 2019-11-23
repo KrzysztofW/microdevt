@@ -61,10 +61,11 @@ OBJ = $(SOURCES:.c=.o)
 CFLAGS += -I../.. -I.
 
 all: libnet $(SOURCES) $(EXE)_not_optimized
+all_not_optimized: libnet $(SOURCES) $(EXE)_not_optimized
 include ../../common.mk
 
 libnet:
 	make -C ../../net
 
 include ../../arch/avr/common.mk
-.PHONY: all
+.PHONY: all all_not_optimized
