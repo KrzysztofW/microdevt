@@ -103,7 +103,6 @@ int main(void)
 	alarm_gsm_init();
 #endif
 
-	/* port F used by the RF sender */
 	master_module_init();
 
 	/* interruptible functions */
