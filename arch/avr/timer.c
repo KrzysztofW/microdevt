@@ -76,9 +76,11 @@ ISR(TIMER1_COMPA_vect)
 
 void __timer_subsystem_init(void)
 {
+	STATIC_ASSERT(TIM_COUNTER8 <= 255);
+	STATIC_ASSERT(TIM_COUNTER16 <= 65535);
+
 #ifdef ATTINY85
 	/* 8-bit timer */
-	STATIC_ASSERT(TIM_COUNTER8 <= 255);
 	TCNT0 = 0;
 	/* CTC mode with 64 prescaler */
 	TCCR0A = 1 << WGM01;
@@ -88,7 +90,6 @@ void __timer_subsystem_init(void)
 	TIMSK |= 1 << OCIE0A;
 #else
 	/* 16-bit timer */
-	STATIC_ASSERT(TIM_COUNTER8 <= 65535);
 	TCNT1 = 0;
 	TCCR1A = 0;
 	/* CTC mode with 8 prescaler */
