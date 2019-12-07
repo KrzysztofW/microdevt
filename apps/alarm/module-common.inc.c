@@ -321,8 +321,9 @@ void watchdog_on_wakeup(void *arg)
 #ifdef FEATURE_SENSORS
 	static uint8_t sampling_cnt;
 
-	/* sample every 30 seconds ((8-sec sleep + 2 secs below) * 3) */
-	if (sampling_cnt >= 3) {
+	/* sample every 60 seconds (SENSOR_SAMPLING)
+	 * ((8-sec sleep + 2 secs below) * 6) */
+	if (sampling_cnt >= 6) {
 		schedule_task(sensor_sampling_task_cb, arg);
 		sampling_cnt = 0;
 	} else

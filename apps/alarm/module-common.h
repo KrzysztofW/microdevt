@@ -44,8 +44,8 @@
 #endif
 #define ONE_MINUTE (60 * ONE_SECOND)
 
-#define FAN_ON_DURATION (4 * 3600) /* max 4h of activity */
-#define SENSOR_SAMPLING 30
+#define FAN_ON_DURATION (1800) /* 30 minutes of activity */
+#define SENSOR_SAMPLING 60
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
 #define MAX_HUMIDITY_VALUE 80
 #define INIT_TIME 60
