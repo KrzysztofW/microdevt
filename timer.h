@@ -25,6 +25,8 @@
 #ifndef _TIMER_H_
 #define _TIMER_H_
 
+/* #define DEBUG_TIMERS */
+
 #include <timer.h>
 #include <stdint.h>
 #include "sys/list.h"
@@ -41,10 +43,25 @@ typedef struct timer tim_t;
 void timer_subsystem_init(void);
 void timer_subsystem_shutdown(void);
 void timer_init(tim_t *timer);
+
+#ifdef DEBUG_TIMERS
+void timer_dump(void);
+void __timer_add(const char *func, int line, tim_t *timer, uint32_t expiry,
+		 void (*cb)(void *), void *arg);
+#define timer_add(timer, expiry, cb, arg)			\
+	__timer_add(__func__, __LINE__, timer, expiry, cb, arg)
+void __timer_reschedule(const char *func, int line, tim_t *timer,
+			uint32_t expiry);
+#define timer_reschedule(timer, expiry)				\
+	__timer_reschedule(__func__, __LINE__, timer, expiry)
+#else
+
 void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg);
+void timer_reschedule(tim_t *timer, uint32_t expiry);
+
+#endif
 
 void timer_del(tim_t *timer);
-void timer_reschedule(tim_t *timer, uint32_t expiry);
 void timer_process(void);
 static inline uint8_t timer_is_pending(tim_t *timer)
 {
@@ -52,5 +69,4 @@ static inline uint8_t timer_is_pending(tim_t *timer)
 }
 
 void timer_checks(void);
-void timer_dump(void);
 #endif

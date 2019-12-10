@@ -37,7 +37,7 @@
 static uint8_t cur_idx;
 static list_t timer_list[TIMER_TABLE_SIZE];
 
-#ifdef TIMER_DEBUG
+#ifdef DEBUG_TIMERS
 static void timer_dump_list(list_t *head)
 {
 	tim_t *timer;
@@ -124,12 +124,23 @@ void timer_init(tim_t *timer)
 	INIT_LIST_HEAD(&timer->list);
 }
 
+#ifdef DEBUG_TIMERS
+void __timer_add(const char *func, int line, tim_t *timer, uint32_t expiry,
+		 void (*cb)(void *), void *arg)
+#else
 void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
+
+#endif
 {
 	uint8_t idx;
 	uint8_t flags;
 
-	assert(!timer_is_pending(timer));
+	if (timer_is_pending(timer)) {
+#ifdef DEBUG_TIMERS
+		DEBUG_LOG("dup timer add: %s:%d\n", func, line);
+#endif
+		assert(0);
+	}
 	timer->ticks = expiry / CONFIG_TIMER_RESOLUTION_US;
 
 	/* don't schedule at current idx */
@@ -157,10 +168,18 @@ void timer_del(tim_t *timer)
 	irq_restore(flags);
 }
 
+#ifdef DEBUG_TIMERS
+void __timer_reschedule(const char *func, int line, tim_t *timer,
+			uint32_t expiry)
+{
+	__timer_add(func, line, timer, expiry, timer->cb, timer->arg);
+}
+#else
 void timer_reschedule(tim_t *timer, uint32_t expiry)
 {
 	timer_add(timer, expiry, timer->cb, timer->arg);
 }
+#endif
 
 #ifdef CONFIG_TIMER_CHECKS
 #define TIM_CNT 64U
