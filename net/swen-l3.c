@@ -51,13 +51,13 @@ typedef enum swen_l3_op {
 /* reserve one byte for retry info and one byte for seqid */
 #define SWEN_L3_HEADER_RESERVED_LEN 2
 
-typedef struct __attribute__((__packed__)) swen_l3_hdr {
+typedef struct __PACKED__ swen_l3_hdr {
 	uint8_t op;
 	uint8_t seq_id;
 	uint8_t ack;
 } swen_l3_hdr_t;
 
-typedef struct __attribute__((__packed__)) swen_l3_hdr_encr {
+typedef struct __PACKED__ swen_l3_hdr_encr {
 	uint8_t len;
 	swen_l3_hdr_t l3_hdr;
 } swen_l3_hdr_encr_t;

@@ -33,18 +33,22 @@
 #include "log.h"
 #include "utils.h"
 
+/** Static buffer
+ */
 struct static_buf {
 	int len;
 	const uint8_t *data;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct static_buf sbuf_t;
 
+/** Buffer
+ */
 struct buf {
 	int len;
 	int size;
 	int skip;
 	uint8_t *data;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct buf buf_t;
 
 #define buf2sbuf(buf) (sbuf_t)					\

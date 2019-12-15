@@ -32,7 +32,7 @@ struct udp_hdr {
 	uint16_t dst_port;
 	uint16_t length;
 	uint16_t checksum;
-} __attribute__((__packed__));
+} __PACKED__;
 
 typedef struct udp_hdr udp_hdr_t;
 

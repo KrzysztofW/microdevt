@@ -22,7 +22,7 @@
 #
 
 SUBDIRS = $(shell find apps/* -type d)
-SUBDIRS+= crypto
+SUBDIRS+= crypto docs
 
 all:
 	@echo "This Makefile is only used to clean up the sources"
@@ -33,5 +33,6 @@ subdirs:
 		$(MAKE) clean; \
 		cd -;\
 	done
+	@rm -rf docs/xml
 
 clean: subdirs

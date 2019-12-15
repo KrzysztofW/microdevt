@@ -29,7 +29,7 @@
 #include "buf.h"
 #include "utils.h"
 
-/* Single producer - single consumer circular buffer ring implementation.
+/** Single producer - single consumer circular buffer ring implementation.
  * Note: multi prod/cons rings on AVR architecture are not possible as
  * atomic 'compare & set' is not provided.
  */
@@ -46,13 +46,12 @@ struct ring {
 	volatile TYPE tail;
 	TYPE mask;
 	uint8_t data[];
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct ring ring_t;
 #undef TYPE
 
-/*
- * Note: a static ring declaration must always be done within a struct.
- * The following static ring declaration can be used for declaring a ring
+/** Ring declaration
+ * The following ring declaration can be used for declaring a ring
  * as a global variable in a C file.
  * The size of a ring MUST be a power of 2.
  */
@@ -65,6 +64,11 @@ typedef struct ring ring_t;
 	};					\
 	ring_t *name = &ring_##name.ring
 
+/** Static ring declaration
+ * The following static ring declaration can be used for declaring a ring
+ * as a global variable in a C file.
+ * The size of a ring MUST be a power of 2.
+ */
 #define STATIC_RING_DECL(name, size)		\
 	static struct  {			\
 		ring_t ring;			\
@@ -74,7 +78,8 @@ typedef struct ring ring_t;
 	};					\
 	static ring_t *name = &ring_##name.ring
 
-/*
+/** Ring declaration in C structures
+ *
  * Use this macro to declare rings in C structures
  *
  * Example of usage:
@@ -88,15 +93,28 @@ typedef struct ring ring_t;
 	ring_t name;				\
 	uint8_t name##_data[size];
 
+/** Initialize ring at compile time
+ *
+ * @param[in] name ring name
+ */
 #define RING_INIT(name) {				\
 		.mask = sizeof(name##_data) - 1,	\
 	}
 
+/** Reset ring
+ *
+ * @param[in] ring ring
+ */
 static inline void ring_reset(ring_t *ring)
 {
 	ring->tail = ring->head;
 }
 
+/** Initialize ring
+ *
+ * @param[in] ring ring
+ * @param[in] size ring size
+ */
 static inline void ring_init(ring_t *ring, int size)
 {
 #ifdef CONFIG_AVR_MCU
@@ -109,35 +127,66 @@ static inline void ring_init(ring_t *ring, int size)
 	ring->mask = size - 1;
 }
 
-static inline int ring_is_full(const ring_t *ring)
+/** Check if ring is full
+ *
+ * @param[in] ring ring
+ * @return 1 if full, 0 otherwise
+ */
+static inline uint8_t ring_is_full(const ring_t *ring)
 {
 	if (((ring->head + 1) & ring->mask) == ring->tail)
 		return 1;
 	return 0;
 }
 
-static inline int ring_is_empty(const ring_t *ring)
+/** Check if ring is empty
+ *
+ * @param[in] ring ring
+ * @return 1 if empty, 0 otherwise
+ */
+static inline uint8_t ring_is_empty(const ring_t *ring)
 {
 	return ring->tail == ring->head;
 }
 
+/** Get ring length
+ *
+ * @param[in] ring ring
+ * @return ring length
+ */
 static inline int ring_len(const ring_t *ring)
 {
 	return ring->mask - ((ring->mask + ring->tail
 			      - ring->head) & ring->mask);
 }
 
+/** Get ring available entriees
+ *
+ * @param[in] ring ring
+ * @return number of free entriess in ring
+ */
 static inline int ring_free_entries(const ring_t *ring)
 {
 	return ring->mask - ring_len(ring);
 }
 
+/** Add byte to ring without checking
+ *
+ * @param[in] ring  ring
+ * @param[in] c     byte to add
+ */
 static inline void __ring_addc(ring_t *ring, uint8_t c)
 {
 	ring->data[ring->head] = c;
 	ring->head = (ring->head + 1) & ring->mask;
 }
 
+/** Add byte to ring
+ *
+ * @param[in] ring ring
+ * @param[in] c    byte to add
+ * @return 0 on success, -1 on failure
+ */
 static inline int ring_addc(ring_t *ring, uint8_t c)
 {
 	if (ring_is_full(ring))
@@ -146,6 +195,11 @@ static inline int ring_addc(ring_t *ring, uint8_t c)
 	return 0;
 }
 
+/** Add buffer to ring without checking
+ *
+ * @param[in] ring ring
+ * @param[in] buf  buffer
+ */
 static inline void __ring_addbuf(ring_t *ring, const buf_t *buf)
 {
 	int i;
@@ -155,6 +209,12 @@ static inline void __ring_addbuf(ring_t *ring, const buf_t *buf)
 		__ring_addc(ring, d[i]);
 }
 
+/** Add buffer to ring
+ *
+ * @param[in] ring ring
+ * @param[in] buf  buffer
+ * @return 0 on success, -1 on failure
+ */
 static inline int ring_addbuf(ring_t *ring, const buf_t *buf)
 {
 	if (buf->len > ring_free_entries(ring))
@@ -163,6 +223,13 @@ static inline int ring_addbuf(ring_t *ring, const buf_t *buf)
 	return 0;
 }
 
+/** Add data to ring
+ *
+ * @param[in] ring ring
+ * @param[in] data pointer to data to add
+ * @param[in] len  data length
+ * @return 0 on success, -1 on failure
+ */
 static inline int ring_add(ring_t *ring, const void *data, int len)
 {
 	int i;
@@ -175,6 +242,12 @@ static inline int ring_add(ring_t *ring, const void *data, int len)
 	return 0;
 }
 
+/** Get byte at position in ring
+ *
+ * @param[in] ring ring
+ * @param[out] c   byte
+ * @param[in] pos  position in ring
+ */
 static inline void __ring_getc_at(ring_t *ring, uint8_t *c, int pos)
 {
 	assert(pos < ring->mask);
@@ -182,12 +255,24 @@ static inline void __ring_getc_at(ring_t *ring, uint8_t *c, int pos)
 	*c = ring->data[pos];
 }
 
+/** Get byte from ring without checking
+ *
+ * @param[in] ring ring
+ * @param[out] c   byte
+ */
 static inline void __ring_getc(ring_t *ring, uint8_t *c)
 {
 	*c = ring->data[ring->tail];
 	ring->tail = (ring->tail + 1) & ring->mask;
 }
 
+/** Get buffer from ring without skipping
+ *
+ * @param[in] ring ring
+ * @param[out] buf buffer
+ * @param[in] len data length to get
+ * @return 0 on success, -1 on failure
+ */
 static inline int
 __ring_get_dont_skip(const ring_t *ring, buf_t *buf, int len)
 {
@@ -203,6 +288,12 @@ __ring_get_dont_skip(const ring_t *ring, buf_t *buf, int len)
 	return l;
 }
 
+/** Get byte from ring
+ *
+ * @param[in] ring ring
+ * @param[out] c   bytes
+ * @return 0 on success, -1 on failure
+ */
 static inline int ring_getc(ring_t *ring, uint8_t *c)
 {
 	if (ring_is_empty(ring))
@@ -211,6 +302,12 @@ static inline int ring_getc(ring_t *ring, uint8_t *c)
 	return 0;
 }
 
+/** Get last byte from ring
+ *
+ * @param[in] ring ring
+ * @param[out] c   byte
+ * @return 0 on sucess, -1 on failure
+ */
 static inline int ring_get_last_byte(ring_t *ring, uint8_t *c)
 {
 	int pos;
@@ -223,11 +320,22 @@ static inline int ring_get_last_byte(ring_t *ring, uint8_t *c)
 	return 0;
 }
 
+/** Skip data in ring without checking
+ *
+ * @param[in] ring ring
+ * @param[in] len  length to skip
+ */
 static inline void __ring_skip(ring_t *ring, int len)
 {
 	ring->tail = (ring->tail + len) & ring->mask;
 }
 
+/** Skip data up to given byte
+ *
+ * @param[in] ring ring
+ * @param[in] c    byte
+ * @return 0 on success, -1 on failure
+ */
 static inline int ring_skip_upto(ring_t *ring, uint8_t c)
 {
 	int rlen = ring_len(ring);
@@ -244,6 +352,12 @@ static inline int ring_skip_upto(ring_t *ring, uint8_t c)
 	return -1;
 }
 
+/** Get buffer from ring
+ *
+ * @param[in] ring  ring
+ * @param[out] buf  buffer
+ * @param[in]  max_len data length to get
+ */
 static inline int __ring_get(ring_t *ring, buf_t *buf, int max_len)
 {
 	int l = __ring_get_dont_skip(ring, buf, max_len);
@@ -252,6 +366,11 @@ static inline int __ring_get(ring_t *ring, buf_t *buf, int max_len)
 	return l;
 }
 
+/** Get buffer from ring without checking
+ *
+ * @param[in] ring ring
+ * @param[out] buf buffer
+ */
 static inline void __ring_get_buf(ring_t *ring, buf_t *buf)
 {
 	int i;
@@ -264,6 +383,12 @@ static inline void __ring_get_buf(ring_t *ring, buf_t *buf)
 	__ring_skip(ring, buf->len);
 }
 
+/** Get buffer from ring
+ *
+ * @param[in] ring ring
+ * @param[out] buf buffer
+ * @return 0 on success, -1 on failure
+ */
 static inline int ring_get(ring_t *ring, buf_t *buf)
 {
 	int rlen = ring_len(ring);
@@ -271,6 +396,11 @@ static inline int ring_get(ring_t *ring, buf_t *buf)
 	return __ring_get(ring, buf, rlen);
 }
 
+/** Skip data in ring without checking
+ *
+ * @param[in] ring ring
+ * @param[in] len  data length to skip
+ */
 static inline void ring_skip(ring_t *ring, int len)
 {
 	int rlen = ring_len(ring);
@@ -283,7 +413,12 @@ static inline void ring_skip(ring_t *ring, int len)
 	__ring_skip(ring, len);
 }
 
-#ifdef DEBUG
+/** Print data limited by size
+ *
+ * @param[in] ring ring
+ * @param[in] limit size to print
+ * @param[in] hex   print in hexadecimal
+ */
 static inline void
 ring_print_limit(const ring_t *ring, int limit, uint8_t hex)
 {
@@ -308,16 +443,28 @@ ring_print_limit(const ring_t *ring, int limit, uint8_t hex)
 		puts("");
 }
 
+/** Print ring content
+ *
+ * @param[in] ring ring
+ */
 static inline void ring_print(const ring_t *ring)
 {
 	ring_print_limit(ring, 0, 0);
 }
 
+/** Print ring content in hexadecimal
+ *
+ * @param[in] ring ring
+ */
 static inline void ring_print_hex(const ring_t *ring)
 {
 	ring_print_limit(ring, 0, 1);
 }
 
+/** Print bits from ring
+ *
+ * @param[in] ring ring
+ */
 static inline void ring_print_bits(const ring_t *ring)
 {
 	int i;
@@ -336,11 +483,14 @@ static inline void ring_print_bits(const ring_t *ring)
 	}
 	puts("\n");
 }
-#else
-#define ring_print(x)
-#define ring_print_bits(x)
-#endif
 
+/** Compare ring content with data in linear buffer
+ *
+ * @param[in] ring ring
+ * @param[in] data linear buffer
+ * @param[in] len  length to compare
+ * @return 0 if data are identical, -1 otherwise
+ */
 static inline int
 ring_cmp(const ring_t *ring, const uint8_t *data, int len)
 {
@@ -358,11 +508,23 @@ ring_cmp(const ring_t *ring, const uint8_t *data, int len)
 	return 0;
 }
 
+/** Compare ring content with data in static linear buffer
+ *
+ * @param[in] ring ring
+ * @param[in] sbuf static buffer
+ * @return 0 if data are identical, -1 otherwise
+ */
 static inline int ring_sbuf_cmp(const ring_t *ring, const sbuf_t *sbuf)
 {
 	return ring_cmp(ring, sbuf->data, sbuf->len);
 }
 
+/** Get ring content checksum
+ *
+ * @param[in] ring ring
+ * @param[in] len  length
+ * @return checksum
+ */
 static inline int
 __ring_cksum(const ring_t *ring, int len)
 {

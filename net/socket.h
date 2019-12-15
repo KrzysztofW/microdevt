@@ -72,7 +72,7 @@ typedef int ssize_t;
 struct sockaddr {
 	sa_family_t sa_family;  /* address family, AF_xxx       */
 	char sa_data[14];       /* 14 bytes of protocol address */
-} __attribute__((__packed__));
+} __PACKED__;
 
 /* Socket address, internet style. */
 struct sockaddr_in {
@@ -81,7 +81,7 @@ struct sockaddr_in {
 	in_port_t      sin_port;
 	struct in_addr sin_addr;
 	char           sin_zero[8];
-} __attribute__((__packed__));
+} __PACKED__;
 
 /* internal data structures */
 
@@ -130,7 +130,7 @@ struct listen {
 	uint8_t backlog;
 	uint8_t backlog_max;
 	struct list_head tcp_conn_list_head;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct listen listen_t;
 #endif
 
@@ -156,7 +156,7 @@ struct sock_info {
 #ifdef CONFIG_EVENT
 	event_t event;
 #endif
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct sock_info sock_info_t;
 
 #define FD2SBUF(fd) (sbuf_t)			\
@@ -174,30 +174,63 @@ typedef struct sock_info sock_info_t;
 #define SBUF2SOCKINFO(sb) *(sock_info_t **)(sb)->data
 
 #ifdef CONFIG_EVENT
+/** Register an event on a socket
+ *
+ * @param[in]  sock_info    network socket
+ * @param[in]  events       events to wake up on
+ * @param[in]  ev_cb        function to be called on wake up
+ */
 void socket_event_register(sock_info_t *sock_info, uint8_t events,
 			   void (*ev_cb)(event_t *ev, uint8_t events));
 
 #ifdef CONFIG_BSD_COMPAT
+
+/** Register an event on a file descriptor
+ *
+ * @param[in]  fd      file descriptor
+ * @param[in]  events  events to wake up on
+ * @param[in]  ev_cb   function to be called on wake up
+ */
 void socket_event_register_fd(int fd, uint8_t events,
 			      void (*ev_cb)(event_t *ev, uint8_t events));
 #endif
+
+/** Unregister events on a socket
+ *
+ * @param[in] sock_info  network socket
+ */
 static inline void socket_event_unregister(sock_info_t *sock_info)
 {
 	event_unregister(&sock_info->event);
 }
 
+/** Set event mask on a socket
+ *
+ * @param[in] sock_info  network socket
+ * @param[in] events     event mask to wake up on
+ */
 static inline void
 socket_event_set_mask(sock_info_t *sock_info, uint8_t events)
 {
 	event_set_mask(&sock_info->event, events);
 }
 
+/** Clear event mask on a socket
+ *
+ * @param[in] sock_info  network socket
+ * @param[in] events     events to be cleared
+ */
 static inline void
 socket_event_clear_mask(sock_info_t *sock_info, uint8_t events)
 {
 	event_clear_mask(&sock_info->event, events);
 }
 
+/** Get socket from event
+ *
+ * @param[in] ev     event
+ * @return network socket
+ */
 static inline sock_info_t *socket_event_get_sock_info(event_t *ev)
 {
 	return container_of(ev, sock_info_t, event);
@@ -217,36 +250,186 @@ sock_info_t *tcpport2sockinfo(uint16_t port);
 tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid);
 #endif
 
-/* userland functions */
+/* user app functions */
 #ifdef CONFIG_BSD_COMPAT
+/** Initialize a BSD compatible network socket
+ *
+ * @param[in] family   family of the socket
+ * @param[in] type     type of the socket
+ * @param[in] protocol used protocol
+ * @return a file descriptor on success, -1 on failure
+ */
 int socket(int family, int type, int protocol);
+
+/** Close a BSD compatible network socket
+ *
+ * @param[in] fd  file descriptor
+ * @return 0 on success, -1 on failure
+ */
 int close(int fd);
-int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+
+/** Bind a BSD compatible network socket
+ *
+ * @param[in] fd    file descriptor
+ * @param[in] sockaddr  address
+ * @param[in] addrlen   address length
+ * @return 0 on success, -1 on failure
+ */
+int bind(int fd, const struct sockaddr *addr, socklen_t addrlen);
+
+/** Listen on a BSD compatible network socket
+ *
+ * @param[in] fd        file descriptor
+ * @param[in] backlog   maximum number of unhandled client connections
+ * @return 0 on success, -1 on failure
+ */
 int listen(int fd, int backlog);
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+
+/** Accept an incoming connection on a BSD compatible network socket
+ *
+ * @param[in] fd       file descriptor
+ * @param[in] addr     address
+ * @param[in] addrlen  address length
+ * @return 0 on success, -1 on failure
+ */
+int accept(int fd, struct sockaddr *addr, socklen_t *addrlen);
+
+/** Connect a BSD compatible network socket
+ *
+ * @param[in] fd       file descriptor
+ * @param[in] addr     address
+ * @param[in] addrlen  address length
+ * @return 0 on success, -1 on failure
+ */
+int connect(int fd, const struct sockaddr *addr, socklen_t addrlen);
+
+/** Send data on a BSD compatible network socket
+ *
+ * @param[in] fd       file descriptor
+ * @param[in] buf      data buffer
+ * @param[in] len      data length
+ * @param[in] flags    BSD flags
+ * @param[in] addr     dest address
+ * @param[in] addrlen  address length
+ * @return 0 on success, -1 on failure
+ */
+ssize_t sendto(int fd, const void *buf, size_t len, int flags,
 	       const struct sockaddr *dest_addr, socklen_t addrlen);
-ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+
+/** Receive a buffer from a BSD compatible network socket
+ *
+ * @param[in]  fd       file descriptor
+ * @param[out] buf      data buffer
+ * @param[in]  len      data length
+ * @param[in]  flags    BSD flags
+ * @param[out] addr     source address
+ * @param[out] addrlen  address length
+ * @return 0 on success, -1 on failure
+ */
+ssize_t recvfrom(int fd, void *buf, size_t len, int flags,
 		 struct sockaddr *src_addr, socklen_t *addrlen);
+
+/** Get packet from a BSD compatible network socket
+ *
+ * @param[in]  fd      file descriptor
+ * @param[out] pkt     packet
+ * @param[out] addr    source address
+ * @return 0 on success, -1 on failure
+ */
 int socket_get_pkt(int fd, pkt_t **pkt, struct sockaddr_in *addr);
+
+/** Send data on a BSD compatible network socket
+ *
+ * @param[in]  fd      file descriptor
+ * @param[in]  sbuf    static buffer
+ * @param[out] addr    dest sockaddr
+ * @return 0 on success, -1 on failure
+ */
 int
 socket_put_sbuf(int fd, const sbuf_t *sbuf, const struct sockaddr_in *addr);
 #endif
+
+/** Get packet from a network socket
+ *
+ * @param[in]  sock_info  network socket
+ * @param[out] pkt        packet
+ * @param[out] src_addr   source address
+ * @param[out] src_port   source port
+ * @return 0 on success, -1 on failure
+ */
 int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pkt,
 		     uint32_t *src_addr, uint16_t *src_port);
+
+/** Send data on a network socket
+ *
+ * @param[in]  sock_info  network socket
+ * @param[in]  sbuf       static buffer
+ * @param[in]  dst_addr   dest address
+ * @param[in]  dst_port   dest port
+ * @return 0 on success, -1 on failure
+ */
 int __socket_put_sbuf(sock_info_t *sock_info, const sbuf_t *sbuf,
 		      uint32_t dst_addr, uint16_t dst_port);
+
+/** Initialize a network socket
+ *
+ * @param[in] sock_info  network socket
+ * @param[in] type       type of the socket
+ * @return 0 on success, -1 on failure
+ */
 int sock_info_init(sock_info_t *sock_info, int sock_type);
 
+/** Bind a network socket
+ *
+ * @param[in] sock_info  network socket
+ * @param[in] port       local port
+ * @return 0 on success, -1 on failure
+ */
 int sock_info_bind(sock_info_t *sock_info, uint16_t port);
+
+/** Close a network socket
+ *
+ * @param[in] sock_info  network socket
+ * @return 0 on success, -1 on failure
+ */
 int sock_info_close(sock_info_t *sock_info);
+
 #ifdef CONFIG_TCP
+/** Listen on a network socket
+ *
+ * @param[in] sock_info  network socket
+ * @param[in] backlog    maximum number of unhandled client connections
+ * @return 0 on success, -1 on failure
+ */
 int sock_info_listen(sock_info_t *sock_info, int backlog);
-void socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
-int sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
+
+/** Accept a connection on a network socket
+ *
+ * @param[in]  sock_info_server  local network socket
+ * @param[out] sock_info_client  client network socket
+ * @param[out] src_addr          client address
+ * @param[out] src_port          client port
+ * @return 0 on success, -1 on failure
+ */
+int sock_info_accept(sock_info_t *sock_info_server,
+		     sock_info_t *sock_info_client,
 		     uint32_t *src_addr, uint16_t *src_port);
+/** Connect a network socket
+ *
+ * @param[in]  sock_info  network socket
+ * @param[in]  src_addr   address
+ * @param[in]  src_port   port
+ * @return 0 on success, -1 on failure
+ */
 int sock_info_connect(sock_info_t *sock_info, uint32_t addr, uint16_t port);
+
+/** Get state of a network socket
+ *
+ * @param[in]  sock_info  network socket
+ * @return socket status
+ */
 sock_status_t sock_info_state(const sock_info_t *sock_info);
+
+void socket_add_backlog(listen_t *listen, tcp_conn_t *tcp_conn);
 #endif
 #endif

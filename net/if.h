@@ -80,13 +80,35 @@ struct iface {
 	ring_t *tx;
 	/* interrupt handler's pkt ring */
 	ring_t *pkt_pool;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct iface iface_t;
 
-void if_init(iface_t *ifce, uint8_t type, ring_t *pkt_pool, ring_t *rx,
+/** Initialize an interface.
+ *
+ * \param[in]  iface    interface to initialize
+ * \param[in]  type     type of interface (eg: IF_TYPE_ETHERNET)
+ * \param[in]  pkt_pool driver's free packet pool
+ * \param[in]  rx       inbound packet bucket
+ * \param[in]  tx       outbound packet bucket
+ * \param[in]  is_interrupt_driven  indicates if the driver handle
+ *             packet reception/sending on hardware interrupt
+ */
+void if_init(iface_t *iface, uint8_t type, ring_t *pkt_pool, ring_t *rx,
 	     ring_t *tx, uint8_t is_interrupt_driven);
 
 /* functions supposed to be called from an interrupt handler */
+
+/** Schedule packet reception
+ *
+ * \param[in]  iface   network interface
+ * \param[in]  pkt     packet to be scheduled
+ */
 void if_schedule_receive(const iface_t *iface, pkt_t *pkt);
+
+/** Schedule packet transmission
+ *
+ * \param[in]  pkt  packet to be scheduled
+ */
 void if_schedule_tx_pkt_free(pkt_t *pkt);
+
 #endif

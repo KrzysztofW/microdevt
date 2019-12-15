@@ -61,7 +61,7 @@ enum features {
 	MODULE_FEATURE_RF =            (1 << 5),
 	MODULE_FEATURE_ROLLING_CODES = (1 << 6),
 };
-typedef enum __attribute__ ((__packed__)) features features_t;
+typedef enum __PACKED__ features features_t;
 
 #define DEFAULT_HUMIDITY_THRESHOLD 2
 #define DEFAULT_SIREN_ON_DURATION 60
@@ -74,13 +74,13 @@ typedef enum module_state {
 	MODULE_STATE_UNINITIALIZED,
 } module_state_t;
 
-typedef struct __attribute__((__packed__)) sensor_status {
+typedef struct __PACKED__ sensor_status {
 	uint8_t  humidity_threshold;
 	uint16_t report_interval;
 	uint8_t  notif_addr;
 } sensor_status_t;
 
-typedef struct __attribute__((__packed__)) module_cfg {
+typedef struct __PACKED__ module_cfg {
 	features_t features;
 	uint8_t  state : 2;
 	uint8_t  fan_enabled : 1;
@@ -118,28 +118,28 @@ typedef enum status_flags {
 	STATUS_FLAGS_MAIN_PWR_ON = (1 << 6),
 } status_flags_t;
 
-typedef struct __attribute__((__packed__)) sensor_report {
+typedef struct __PACKED__ sensor_report {
 	uint8_t humidity;
 	int8_t  temperature;
 } sensor_report_t;
 
-typedef struct __attribute__((__packed__)) humidity_value {
+typedef struct __PACKED__ humidity_value {
 	uint8_t val;
 	uint8_t global_val;
 	uint8_t tendency;
 } humidity_value_t;
 
-typedef struct __attribute__((__packed__)) sensor_value_t {
+typedef struct __PACKED__ sensor_value_t {
 	humidity_value_t humidity;
 	int8_t temperature;
 } sensor_value_t;
 
-typedef struct __attribute__((__packed__)) siren_status {
+typedef struct __PACKED__ siren_status {
 	uint16_t duration;
 	uint8_t  timeout;
 } siren_status_t;
 
-typedef struct __attribute__((__packed__)) module_status {
+typedef struct __PACKED__ module_status {
 	uint8_t  flags;
 	uint8_t  state;
 	siren_status_t siren;

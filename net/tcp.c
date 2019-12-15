@@ -40,7 +40,7 @@ static uint8_t tcp_conn_cnt;
 struct syn_entries {
 	tcp_syn_t conns[CONFIG_TCP_SYN_TABLE_SIZE];
 	uint8_t pos;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct syn_entries syn_entries_t;
 
 syn_entries_t syn_entries;

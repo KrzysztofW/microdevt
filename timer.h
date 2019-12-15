@@ -36,12 +36,28 @@ struct timer {
 	void (*cb)(void *);
 	void *arg;
 	uint32_t ticks;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct timer tim_t;
 
+/** Initialize a timer at compile time
+ */
 #define TIMER_INIT(__tim) { .list = LIST_HEAD_INIT((__tim).list) }
+
+/** Initialize timer subsystem
+ *
+ * This function should be called from architecture dependant timer
+ * interrupt handler.
+ */
 void timer_subsystem_init(void);
+
+/** Stop architecture dependant timer interrupt
+ */
 void timer_subsystem_shutdown(void);
+
+/** Initialize timer
+ *
+ * @param[in] timer  timer
+ */
 void timer_init(tim_t *timer);
 
 #ifdef DEBUG_TIMERS
@@ -56,13 +72,43 @@ void __timer_reschedule(const char *func, int line, tim_t *timer,
 	__timer_reschedule(__func__, __LINE__, timer, expiry)
 #else
 
+/** Schedule timer
+ *
+ * @param[in] timer  timer
+ * @param[in] expiry expiry in microseconds
+ * @param[in] cb     callback function
+ */
 void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg);
+
+/** Reschedule timer
+ *
+ * This function is not re-entrant, a timer cannot be added multiple times.
+ * @param[in] timer  timer
+ * @param[in] expiry expiry in microseconds
+ */
 void timer_reschedule(tim_t *timer, uint32_t expiry);
 
 #endif
 
+/** Remove timer
+ *
+ * This function is re-entrant, it is safe to remove a timer that is
+ * not scheduled.
+ * @param[in] timer  timer
+ */
 void timer_del(tim_t *timer);
+
+/** Process scheduled timers
+ *
+ * This function should only be used in architecture dependant timer interrupt.
+ */
 void timer_process(void);
+
+/** Check if timer is pending
+ *
+ * @param[in] timer  timer
+ * @return 0 if timer is not pending, 1 otherwise
+ */
 static inline uint8_t timer_is_pending(tim_t *timer)
 {
 	return !list_empty(&timer->list);

@@ -83,7 +83,7 @@ struct tcp_hdr {
 	uint16_t win_size;
 	uint16_t checksum;
 	uint16_t urg_ptr;
-} __attribute__((__packed__));
+} __PACKED__;
 
 typedef struct tcp_hdr tcp_hdr_t;
 
@@ -92,27 +92,27 @@ struct tcp_uid {
 	uint32_t dst_addr;
 	uint16_t src_port;
 	uint16_t dst_port;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct tcp_uid tcp_uid_t;
 
 #ifdef CONFIG_TCP_RETRANSMIT
 struct tcp_retrn_pkt {
 	pkt_t *pkt;
 	list_t list;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct tcp_retrn_pkt tcp_retrn_pkt_t;
 
 struct tcp_retrn {
 	tim_t timer;
 	uint8_t cnt;
 	list_t retrn_pkt_list;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct tcp_retrn tcp_retrn_t;
 #endif
 
 struct tcp_options {
 	uint16_t mss;
-}  __attribute__((__packed__));
+}  __PACKED__;
 typedef struct tcp_options tcp_options_t;
 
 struct tcp_syn {
@@ -121,7 +121,7 @@ struct tcp_syn {
 	tcp_options_t opts;
 	tcp_uid_t tuid;
 	uint8_t status;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct tcp_syn tcp_syn_t;
 
 struct sock_info;
@@ -135,7 +135,7 @@ struct tcp_conn {
 #ifdef CONFIG_TCP_RETRANSMIT
 	tcp_retrn_t retrn;
 #endif
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct tcp_conn tcp_conn_t;
 
 tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid);

@@ -30,12 +30,25 @@ void __schedule_task(void (*cb)(void *arg), void *arg,
 		     const char *func, int line);
 #define schedule_task(cb, arg) __schedule_task(cb, arg, __func__, __LINE__)
 #else
+
+/** Schedule task
+ *
+ * Scheduling tasks is safe from an interrupt handler and from an other task.
+ * @param[in] cb  task function to be scheduled
+ */
 void schedule_task(void (*cb)(void *arg), void *arg);
 #endif
 
-/* run bottom halves */
+/** Run first task in queue
+ * This function should be called from the main loop of a user application
+ */
 void scheduler_run_task(void);
 
+
+/** Run all tasks in loop
+ *
+ * This function should be used as a main loop in user application
+ */
 static inline void scheduler_run_tasks(void)
 {
 	for (;;)

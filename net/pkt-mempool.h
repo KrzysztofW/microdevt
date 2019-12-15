@@ -40,7 +40,7 @@ struct pkt {
 	const char *last_get_func;
 	const char *last_put_func;
 #endif
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct pkt pkt_t;
 
 #define btod(pkt) (void *)((pkt)->buf.data)
@@ -60,7 +60,12 @@ typedef struct pkt pkt_t;
 #define CONFIG_PKT_SIZE 128
 #endif
 
+/** Initialize packet memory pool
+ */
 void pkt_mempool_init(void);
+
+/** Destroy packet memory pool
+ */
 void pkt_mempool_shutdown(void);
 
 #ifdef PKT_DEBUG
@@ -77,34 +82,84 @@ void __pkt_free(pkt_t *pkt, const char *func, int line);
 #define pkt_alloc() __pkt_alloc(__func__, __LINE__)
 #define pkt_free(pkt) __pkt_free(pkt, __func__, __LINE__)
 #else
+
+/** Get a packet from pool
+ *
+ * @param[in] ring packet pool
+ * @return packet or NULL if no packets in pool
+ */
 pkt_t *pkt_get(ring_t *ring);
+
+/** Put a packet to pool
+ *
+ * @param[in] ring  packet pool
+ * @param[in] pkt   packet
+ * @return 0 on success, -1 if no more room in pool
+ */
 int pkt_put(ring_t *ring, pkt_t *pkt);
 
-/* alloc and free can only be called from a task scheduler  */
+/** Allocate a packet
+ *
+ * Note: Allocs and frees can only be called from a task scheduler
+ * @return new packet or NULL if no more packets
+ */
 pkt_t *pkt_alloc(void);
+
+/** Free a packet
+ *
+ * Note: Allocs and frees can only be called from a task scheduler
+ * @param[in] pkt  packet to free
+ */
 void pkt_free(pkt_t *pkt);
 
 #endif
 
-/* the emergency pkt should only be used for sending to avoid a race
- * on packet allocation if all packets are used.
- */
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
+/** Allocate an emergency packet
+ *
+ * The emergency packet should only be used for sending to avoid a race
+ * on packet allocation if all packets are used.
+ * @return packet
+ */
 pkt_t *pkt_alloc_emergency(void);
+
+/** Check if a packet is an emergency packet
+ *
+ * @param[in] pkt  packet
+ * @return 1 is packet is an emergency packet, 0 otherwise
+ */
 int pkt_is_emergency(pkt_t *pkt);
+
 #endif
 
+/** Get packet length
+ *
+ * @param[in] pkt  packet
+ * @return packet length
+ */
 static inline int pkt_len(const pkt_t *pkt)
 {
 	return pkt->buf.len;
 }
 
+/** Retain packet
+ *
+ * Increment packet reference counter
+ * @param[in] pkt  packet
+ */
 static inline void pkt_retain(pkt_t *pkt)
 {
 	pkt->refcnt++;
 }
 
+/** Get number of available packets
+ *
+ * @return number of available packets
+ */
 unsigned int pkt_pool_get_nb_free(void);
+
+/** Get last used functions of packets in pool (for debugging)
+ */
 void pkt_get_traced_pkts(void);
 
 #endif

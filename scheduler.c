@@ -27,7 +27,7 @@
 #include <power-management.h>
 #include "scheduler.h"
 
-typedef struct __attribute__((__packed__)) task {
+typedef struct __PACKED__ task {
 	void (*cb)(void *arg);
 	void *arg;
 } task_t;

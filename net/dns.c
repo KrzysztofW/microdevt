@@ -65,7 +65,7 @@ struct dns_query {
 	uint16_t authority_rrs;
 	uint16_t additional_rrs;
 	uint8_t  queries[];
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct dns_query dns_query_t;
 
 struct dns_query_ctx {
@@ -76,7 +76,7 @@ struct dns_query_ctx {
 	void (*cb)(uint32_t ip);
 	uint8_t name_len;
 	/* space for name must be here */
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct dns_query_ctx dns_query_ctx_t;
 
 #define DNS_QUERY_TIMEOUT 10000UL /* millisecs */

@@ -57,7 +57,7 @@ static swen_l3_assoc_t mod1_assoc;
 #define TX_QUEUE_SIZE 4
 /* TX_QUEUE_SIZE must be equal to the number of urgent ops + 1:
  * NOTIF_MAIN_PWR_UP, NOTIF_MAIN_PWR_DOWN and NOTIF_ALARM_ON
- * (FEATURES is only sent once at boot).
+ * (FEATURES are only sent once at boot).
  */
 STATIC_RING_DECL(tx_queue, TX_QUEUE_SIZE);
 STATIC_RING_DECL(urgent_tx_queue, TX_QUEUE_SIZE);

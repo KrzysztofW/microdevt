@@ -34,7 +34,7 @@ struct icmp {
 	uint16_t  id;
 	uint16_t  seq;
 	uint8_t	  id_data[];
-} __attribute__((__packed__));
+} __PACKED__;
 
 typedef struct icmp icmp_hdr_t;
 

@@ -43,7 +43,7 @@ struct arp_res {
 	tim_t tim;
 	const iface_t *iface;
 	uint8_t retries;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct arp_res arp_res_t;
 
 static list_t arp_wait_list = LIST_HEAD_INIT(arp_wait_list);

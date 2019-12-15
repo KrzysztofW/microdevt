@@ -28,7 +28,7 @@
 struct byte {
 	uint8_t c;
 	uint8_t pos;
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct byte byte_t;
 
 static inline void byte_reset(byte_t *byte)
@@ -71,7 +71,6 @@ static inline int byte_get_bit(byte_t *byte)
 	return bit;
 }
 
-#ifdef DEBUG
 static inline void print_byte(const byte_t *byte)
 {
 	int j;
@@ -80,12 +79,5 @@ static inline void print_byte(const byte_t *byte)
 		printf("%s", ((byte->c  >> (7 - j)) & 1) ? "X" : " ");
 	}
 }
-
-#else
-static inline void print_byte(const byte_t *byte)
-{
-	(void)byte;
-}
-#endif
 
 #endif

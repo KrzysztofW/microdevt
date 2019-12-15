@@ -38,7 +38,7 @@ struct arp_hdr {
 	/* uint8_t  tha[]; /\* target hardware address *\/ */
 	/* uint8_t  tpa[]; /\* target protocol address *\/ */
 	uint8_t data[];
-} __attribute__((__packed__));
+} __PACKED__;
 
 typedef struct arp_hdr arp_hdr_t;
 
@@ -79,7 +79,13 @@ typedef struct arp6_entries {
 
 extern uint8_t broadcast_mac[];
 
+/** Arp input
+ *
+ * @param[in]  pkt    packet
+ * @param[in]  iface  interface
+ */
 void arp_input(pkt_t *pkt, const iface_t *iface);
+
 int arp_find_entry(const uint32_t *ip, const uint8_t **mac,
 		   const iface_t **iface);
 int arp_output(const iface_t *iface, int op, const uint8_t *tha,

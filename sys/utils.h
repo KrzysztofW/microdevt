@@ -76,4 +76,11 @@ map(long x, long in_min, long in_max, long out_min, long out_max)
 	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
+/* needed by doxygen as it does not support gcc's attributes */
+#ifdef __GNUC__
+#define __PACKED__ __attribute__((__packed__))
+#else
+#define __PACKED__
+#endif
+
 #endif

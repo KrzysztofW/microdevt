@@ -31,7 +31,7 @@ struct eth_hdr {
 	uint8_t dst[ETHER_ADDR_LEN];
 	uint8_t src[ETHER_ADDR_LEN];
 	uint16_t type;
-} __attribute__((__packed__));
+} __PACKED__;
 
 typedef struct eth_hdr eth_hdr_t;
 

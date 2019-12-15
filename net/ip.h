@@ -57,7 +57,7 @@ struct ip_hdr {
 	uint8_t  p;		/* protocol */
 	uint16_t chksum;	/* checksum */
 	uint32_t src, dst;	/* source and dest address */
-} __attribute__((__packed__));
+} __PACKED__;
 typedef struct ip_hdr ip_hdr_t;
 
 #define IP_MIN_HDR_LEN 5
