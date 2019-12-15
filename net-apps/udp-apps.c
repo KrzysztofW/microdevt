@@ -23,10 +23,10 @@
 */
 
 #include <log.h>
+#include <errno.h>
 
 #include "net-apps.h"
 #include "../timer.h"
-#include "../sys/errno.h"
 
 static uint16_t port = 777; /* host endian */
 //#define UDP_CLIENT

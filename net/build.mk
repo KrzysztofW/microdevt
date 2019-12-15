@@ -120,7 +120,6 @@ endif
 
 ifdef CONFIG_BSD_COMPAT
 CFLAGS += -DCONFIG_BSD_COMPAT
-SOURCES += ../sys/errno.c
 endif
 
 ifdef CONFIG_EVENT

@@ -48,7 +48,7 @@ CFLAGS += -I../.. -DVERSION=\"$(GIT_VERSION)\"
 
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
-SOURCES += ../../sys/errno.c ../../scheduler.c
+SOURCES += ../../scheduler.c
 OBJ = $(SOURCES:.c=.o)
 
 all: libnet $(SOURCES) $(EXE)

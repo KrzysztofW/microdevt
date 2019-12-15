@@ -48,7 +48,7 @@ CFLAGS += -I../.. -I. -DTEST
 
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
-SOURCES += ../../sys/errno.c ../../sys/array.c
+SOURCES += ../../sys/array.c
 SOURCES += ../../drivers/gsm-at.c ../../crypto/xtea.c
 OBJ = $(SOURCES:.c=.o)
 

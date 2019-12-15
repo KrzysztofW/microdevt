@@ -24,7 +24,7 @@
 
 #include "socket.h"
 
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/list.h>
 #include <sys/hash-tables.h>
 #include <scheduler.h>
