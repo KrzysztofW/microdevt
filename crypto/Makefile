@@ -26,3 +26,6 @@ xxtea:
 
 clean:
 	@rm -f xtea
+
+check: xxtea
+	./xtea "dummy" || exit 1

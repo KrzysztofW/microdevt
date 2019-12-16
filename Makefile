@@ -25,7 +25,22 @@ SUBDIRS = $(shell find apps/* -type d)
 SUBDIRS+= crypto docs
 
 all:
-	@echo "This Makefile is only used to clean up the sources"
+	@echo -n "This Makefile is only used to check compilation of all "
+	@echo "modules, perform basics tests and clean up the sources."
+
+check:
+	@for d in $(SUBDIRS); do \
+		if [ $$d = "docs" ]; then continue; fi; \
+		cd $$d; \
+		$(MAKE) clean; \
+		if [ $$d = "apps/tests" ] || [ $$d = "crypto" ]; then \
+			$(MAKE) check || exit 1; \
+		else \
+			$(MAKE) || exit 1; \
+		fi; \
+		cd -; \
+	done
+	$(MAKE) clean
 
 subdirs:
 	@for d in $(SUBDIRS); do \

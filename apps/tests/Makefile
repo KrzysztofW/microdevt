@@ -73,8 +73,8 @@ clean:
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(ARCH_DIR)/$(ARCH)/*.o
 	@rm -f $(EXE)_static
 
-run: all
+check: all
 #	LD_LIBRARY_PATH=../../net ./tests_dynamic
-	./tests
+	./tests || exit 1
 
 .PHONY: all static
