@@ -29,11 +29,9 @@
 #define RF_SAMPLING_US 150
 #define RF_RING_SIZE   256
 
-static unsigned rcv_port;
 static unsigned snd_port;
 
 #define RF_RCV_PIN_NB 0
-#define RF_RCV_PORT rcv_port
 #define RF_RCV_PIN 0
 
 #define RF_SND_PIN_NB 0
