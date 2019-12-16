@@ -828,6 +828,7 @@ int net_tcp_tests(void)
 		ret = -1;
 		goto end2;
 	}
+	socket_event_register(&sock_info_client, 0, NULL);
 	if (__socket_get_pkt(&sock_info_client, &pkt, &src_addr, &src_port) < 0) {
 		fprintf(stderr, "%s: TCP: can't get pkt from a tcp connection\n",
 			__func__);
