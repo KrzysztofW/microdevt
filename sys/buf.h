@@ -305,7 +305,7 @@ static inline void __buf_get_u16(buf_t *buf, uint16_t *val)
 
 static inline int buf_get_u16(buf_t *buf, uint16_t *val)
 {
-	if (buf->len < sizeof(uint16_t))
+	if (buf->len < (int)sizeof(uint16_t))
 		return -1;
 	__buf_get_u16(buf, val);
 	return 0;
@@ -353,7 +353,7 @@ static inline void buf_print(const buf_t *buf);
 static inline void sbuf_print(const sbuf_t *buf);
 
 static inline int
-__buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s, int skip)
+__buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 {
 	uint8_t *d;
 	unsigned skipped_len;
@@ -371,13 +371,13 @@ __buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s, int skip)
 static inline int
 buf_get_sbuf_upto_sbuf_and_skip(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 {
-	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s, s->len);
+	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s);
 }
 
 static inline int
 buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 {
-	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s, 0);
+	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s);
 }
 
 static inline int buf_get_sbuf_upto(buf_t *buf, sbuf_t *sbuf, const char *s)

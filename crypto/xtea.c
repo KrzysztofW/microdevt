@@ -114,24 +114,24 @@ int main(int argc, char **argv)
 		fprintf(stderr, "string too big\n");
 		return -1;
 	}
-	printf("\nplaintext buf (len:%d): %s\n", buf->len, buf.data);
-	printf("plaintext buf hex (len:%d):\n", buf->len);
+	printf("\nplaintext buf (len:%d): %s\n", buf.len, buf.data);
+	printf("plaintext buf hex (len:%d):\n", buf.len);
 	buf_print_hex(&buf);
 
 	if (xtea_encode(&buf, key) < 0) {
 		fprintf(stderr, "failed to encode\n");
 		return -1;
 	}
-	printf("\nencoded buf (len:%d):\n", buf->len);
+	printf("\nencoded buf (len:%d):\n", buf.len);
 	buf_print_hex(&buf);
 
 	if (xtea_decode(&buf, key) < 0) {
 		fprintf(stderr, "failed to decode\n");
 		return -1;
 	}
-	printf("decoded buf hex (len:%d):\n", buf->len);
+	printf("decoded buf hex (len:%d):\n", buf.len);
 	buf_print_hex(&buf);
-	printf("plaintext buf (len:%d): %s\n", buf->len, buf.data);
+	printf("plaintext buf (len:%d): %s\n", buf.len, buf.data);
 	return 0;
 }
 #endif
