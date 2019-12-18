@@ -32,6 +32,7 @@ static void (*on_sleep_cb)(void *arg);
 static void *on_sleep_arg;
 uint16_t power_management_inactivity;
 
+#define power_management_pwr_down_set_idle() power_management_inactivity++
 #define ONE_SECOND 1000000
 
 static void enter_power_down_mode_cb(void *arg)

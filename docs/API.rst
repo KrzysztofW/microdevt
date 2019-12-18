@@ -43,6 +43,23 @@ Timers
 .. doxygenfunction:: timer_is_pending
    :project: doxygen
 
+Power Management
+----------------
+
+.. doxygendefine:: power_management_pwr_down_reset
+   :project: doxygen
+
+.. doxygendefine:: power_management_set_inactivity
+   :project: doxygen
+
+.. doxygenfunction:: power_management_power_down_init
+   :project: doxygen
+
+.. doxygenfunction:: power_management_power_down_enable
+   :project: doxygen
+
+.. doxygenfunction:: power_management_power_down_disable
+   :project: doxygen
 
 Buffers
 -------
