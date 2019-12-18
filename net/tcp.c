@@ -22,13 +22,14 @@
  *
 */
 
+#include <sys/hash-tables.h>
+#include <sys/scheduler.h>
 #include "tcp.h"
 #include "ip.h"
 #include "icmp.h"
 #include "eth.h"
 #include "tr-chksum.h"
 #include "socket.h"
-#include "../sys/hash-tables.h"
 
 #ifdef CONFIG_HT_STORAGE
 static HTABLE_DECL(tcp_conns, CONFIG_MAX_SOCK_HT_SIZE);
@@ -658,7 +659,9 @@ void tcp_input(pkt_t *pkt)
 
 	if (tcp_hdr->ctrl == (TH_SYN|TH_ACK)) {
 		uint32_t seqid;
+#ifdef CONFIG_EVENT
 		event_flags_t event;
+#endif
 
 		if (tcp_conn == NULL)
 			goto end;
@@ -681,13 +684,16 @@ void tcp_input(pkt_t *pkt)
 #ifdef CONFIG_TCP_RETRANSMIT
 		tcp_retrn_ack_pkts(tcp_conn, remote_ack);
 #endif
+#ifdef CONFIG_EVENT
 		if (tcp_conn_add(tcp_conn) < 0) {
 			event = EV_ERROR;
 			__tcp_conn_delete(tcp_conn);
 		} else
 			event = EV_WRITE;
-#ifdef CONFIG_EVENT
 		event_schedule_event(&tcp_conn->sock_info->event, event);
+#else
+		if (tcp_conn_add(tcp_conn) < 0)
+			__tcp_conn_delete(tcp_conn);
 #endif
 		goto end;
 	}
