@@ -51,6 +51,8 @@ Among others pay attention to the already implemented lists, buffers and
 interrupt safe rings buffers.
 These data structures are supposed to be used in drivers and user applications.
 
+.. _uc-port:
+
 Microdevt Port
 --------------
 
@@ -84,6 +86,7 @@ Power Management
 
 Microdevt allows to easily use the power management features of supported
 microcontrollers.
+(see :ref:`pwr-mgr` API section)
 
 Debugging
 ---------

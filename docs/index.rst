@@ -35,7 +35,7 @@ Supported Devices
 
 If you don't see a match of your microcontroller, keep in mind that it's
 easy to port Microdevt code to other microcontrollers. (See section
-"Microdevt Port").
+:ref:`uc-port`).
 
 - Atmel AVR familly (Atmega 328P, Attiny85, Atmega2561 and many others)
 - Simulavr

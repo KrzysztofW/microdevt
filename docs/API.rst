@@ -43,6 +43,8 @@ Timers
 .. doxygenfunction:: timer_is_pending
    :project: doxygen
 
+.. _pwr-mgr:
+
 Power Management
 ----------------
 

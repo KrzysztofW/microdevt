@@ -107,7 +107,7 @@ void timer_process(void);
 /** Check if timer is pending
  *
  * @param[in] timer  timer
- * @return 0 if timer is not pending, 1 otherwise
+ * @return 0 if timer if not pending, 1 otherwise
  */
 static inline uint8_t timer_is_pending(tim_t *timer)
 {
