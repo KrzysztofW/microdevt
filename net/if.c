@@ -30,7 +30,7 @@
 #if defined CONFIG_RF_SENDER || defined CONFIG_RF_RECEIVER
 #include "swen.h"
 #endif
-#include <scheduler.h>
+#include <sys/scheduler.h>
 
 static void if_refill_driver_pkt_pool(const iface_t *iface)
 {

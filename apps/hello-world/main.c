@@ -43,8 +43,8 @@
 #include <watchdog.h>
 #include <sys/buf.h>
 #include <sys/ring.h>
-#include <timer.h>
-#include <scheduler.h>
+#include <sys/timer.h>
+#include <sys/scheduler.h>
 #include <interrupts.h>
 #include <drivers/sensors.h>
 #include <power-management.h>

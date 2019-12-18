@@ -24,9 +24,9 @@
 
 #include <log.h>
 #include <errno.h>
+#include <sys/timer.h>
 
 #include "net-apps.h"
-#include "../timer.h"
 
 static uint16_t port = 777; /* host endian */
 

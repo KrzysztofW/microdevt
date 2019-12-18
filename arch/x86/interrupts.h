@@ -21,6 +21,7 @@
  * the file called "LICENSE".
  *
 */
+#include <stdint.h>
 
 #ifndef _INTERRUPTS_H_
 #define _INTERRUPTS_H_

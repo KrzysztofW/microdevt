@@ -103,5 +103,5 @@ undefine CONFIG_POWER_MANAGEMENT
 endif
 ifdef CONFIG_POWER_MANAGEMENT
 CFLAGS += -DCONFIG_POWER_MANAGEMENT
-SOURCES += ../../../power-management.c
+SOURCES += ../../../sys/power-management.c
 endif

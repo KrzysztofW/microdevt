@@ -28,8 +28,8 @@
 #include <watchdog.h>
 #include <adc.h>
 #include <sys/buf.h>
-#include <timer.h>
-#include <scheduler.h>
+#include <sys/timer.h>
+#include <sys/scheduler.h>
 #include <interrupts.h>
 #include "alarm-module1.h"
 #include "gpio.h"

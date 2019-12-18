@@ -25,7 +25,7 @@ ifdef CONFIG_TIMER_CHECKS
 CFLAGS += -DCONFIG_TIMER_CHECKS
 endif
 
-SOURCES = ../timer.c ../arch/$(ARCH)/timer.c ../scheduler.c ../crypto/xtea.c
+SOURCES = ../sys/timer.c ../arch/$(ARCH)/timer.c ../sys/scheduler.c ../crypto/xtea.c
 
 ifdef CONFIG_ETHERNET
 SOURCES += eth.c

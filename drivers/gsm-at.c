@@ -26,8 +26,8 @@
 #include <_stdio.h>
 #include <sys/buf.h>
 #include <sys/ring.h>
-#include <timer.h>
-#include <scheduler.h>
+#include <sys/timer.h>
+#include <sys/scheduler.h>
 #include "gsm-at.h"
 
 typedef enum state {

@@ -26,7 +26,7 @@
 #define _RF_H_
 #include <sys/ring.h>
 #include <sys/byte.h>
-#include <timer.h>
+#include <sys/timer.h>
 #include <net/if.h>
 
 typedef struct rf_data {

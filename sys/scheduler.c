@@ -22,9 +22,9 @@
  *
 */
 
-#include <sys/ring.h>
 #include <interrupts.h>
-#include <power-management.h>
+#include "power-management.h"
+#include "ring.h"
 #include "scheduler.h"
 
 typedef struct __PACKED__ task {

@@ -22,7 +22,7 @@
  *
 */
 
-#include <scheduler.h>
+#include <sys/scheduler.h>
 #include <enc28j60.h>
 #include <net/config.h>
 #include <net/eth.h>
@@ -30,7 +30,7 @@
 #include <net/udp.h>
 #include <net/socket.h>
 #include <net-apps/net-apps.h>
-#include <timer.h>
+#include <sys/timer.h>
 #include <drivers/rf.h>
 
 /* #define ENC28J60_INT */

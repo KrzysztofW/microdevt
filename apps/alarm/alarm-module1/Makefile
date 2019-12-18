@@ -35,7 +35,7 @@ else
 endif
 
 
-SOURCES = main.c ../../../scheduler.c  ../../../sys/array.c
+SOURCES = main.c ../../../sys/scheduler.c  ../../../sys/array.c
 SOURCES += ../module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config

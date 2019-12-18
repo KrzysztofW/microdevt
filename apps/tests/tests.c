@@ -32,8 +32,8 @@
 #include <sys/ring.h>
 #include <sys/list.h>
 #include <sys/hash-tables.h>
-#include <timer.h>
-#include <scheduler.h>
+#include <sys/timer.h>
+#include <sys/scheduler.h>
 #include <net/tests.h>
 #include <drivers/rf.h>
 #include <drivers/gsm-at.h>

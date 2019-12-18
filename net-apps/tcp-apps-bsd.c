@@ -23,10 +23,9 @@
 */
 
 #include <log.h>
+#include <sys/timer.h>
 
 #include "net-apps.h"
-#include "../timer.h"
-#include "../sys/errno.h"
 
 static uint16_t port = 777; /* host endian */
 struct sockaddr_in addr_c;

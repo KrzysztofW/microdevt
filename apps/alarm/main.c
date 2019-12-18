@@ -27,8 +27,8 @@
 #include <usart.h>
 #include <common.h>
 #include <watchdog.h>
-#include <timer.h>
-#include <scheduler.h>
+#include <sys/timer.h>
+#include <sys/scheduler.h>
 #include <net/pkt-mempool.h>
 #include <interrupts.h>
 #include "alarm.h"

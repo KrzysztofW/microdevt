@@ -25,7 +25,7 @@
 #include <avr/interrupt.h>
 #include <_stdio.h>
 #include <sys/buf.h>
-#include <timer.h>
+#include <sys/timer.h>
 #include <usart.h>
 #include <drivers/gsm-at.h>
 

@@ -25,11 +25,10 @@
 #ifndef _TCP_H_
 #define _TCP_H_
 
-#include "config.h"
 #ifdef CONFIG_TCP_RETRANSMIT
-#include "../timer.h"
+#include <sys/timer.h>
 #endif
-
+#include "config.h"
 #include "socket.h"
 
 #define TH_FIN  0x01

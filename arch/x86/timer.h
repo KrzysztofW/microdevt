@@ -25,7 +25,7 @@
 #ifndef _X86_TIMER_H_
 #define _X86_TIMER_H_
 
-#include "../../timer.h"
+#include <sys/timer.h>
 
 void __timer_subsystem_init(void);
 void __timer_subsystem_shutdown(void);

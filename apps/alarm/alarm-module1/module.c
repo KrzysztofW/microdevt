@@ -23,7 +23,7 @@
 */
 
 #include <stdio.h>
-#include <scheduler.h>
+#include <sys/scheduler.h>
 #include <net/event.h>
 #include <net/swen-l3.h>
 #include <power-management.h>

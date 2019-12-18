@@ -15,7 +15,7 @@ Example of a timer usage:
 
 .. code-block:: C
 
-    #include <timer.h>
+    #include <sys/timer.h>
 
     tim_t my_timer = TIMER_INIT(my_timer);
     #define MY_TIMER_TIMEOUT 1000000 /* one second */

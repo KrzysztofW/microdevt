@@ -25,7 +25,7 @@
 #ifndef _SWEN_L3_H_
 #define _SWEN_L3_H_
 
-#include <timer.h>
+#include <sys/timer.h>
 #include "pkt-mempool.h"
 #include "if.h"
 #include "swen.h"

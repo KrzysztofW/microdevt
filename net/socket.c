@@ -27,7 +27,7 @@
 #include <errno.h>
 #include <sys/list.h>
 #include <sys/hash-tables.h>
-#include <scheduler.h>
+#include <sys/scheduler.h>
 #include "eth.h"
 #include "ip.h"
 #ifdef CONFIG_UDP

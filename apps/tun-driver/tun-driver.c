@@ -33,8 +33,8 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include <timer.h>
-#include <scheduler.h>
+#include <sys/timer.h>
+#include <sys/scheduler.h>
 #include <net/eth.h>
 #include <net/route.h>
 #define SOCKLEN_DEFINED

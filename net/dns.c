@@ -24,10 +24,10 @@
 
 #include <alloca.h>
 #include <log.h>
+#include <sys/timer.h>
+#include <sys/list.h>
 #include "dns.h"
 #include "socket.h"
-#include "../sys/list.h"
-#include "../timer.h"
 
 static uint32_t dns_resolve_ip_addr;
 

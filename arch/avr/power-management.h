@@ -25,7 +25,7 @@
 #ifndef _AVR_POWER_MANAGEMENT_H_
 #define _AVR_POWER_MANAGEMENT_H_
 #include <avr/sleep.h>
-#include "../../power-management.h"
+#include <sys/power-management.h>
 #include "common.h"
 
 #define PWR_MGR_SLEEP_MODE_IDLE SLEEP_MODE_IDLE

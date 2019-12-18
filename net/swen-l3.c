@@ -24,7 +24,7 @@
 
 #include <stdlib.h>
 #include <crypto/xtea.h>
-#include <scheduler.h>
+#include <sys/scheduler.h>
 #include <sys/random.h>
 #include <power-management.h>
 #include "swen.h"
@@ -39,6 +39,7 @@ typedef enum swen_l3_op {
 	S_OP_DATA,
 	S_OP_ACK,
 	S_OP_KEY_EXCHANGE,
+	S_OP_WATCHDOG,
 } swen_l3_op_t;
 
 #define SWEN_L3_RETRANSMIT_DELAY 1000000 /* 1s */

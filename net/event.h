@@ -30,7 +30,7 @@
 #include <sys/list.h>
 #include <log.h>
 #include <common.h>
-#include <scheduler.h>
+#include <sys/scheduler.h>
 
 typedef enum event_flags {
 	EV_NONE  = 0,

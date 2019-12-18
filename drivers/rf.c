@@ -32,7 +32,7 @@
 #ifdef CONFIG_RF_CHECKS
 #include <net/event.h>
 #endif
-#include <scheduler.h>
+#include <sys/scheduler.h>
 #include "rf.h"
 #include "rf-cfg.h"
 #ifndef X86
