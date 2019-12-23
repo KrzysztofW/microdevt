@@ -51,7 +51,7 @@ OBJ = $(SOURCES:.c=.o)
 # 1mhz (internal clk/8)
 # FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
 
-# 8mhz (no internal clk/8)
+# 8mhz (internal clk)
 # FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
 
 # 16mhz external crystal
