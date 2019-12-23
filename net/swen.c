@@ -73,7 +73,7 @@ static unsigned swen_generic_cmds_addr_offset(void *addr)
 	return a - swen_generic_cmds;
 }
 
-#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+#ifdef CONSISTENCY_CHECK
 static void swen_generic_cmds_check_consistency(void)
 {
 	uint8_t data[CONFIG_RF_GENERIC_COMMANDS_SIZE];
@@ -86,9 +86,9 @@ static void swen_generic_cmds_check_consistency(void)
 		return;
 	sbuf = SBUF_INIT(data, CONFIG_RF_GENERIC_COMMANDS_SIZE);
 
-	DEBUG_LOG("EEPROM:\n");
+	LOG("EEPROM:\n");
 	sbuf_print_hex(&sbuf);
-	DEBUG_LOG("RAM:\n");
+	LOG("RAM:\n");
 	sbuf = SBUF_INIT(swen_generic_cmds, CONFIG_RF_GENERIC_COMMANDS_SIZE);
 	sbuf_print_hex(&sbuf);
 	__abort();
@@ -194,7 +194,7 @@ delete_recorded_cmd_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr,
 		cmd_hdr->cmd = -1;
 		eeprom_update(swen_generic_cmds_storage + offset,
 			      cmd_hdr, sizeof(swen_generic_cmd_hdr_t));
-#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+#ifdef CONSISTENCY_CHECK
 		swen_generic_cmds_check_consistency();
 #endif
 		return LOOP_STOP;
@@ -274,7 +274,7 @@ static void swen_generic_cmds_record(buf_t *buf)
 		return;
 	}
 	swen_generic_cmds_for_each(cmd_record_cb, buf);
-#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+#ifdef CONSISTENCY_CHECK
 	swen_generic_cmds_check_consistency();
 #endif
 }
@@ -284,7 +284,7 @@ static void swen_parse_generic_cmds(buf_t *buf)
 	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
 	int ret = swen_generic_cmds_for_each(cmds_parse_cb, buf);
 
-#if defined(DEBUG) && defined(CONSISTENCY_CHECK)
+#ifdef CONSISTENCY_CHECK
 	swen_generic_cmds_check_consistency();
 #endif
 	if (ret < 0)
