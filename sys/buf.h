@@ -393,15 +393,24 @@ static inline int buf_get_sbuf_upto(buf_t *buf, sbuf_t *sbuf, const char *s)
 	return buf_get_sbuf_upto_sbuf(buf, sbuf, &sbuf2);
 }
 
-static inline int buf_parse_long(buf_t *buf, long *i)
+/* This function has un undefined behavior if buf->data is not null
+ * terminated.
+ */
+static inline int buf_get_long(buf_t *buf, long *i)
 {
 	char *endptr;
+	int len;
 
+	if (buf->len == 0)
+		return -1;
 	errno = 0;
 	*i = strtol((char *)buf->data, &endptr, 10);
 	if (errno != 0 || endptr == (char *)buf->data)
 		return -1;
-	__buf_skip(buf, endptr - (char *)buf->data);
+	len = endptr - (char *)buf->data;
+	if (len > buf->len)
+		return -1;
+	__buf_skip(buf, len);
 	return 0;
 }
 
