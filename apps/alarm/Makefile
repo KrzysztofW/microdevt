@@ -53,10 +53,10 @@ STATIC_LIBS = ../../net/libnet-avr.a
 OBJ = $(SOURCES:.c=.o)
 
 # 1mhz (internal clk/8)
-# FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
+# FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m
 
 # 8mhz (internal clk)
-# FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0x07:m
+# FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m
 
 # 16mhz external crystal
 FUSES = -U lfuse:w:0xee:m -U hfuse:w:0x99:m -U efuse:w:0xfd:m
