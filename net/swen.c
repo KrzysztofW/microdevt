@@ -177,9 +177,15 @@ static int get_recorded_cmds_cb(uint8_t number,
 
 void swen_generic_cmds_get_list(buf_t *buf)
 {
+	int buf_len = buf->len;
+
 	if (buf_addc(buf, GENERIC_CMD_STATUS_LIST) < 0)
 		return;
 	swen_generic_cmds_for_each(get_recorded_cmds_cb, buf);
+
+	/* remove the GENERIC_CMD_STATUS_LIST byte if the list is empty */
+	if (buf->len == buf_len + 1)
+		__buf_shrink(buf, 1);
 }
 
 static int

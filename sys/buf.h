@@ -160,11 +160,16 @@ static inline void __buf_reset_keep(buf_t *buf)
 	buf->skip = 0;
 }
 
+static inline void __buf_shrink(buf_t *buf, int len)
+{
+	buf->len -= len;
+}
+
 static inline void buf_shrink(buf_t *buf, int len)
 {
 	if (buf->len < len)
 		return;
-	buf->len -= len;
+	__buf_shrink(buf, len);
 }
 
 static inline void sbuf_reset(sbuf_t *sbuf)
