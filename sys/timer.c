@@ -137,7 +137,7 @@ void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 	DEBUG_LOG("%s:%d (%p)\n", func, line, timer);
 #endif
 	if (timer_is_pending(timer))
-		assert(0);
+		__abort();
 	timer->ticks = expiry / CONFIG_TIMER_RESOLUTION_US;
 
 	/* don't schedule at current idx */
