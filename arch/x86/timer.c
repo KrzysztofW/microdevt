@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <string.h>
+#include <sys/timer.h>
 
 #include "timer.h"
 
@@ -68,7 +69,7 @@ void __timer_subsystem_init(void)
 		fprintf(stderr, "\n can'\t set itimer (%m)\n");
 }
 
-void __timer_subsystem_shutdown(void)
+void __timer_subsystem_stop(void)
 {
 	struct itimerval timer;
 

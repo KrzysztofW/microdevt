@@ -25,8 +25,33 @@
 #ifndef _AVR_TIMER_H_
 #define _AVR_TIMER_H_
 
-#include <sys/timer.h>
-
 void __timer_subsystem_init(void);
+
+static inline void __timer_subsystem_start(void)
+{
+#ifdef ATTINY85
+	TIMSK |= 1 << OCIE0A;
+#else
+	TIMSK1 |= 1 << OCIE1A;
+#endif
+}
+
+static inline void __timer_subsystem_stop(void)
+{
+#ifdef ATTINY85
+	TIMSK &= ~(1 << OCIE0A);
+#else
+	TIMSK1 &= ~(1 << OCIE1A);
+#endif
+}
+
+static inline uint8_t __timer_subsystem_is_runing(void)
+{
+#ifdef ATTINY85
+	return TIMSK & (1 << OCIE0A);
+#else
+	return TIMSK1 & (1 << OCIE1A);
+#endif
+}
 
 #endif

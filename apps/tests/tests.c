@@ -508,7 +508,7 @@ static int timer_check(void)
 		timer_process();
 	}
 
-	timer_subsystem_shutdown();
+	timer_subsystem_stop();
 	return 0;
 }
 

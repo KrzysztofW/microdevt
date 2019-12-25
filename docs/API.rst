@@ -22,7 +22,7 @@ Timers
 .. doxygenfunction:: timer_subsystem_init
    :project: doxygen
 
-.. doxygenfunction:: timer_subsystem_shutdown
+.. doxygenfunction:: timer_subsystem_stop
    :project: doxygen
 
 .. doxygenfunction:: timer_init

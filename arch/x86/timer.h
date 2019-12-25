@@ -25,8 +25,17 @@
 #ifndef _X86_TIMER_H_
 #define _X86_TIMER_H_
 
-#include <sys/timer.h>
+#include <stdint.h>
 
 void __timer_subsystem_init(void);
-void __timer_subsystem_shutdown(void);
+void __timer_subsystem_stop(void);
+static inline void __timer_subsystem_start(void)
+{
+	return __timer_subsystem_init();
+}
+static inline uint8_t __timer_subsystem_is_runing(void)
+{
+	return 1;
+}
+
 #endif

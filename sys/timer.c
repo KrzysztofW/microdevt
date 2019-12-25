@@ -36,6 +36,7 @@
 
 static uint8_t cur_idx;
 static list_t timer_list[TIMER_TABLE_SIZE];
+static uint16_t timer_count;
 
 #ifdef DEBUG_TIMERS
 static void timer_dump_list(list_t *head)
@@ -98,8 +99,12 @@ void timer_process(void)
 			continue;
 		}
 		list_del_init(&timer->list);
+		timer_count--;
 		(*timer->cb)(timer->arg);
 	}
+
+	if (timer_count == 0)
+		__timer_subsystem_stop();
 }
 
 void timer_subsystem_init(void)
@@ -111,13 +116,6 @@ void timer_subsystem_init(void)
 		INIT_LIST_HEAD(&timer_list[i]);
 	__timer_subsystem_init();
 }
-
-#ifdef X86
-void timer_subsystem_shutdown(void)
-{
-	__timer_subsystem_shutdown();
-}
-#endif
 
 void timer_init(tim_t *timer)
 {
@@ -153,7 +151,10 @@ void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 	irq_save(flags);
 	idx = ticks_to_idx(&timer->ticks);
 	list_add_tail(&timer->list, &timer_list[idx]);
+	timer_count++;
 	irq_restore(flags);
+	if (!__timer_subsystem_is_runing())
+		__timer_subsystem_start();
 }
 
 void timer_del(tim_t *timer)
@@ -165,6 +166,7 @@ void timer_del(tim_t *timer)
 
 	irq_save(flags);
 	list_del_init(&timer->list);
+	timer_count--;
 	irq_restore(flags);
 }
 

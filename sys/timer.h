@@ -52,7 +52,10 @@ void timer_subsystem_init(void);
 
 /** Stop architecture dependant timer interrupt
  */
-void timer_subsystem_shutdown(void);
+static inline void timer_subsystem_stop(void)
+{
+	__timer_subsystem_stop();
+}
 
 /** Initialize timer
  *

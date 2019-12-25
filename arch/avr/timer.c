@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <avr/interrupt.h>
+#include <sys/timer.h>
 #include "log.h"
 #include "common.h"
 #include "timer.h"
