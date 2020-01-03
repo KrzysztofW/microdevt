@@ -33,9 +33,16 @@ static inline void __timer_subsystem_start(void)
 {
 	return __timer_subsystem_init();
 }
+
 static inline uint8_t __timer_subsystem_is_runing(void)
 {
 	return 1;
+}
+
+static inline void __timer_subsystem_reset(void)
+{
+	__timer_subsystem_stop();
+	__timer_subsystem_start();
 }
 
 #endif

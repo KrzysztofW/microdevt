@@ -57,6 +57,11 @@ static inline void timer_subsystem_stop(void)
 	__timer_subsystem_stop();
 }
 
+static inline void timer_subsystem_reset(void)
+{
+	__timer_subsystem_reset();
+}
+
 /** Initialize timer
  *
  * @param[in] timer  timer
