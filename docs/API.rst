@@ -13,6 +13,8 @@ Task Scheduler
 .. doxygenfunction:: scheduler_run_tasks
    :project: doxygen
 
+.. _timers:
+
 Timers
 ------
 
@@ -68,6 +70,8 @@ Buffers
 
 .. doxygenfile:: buf.h
    :project: doxygen
+
+.. _ring_bufs:
 
 Circular ring buffers
 ---------------------

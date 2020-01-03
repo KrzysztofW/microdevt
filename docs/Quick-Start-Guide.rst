@@ -39,9 +39,30 @@ Asynchronous Task Scheduler
 ---------------------------
 
 The task scheduler allows to schedule interruptible tasks that are too big
-to be executed in an interrupt. They should be used as bottom halves of an
-interrupt handler function. They also can be used for calling functions later
-as soon as possible.
+to be executed in an interrupt. They should be used as bottom halves of
+interrupt handler functions like in an OS.
+Tasks can be scheduled to execute in response to interrupts, events, or
+anything that needs to postpone some work.
+
+There are many implementations of real task schedulers with priorities and
+context switching. This asynchronous task scheduler uses a different approach
+for the sake of clarity and simplicity. It only provides a simple way to better
+handle interrupts. The scheduling is not periodic, a scheduled task will run
+only once and exit. If there is a need to execute a task periodically,
+the correct way of doing that is to create a timer (see :ref:`timers`) that
+schedules a task upon its expiration. The scheduled task would have to re-arm
+that timer again so the task gets executed continuously.
+There are only two levels of priorities: the tasks that have been scheduled from
+an interrupt handler have higher priority than tasks scheduled form other tasks.
+
+Also, note that the proper way of sharing data between an interruptible task
+and an interrupt handler function is to use :ref:`ring_bufs`.
+In order to handle interrupts efficiently, an interrupt handler should only fill
+a buffer ring with data and schedule a task to process that data.
+
+The scheduler uses the power management features of the microcontroller.
+That is, if there are no tasks to execute, the microcontroller will go to
+the idle state and reduce the power consumption.
 
 System utilities
 ----------------
