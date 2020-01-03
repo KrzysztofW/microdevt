@@ -44,7 +44,7 @@ unsigned int pkt_pool_get_nb_free(void)
 	return ring_len(pkt_pool);
 }
 
-#ifdef PKT_DEBUG
+#if defined(PKT_TRACE) || defined(PKT_DEBUG)
 void pkt_get_traced_pkts(void)
 {
 	int i;
@@ -67,7 +67,9 @@ pkt_t *__pkt_get(ring_t *ring, const char *func, int line)
 	pkt_t *pkt;
 
 	if (ret < 0) {
+#ifdef PKT_DEBUG
 		DEBUG_LOG("%s() in %s:%d failed\n", __func__, func, line);
+#endif
 		return NULL;
 	}
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
@@ -78,7 +80,9 @@ pkt_t *__pkt_get(ring_t *ring, const char *func, int line)
 	}
 #endif
 	pkt = &buffer_pool[offset];
+#ifdef PKT_DEBUG
 	DEBUG_LOG("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
+#endif
 	pkt->last_get_func = func;
 	return pkt;
 }
@@ -86,8 +90,10 @@ pkt_t *__pkt_get(ring_t *ring, const char *func, int line)
 int __pkt_put(ring_t *ring, pkt_t *pkt, const char *func, int line)
 {
 	int ret = ring_addc(ring, pkt->offset);
+#ifdef PKT_DEBUG
 	DEBUG_LOG("%s() in %s:%d (pkt:%p) %s\n", __func__, func, line, pkt,
 		  ret < 0 ? "failed" : "");
+#endif
 	pkt->last_put_func = func;
 	return ret;
 }
@@ -102,7 +108,9 @@ pkt_t *__pkt_alloc(const char *func, int line)
 	assert(pkt->refcnt == 0);
 
 	pkt->refcnt++;
+#ifdef PKT_DEBUG
 	DEBUG_LOG("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
+#endif
 	return pkt;
 }
 
@@ -120,7 +128,9 @@ void __pkt_free(pkt_t *pkt, const char *func, int line)
 	if (pkt_is_emergency(pkt))
 		return;
 #endif
+#ifdef PKT_DEBUG
 	DEBUG_LOG("%s() in %s:%d (pkt:%p)\n", __func__, func, line, pkt);
+#endif
 	buf_reset(&pkt->buf);
 	if (pkt_put(pkt_pool, pkt) < 0)
 		__abort();

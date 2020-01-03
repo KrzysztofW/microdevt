@@ -30,13 +30,14 @@
 #include "../sys/ring.h"
 #include "../sys/list.h"
 
-/* #define PKT_DEBUG */
+/* #define PKT_TRACE */
+
 struct pkt {
 	buf_t buf;
 	list_t list;
 	uint8_t offset;
 	uint8_t refcnt;
-#ifdef PKT_DEBUG
+#if defined(PKT_TRACE) || defined(PKT_DEBUG)
 	const char *last_get_func;
 	const char *last_put_func;
 #endif
@@ -68,7 +69,7 @@ void pkt_mempool_init(void);
  */
 void pkt_mempool_shutdown(void);
 
-#ifdef PKT_DEBUG
+#if defined(PKT_TRACE) || defined(PKT_DEBUG)
 #ifndef DEBUG
 #error "DEBUG must be defined"
 #endif
