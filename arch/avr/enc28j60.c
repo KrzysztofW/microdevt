@@ -431,7 +431,7 @@ void enc28j60_init(uint8_t *macaddr)
 	enc28j60_write_op(ENC28J60_BIT_FIELD_SET, ECON1, ECON1_RXEN);
 }
 
-int enc28j60_pkt_send(const iface_t *iface, pkt_t *pkt)
+int enc28j60_pkt_send(iface_t *iface, pkt_t *pkt)
 {
 	enc28j60_write(EWRPTL, TXSTART_INIT);
 	enc28j60_write(EWRPTH, TXSTART_INIT>>8);
@@ -453,7 +453,7 @@ uint8_t enc28j60_get_interrupts(void)
 }
 
 #ifdef INTERRUPT_DRIVEN
-void enc28j60_pkt_recv(const iface_t *iface)
+void enc28j60_pkt_recv(iface_t *iface)
 {
 	pkt_t *pkt;
 	uint16_t rxstat;
@@ -514,7 +514,7 @@ void enc28j60_handle_interrupts(const iface_t *iface)
 	/* } */
 }
 
-void enc28j60_pkt_recv(const iface_t *iface)
+void enc28j60_pkt_recv(iface_t *iface)
 {
 	pkt_t *pkt;
 	uint16_t len, rxstat;

@@ -313,7 +313,7 @@ int swen_get_route(const uint32_t *ip, uint8_t *dst)
 #endif
 
 int
-swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
+swen_output(pkt_t *pkt, iface_t *iface, uint8_t type, const void *dst)
 {
 	swen_hdr_t *hdr;
 
@@ -335,7 +335,7 @@ swen_output(pkt_t *pkt, const iface_t *iface, uint8_t type, const void *dst)
 	return iface->send(iface, pkt);
 }
 
-int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf)
+int swen_sendto(iface_t *iface, uint8_t to, const sbuf_t *sbuf)
 {
 	pkt_t *pkt;
 
@@ -415,7 +415,7 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 }
 
 #ifdef CONFIG_RF_RECEIVER
-void swen_input(const iface_t *iface)
+void swen_input(iface_t *iface)
 {
 	pkt_t *pkt;
 

@@ -33,7 +33,7 @@
 #include "udp.h"
 #include "tcp.h"
 
-int ip_output(pkt_t *out, const iface_t *iface, uint16_t flags)
+int ip_output(pkt_t *out, iface_t *iface, uint16_t flags)
 {
 	ip_hdr_t *ip = btod(out);
 	uint32_t ip_dst;
@@ -90,7 +90,7 @@ int ip_output(pkt_t *out, const iface_t *iface, uint16_t flags)
 	return iface->if_output(out, iface, L3_PROTO_IP, &ip_dst);
 }
 
-void ip_input(pkt_t *pkt, const iface_t *iface)
+void ip_input(pkt_t *pkt, iface_t *iface)
 {
 	ip_hdr_t *ip;
 	uint32_t *ip_addr = (uint32_t *)iface->ip4_addr;

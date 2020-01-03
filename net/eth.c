@@ -27,7 +27,7 @@
 #include "ip.h"
 #include "icmp.h"
 
-static inline void __eth_input(pkt_t *pkt, const iface_t *iface)
+static inline void __eth_input(pkt_t *pkt, iface_t *iface)
 {
 	eth_hdr_t *eh;
 
@@ -62,7 +62,7 @@ static inline void __eth_input(pkt_t *pkt, const iface_t *iface)
 	pkt_free(pkt);
 }
 
-void eth_input(const iface_t *iface)
+void eth_input(iface_t *iface)
 {
 	pkt_t *pkt;
 
@@ -71,7 +71,7 @@ void eth_input(const iface_t *iface)
 }
 
 int
-eth_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst)
+eth_output(pkt_t *out, iface_t *iface, uint8_t type, const void *dst)
 {
 	eth_hdr_t *eh;
 	int i;

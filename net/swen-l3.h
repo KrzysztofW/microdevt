@@ -54,7 +54,7 @@ typedef struct swen_l3_assoc {
 #ifdef CONFIG_EVENT
 	event_t event;
 #endif
-	const iface_t *iface;
+	iface_t *iface;
 	const uint32_t *enc_key;
 } swen_l3_assoc_t;
 
@@ -112,7 +112,7 @@ static inline uint8_t swen_l3_is_assoc_bound(swen_l3_assoc_t *assoc)
  * @param[in] iface   interface
  */
 void
-swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface);
+swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, iface_t *iface);
 
 void swen_l3_input(uint8_t from, pkt_t *pkt, const iface_t *iface);
 

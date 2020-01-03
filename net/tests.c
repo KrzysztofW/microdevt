@@ -33,9 +33,9 @@
 #include "pkt-mempool.h"
 #include "swen-l3.h"
 
-void recv(const iface_t *iface) {}
+void recv(iface_t *iface) {}
 
-static int send(const struct iface *iface, pkt_t *pkt)
+static int send(iface_t *iface, pkt_t *pkt)
 {
 	if (pkt_put(iface->tx, pkt) < 0)
 		return -1;
@@ -197,7 +197,7 @@ int net_arp_tests(void)
 #endif
 	uint8_t mac_dst[] = { 0x48, 0x4d, 0x7e, 0xe4, 0xda, 0x65 };
 	const uint8_t *mac = NULL;
-	const iface_t *interface = NULL;
+	iface_t *interface = NULL;
 
 	pkt_mempool_init();
 	if_init(&iface, IF_TYPE_ETHERNET, &iface_queues.pkt_pool,
@@ -995,7 +995,7 @@ static void net_swen_ev_cb(event_t *ev, uint8_t events)
 		net_swen_l3_events_remote |= events;
 }
 
-static int net_swen_send(const struct iface *iface, pkt_t *pkt)
+static int net_swen_send(iface_t *iface, pkt_t *pkt)
 {
 	pkt_t *pkt_dst;
 	static pkt_t *pkt_to_free;
@@ -1020,9 +1020,9 @@ static int net_swen_send(const struct iface *iface, pkt_t *pkt)
 	return 0;
 }
 
-static void net_swen_recv(const struct iface *iface) {}
+static void net_swen_recv(iface_t *iface) {}
 
-static int net_swen_remote_send(const struct iface *iface, pkt_t *pkt)
+static int net_swen_remote_send(iface_t *iface, pkt_t *pkt)
 {
 	pkt_t *pkt_dst;
 
@@ -1041,7 +1041,7 @@ static int net_swen_remote_send(const struct iface *iface, pkt_t *pkt)
 	return 0;
 }
 
-static void net_swen_remote_recv(const struct iface *iface) {}
+static void net_swen_remote_recv(iface_t *iface) {}
 
 static int net_swen_l3_pkt_cmp(const sbuf_t *sbuf, iface_t *iface)
 {

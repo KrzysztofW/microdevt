@@ -67,7 +67,7 @@ typedef struct ip_hdr ip_hdr_t;
 #define CONFIG_IP_TTL 0x38
 #endif
 
-void ip_input(pkt_t *pkt, const iface_t *iface);
-int ip_output(pkt_t *out, const iface_t *iface, uint16_t flags);
+void ip_input(pkt_t *pkt, iface_t *iface);
+int ip_output(pkt_t *out, iface_t *iface, uint16_t flags);
 
 #endif

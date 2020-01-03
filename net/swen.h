@@ -45,9 +45,9 @@ typedef struct __PACKED__ swen_hdr_t {
 	uint16_t chksum;
 } swen_hdr_t;
 
-void swen_input(const iface_t *iface);
+void swen_input(iface_t *iface);
 int
-swen_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst);
+swen_output(pkt_t *out, iface_t *iface, uint8_t type, const void *dst);
 
 /** Send buffer to a peer
  *
@@ -55,7 +55,7 @@ swen_output(pkt_t *out, const iface_t *iface, uint8_t type, const void *dst);
  * @param[in] to     destination address
  * @param[in] sbuf   static buffer to send
  */
-int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf);
+int swen_sendto(iface_t *iface, uint8_t to, const sbuf_t *sbuf);
 
 /** Initialize generic commands
  *

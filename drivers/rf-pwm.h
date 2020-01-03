@@ -63,7 +63,7 @@ typedef struct rf_ctx {
 
 void rf_init(iface_t *iface, rf_ctx_t *ctx, uint8_t burst);
 void rf_shutdown(const iface_t *iface);
- void rf_input(const iface_t *iface);
-int rf_output(const iface_t *iface, pkt_t *pkt);
+ void rf_input(iface_t *iface);
+int rf_output(iface_t *iface, pkt_t *pkt);
 int rf_checks(iface_t *iface);
 #endif

@@ -47,7 +47,7 @@ int udp_output(pkt_t *pkt, uint32_t ip_dst, uint16_t sport, uint16_t dport)
 	return ip_output(pkt, NULL, 0);
 }
 
-void udp_input(pkt_t *pkt, const iface_t *iface)
+void udp_input(pkt_t *pkt, iface_t *iface)
 {
 	udp_hdr_t *udp_hdr;
 	ip_hdr_t *ip_hdr = btod(pkt);

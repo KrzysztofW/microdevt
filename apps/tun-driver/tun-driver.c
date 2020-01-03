@@ -49,8 +49,8 @@ static uint8_t ip_mask[] = { 255, 255, 255, 0 };
 static uint8_t mac[] = { 0x54, 0x52, 0x00, 0x02, 0x00, 0x41 };
 static struct pollfd tun_fds[1];
 
-static int send(const iface_t *iface, pkt_t *pkt);
-static void recv(const iface_t *iface) {}
+static int send(iface_t *iface, pkt_t *pkt);
+static void recv(iface_t *iface) {}
 
 static iface_t iface = {
 	.flags = IF_UP|IF_RUNNING,
@@ -69,7 +69,7 @@ static struct iface_queues {
 	.tx = RING_INIT(iface_queues.tx),
 };
 
-static int send(const iface_t *iface, pkt_t *pkt)
+static int send(iface_t *iface, pkt_t *pkt)
 {
 	ssize_t nwrite;
 

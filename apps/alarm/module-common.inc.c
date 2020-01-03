@@ -282,7 +282,7 @@ static void get_sensor_values(sensor_value_t *value, module_cfg_t *cfg)
 #endif
 }
 
-static void send_sensor_report(const iface_t *iface, uint8_t notif_addr)
+static void send_sensor_report(iface_t *iface, uint8_t notif_addr)
 {
 	sbuf_t sbuf;
 	buf_t buf = BUF(sizeof(sensor_report_t) + 1);

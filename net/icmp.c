@@ -32,7 +32,7 @@
 #endif
 
 int
-icmp_output(pkt_t *out, const iface_t *iface, int type, int code, uint16_t id,
+icmp_output(pkt_t *out, iface_t *iface, int type, int code, uint16_t id,
 	    uint16_t seq, const buf_t *id_data, uint16_t ip_flags)
 {
 	icmp_hdr_t *icmp_hdr;
@@ -52,7 +52,7 @@ icmp_output(pkt_t *out, const iface_t *iface, int type, int code, uint16_t id,
 	return ip_output(out, iface, ip_flags);
 }
 
-void icmp_input(pkt_t *pkt, const iface_t *iface)
+void icmp_input(pkt_t *pkt, iface_t *iface)
 {
 	icmp_hdr_t *icmp_hdr;
 	ip_hdr_t *ip = btod(pkt);

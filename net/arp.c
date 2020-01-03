@@ -41,7 +41,7 @@ struct arp_res {
 	list_t list;
 	list_t pkt_list;
 	tim_t tim;
-	const iface_t *iface;
+	iface_t *iface;
 	uint8_t retries;
 } __PACKED__;
 typedef struct arp_res arp_res_t;
@@ -49,7 +49,7 @@ typedef struct arp_res arp_res_t;
 static list_t arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
 
 int
-arp_find_entry(const uint32_t *ip, const uint8_t **mac, const iface_t **iface)
+arp_find_entry(const uint32_t *ip, const uint8_t **mac, iface_t **iface)
 {
 	int i;
 
@@ -111,7 +111,7 @@ arp6_add_entry(const uint8_t *sha, const uint8_t *spa, iface_t *iface)
 #endif
 
 int
-arp_output(const iface_t *iface, int op, const uint8_t *tha, const uint8_t *tpa)
+arp_output(iface_t *iface, int op, const uint8_t *tha, const uint8_t *tpa)
 {
 	int i;
 	pkt_t *out;
@@ -205,7 +205,7 @@ static void arp_process_wait_list(uint32_t *ip, uint8_t delete)
 	__arp_process_wait_list(arp_res, delete);
 }
 
-void arp_input(pkt_t *pkt, const iface_t *iface)
+void arp_input(pkt_t *pkt, iface_t *iface)
 {
 	uint8_t *sha, *spa, *tha, *tpa;
 	arp_hdr_t *ah = btod(pkt);
@@ -287,7 +287,7 @@ void arp_retry_cb(void *arg)
 	arp_output(arp_res->iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)ip);
 }
 
-void arp_resolve(pkt_t *pkt, const uint32_t *ip_dst, const iface_t *iface)
+void arp_resolve(pkt_t *pkt, const uint32_t *ip_dst, iface_t *iface)
 {
 	arp_res_t *arp_res;
 #ifdef CONFIG_TCP_RETRANSMIT

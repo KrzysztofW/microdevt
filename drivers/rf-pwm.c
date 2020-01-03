@@ -65,7 +65,7 @@ extern rf_ctx_t rf_check_recv_ctx;
 
 #ifdef CONFIG_RF_RECEIVER
 
-void rf_input(const iface_t *iface) {}
+void rf_input(iface_t *iface) {}
 
 static int rf_add_bit(rf_ctx_t *ctx, uint8_t bit)
 {
@@ -279,7 +279,7 @@ static void rf_start_sending(const iface_t *iface)
 		  (void *)iface);
 }
 
-int rf_output(const iface_t *iface, pkt_t *pkt)
+int rf_output(iface_t *iface, pkt_t *pkt)
 {
 	if (pkt_put(iface->tx, pkt) < 0)
 		return -1;

@@ -55,26 +55,30 @@ struct iface {
 #endif
 	/* low level driver functions used in interrupt handlers */
 	/* asynchronious sending if possible */
-	int (*send)(const struct iface *iface, pkt_t *pkt);
-	void (*recv)(const struct iface *iface);
+	int (*send)(struct iface *iface, pkt_t *pkt);
+	void (*recv)(struct iface *iface);
 
 	/* private interface handle */
 	void *priv;
 
 	/* level 2 functions used in bottom halves */
 	/* points to eth_output() or swen_output() */
-	int (*if_output)(pkt_t *out, const struct iface *iface, uint8_t type,
+	int (*if_output)(pkt_t *out, struct iface *iface, uint8_t type,
 			 const void *dst);
 	/* points to eth_input() or swen_input() */
-	void (*if_input)(const struct iface *iface);
+	void (*if_input)(struct iface *iface);
 
-#ifdef CONFIG_STATS
+#ifdef CONFIG_IFACE_STATS
+#ifdef CONFIG_RF_RECEIVER
 	uint16_t rx_packets;
 	uint16_t rx_errors;
 	uint16_t rx_dropped;
+#endif
+#ifdef CONFIG_RF_SENDER
 	uint16_t tx_packets;
 	uint16_t tx_errors;
 	uint16_t tx_dropped;
+#endif
 #endif
 	ring_t *rx;
 	ring_t *tx;
@@ -110,5 +114,11 @@ void if_schedule_receive(const iface_t *iface, pkt_t *pkt);
  * \param[in]  pkt  packet to be scheduled
  */
 void if_schedule_tx_pkt_free(pkt_t *pkt);
+
+/** Dump interface statistics
+ *
+ * @param[in]  iface  interface
+ */
+void if_dump_stats(const iface_t *iface);
 
 #endif

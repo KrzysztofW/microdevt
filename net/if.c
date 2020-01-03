@@ -101,3 +101,21 @@ void if_schedule_tx_pkt_free(pkt_t *pkt)
 {
 	schedule_task(if_pkt_free_cb, pkt);
 }
+
+#if defined(CONFIG_IFACE_STATS) && defined (DEBUG)
+void if_dump_stats(const iface_t *iface)
+{
+	LOG("\nInterface: %p\n");
+#ifdef CONFIG_RF_RECEIVER
+	LOG(" Received: %u\n", iface->rx_packets);
+	LOG(" Errors:   %u\n", iface->rx_errors);
+	LOG(" Dropped:  %u\n", iface->rx_dropped);
+#endif
+	LOG("\n");
+#ifdef CONFIG_RF_SENDER
+	LOG(" Sent:     %u\n", iface->tx_packets);
+	LOG(" Errors:   %u\n", iface->tx_errors);
+	LOG(" Dropped:  %u\n", iface->tx_dropped);
+#endif
+}
+#endif

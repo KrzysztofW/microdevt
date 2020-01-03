@@ -352,7 +352,7 @@ void swen_l3_assoc_shutdown(swen_l3_assoc_t *assoc)
 }
 
 void
-swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface)
+swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, iface_t *iface)
 {
 	assert(assoc->state == S_STATE_CLOSED);
 #ifdef CONFIG_RND_SEED

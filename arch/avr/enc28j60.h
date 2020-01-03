@@ -62,10 +62,10 @@ void enc28j60_init(uint8_t *macaddr);
 /* \param iface		Interface on whitch to send (not supported for now). */
 /* \param pkt		Pointer to the packet. */
 /* \return		0 (generic return). */
-int enc28j60_pkt_send(const iface_t *iface, pkt_t *pkt);
+int enc28j60_pkt_send(iface_t *iface, pkt_t *pkt);
 
 /* \param iface		Pointer to the interface. */
-void enc28j60_pkt_recv(const iface_t *iface);
+void enc28j60_pkt_recv(iface_t *iface);
 
 uint8_t enc28j60_get_interrupts(void);
 void enc28j60_handle_interrupts(const iface_t *iface);

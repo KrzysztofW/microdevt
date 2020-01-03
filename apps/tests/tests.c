@@ -513,12 +513,12 @@ static int timer_check(void)
 	return 0;
 }
 
-static int send(const struct iface *iface, pkt_t *pkt)
+static int send(iface_t *iface, pkt_t *pkt)
 {
 	return 0;
 }
 
-static void recv(const struct iface *iface) {}
+static void recv(iface_t *iface) {}
 
 static void net_swen_l3_flush_scheduler(void)
 {
