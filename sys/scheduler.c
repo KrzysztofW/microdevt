@@ -43,8 +43,8 @@ typedef struct __PACKED__ task {
 
 #define RING_SIZE (CONFIG_SCHEDULER_MAX_TASKS * sizeof(task_t))
 
-STATIC_RING_DECL(ring, roundup_pwr2(RING_SIZE));
-STATIC_RING_DECL(ring_irq, roundup_pwr2(RING_SIZE));
+STATIC_RING_DECL(ring, ROUNDUP_PWR2(RING_SIZE));
+STATIC_RING_DECL(ring_irq, ROUNDUP_PWR2(RING_SIZE));
 
 #ifdef CONFIG_POWER_MANAGEMENT
 static uint8_t idle;

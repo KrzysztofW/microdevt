@@ -60,7 +60,7 @@
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-#define roundup_pwr2(x) (1 << ((sizeof(int) * 8) - __builtin_clz(x - 1)))
+#define ROUNDUP_PWR2(x) (1 << ((sizeof(int) * 8) - __builtin_clz(x - 1)))
 
 /* the checked value must be of type < (unsigned long long) */
 #define IS_UNSIGNED(a) ((a) >= 0 && (typeof(a))~(a) >= 0)
