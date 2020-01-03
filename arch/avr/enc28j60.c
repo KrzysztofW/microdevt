@@ -491,7 +491,7 @@ void enc28j60_pkt_recv(iface_t *iface)
 			break;
 		}
 		enc28j60_read_buffer(len, &pkt->buf);
-		if_schedule_receive(iface, pkt);
+		if_schedule_receive(iface, &pkt);
 
 	end:
 		enc28j60_write(ERXRDPTL, next_pkt_ptr);

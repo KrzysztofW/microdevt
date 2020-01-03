@@ -120,10 +120,9 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 			goto end;
 
 		byte_reset(&ctx->rcv_data.byte);
-		if (ctx->rcv.receiving) {
-			if_schedule_receive(iface, ctx->rcv_data.pkt);
-			ctx->rcv_data.pkt = NULL;
-		}
+		if (ctx->rcv.receiving)
+			if_schedule_receive(iface, &ctx->rcv_data.pkt);
+
 		if (ctx->rcv_data.pkt == NULL) {
 			if ((ctx->rcv_data.pkt = pkt_get(iface->pkt_pool))
 			    == NULL) {
@@ -138,8 +137,7 @@ static void rf_fill_data(const iface_t *iface, uint8_t bit)
 	}
 	if (ctx->rcv.receiving && ctx->rcv_data.pkt
 	    && pkt_len(ctx->rcv_data.pkt)) {
-		if_schedule_receive(iface, ctx->rcv_data.pkt);
-		ctx->rcv_data.pkt = NULL;
+		if_schedule_receive(iface, &ctx->rcv_data.pkt);
 	}
  end:
 	ctx->rcv.receiving = 0;
@@ -318,15 +316,12 @@ static void rf_snd_tim_cb(void *arg)
 		ctx->snd_data.pkt = NULL;
 		ctx->snd.frame_pos = START_FRAME_LENGTH;
 #ifdef RF_DEBUG
-		if (iface == rf_debug_iface1) {
+		if (iface == rf_debug_iface1)
 			if_schedule_receive(rf_debug_iface2,
-					    debug_ctx2->rcv_data.pkt);
-			debug_ctx2->rcv_data.pkt = NULL;
-		} else {
+					    &debug_ctx2->rcv_data.pkt);
+		else
 			if_schedule_receive(rf_debug_iface1,
-					    debug_ctx1->rcv_data.pkt);
-			debug_ctx1->rcv_data.pkt = NULL;
-		}
+					    &debug_ctx1->rcv_data.pkt);
 #endif
 	}
 	ctx->snd.frame_pos = 0;

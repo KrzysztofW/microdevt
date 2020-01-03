@@ -84,12 +84,14 @@ static void if_schedule_receive_cb(void *arg)
 	iface->if_input(iface);
 }
 
-void if_schedule_receive(const iface_t *iface, pkt_t *pkt)
+void if_schedule_receive(iface_t *iface, pkt_t **pkt)
 {
 	if (ring_is_empty(iface->rx) || ring_is_empty(iface->pkt_pool))
-		schedule_task(if_schedule_receive_cb, (iface_t *)iface);
-	if (pkt)
-		pkt_put(iface->rx, pkt);
+		schedule_task(if_schedule_receive_cb, iface);
+	if (pkt && *pkt) {
+		pkt_put(iface->rx, *pkt);
+		*pkt = NULL;
+	}
 }
 
 static void if_pkt_free_cb(void *arg)
@@ -97,9 +99,10 @@ static void if_pkt_free_cb(void *arg)
 	pkt_free(arg);
 }
 
-void if_schedule_tx_pkt_free(pkt_t *pkt)
+void if_schedule_tx_pkt_free(pkt_t **pkt)
 {
-	schedule_task(if_pkt_free_cb, pkt);
+	schedule_task(if_pkt_free_cb, *pkt);
+	*pkt = NULL;
 }
 
 #if defined(CONFIG_IFACE_STATS) && defined (DEBUG)

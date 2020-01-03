@@ -104,16 +104,17 @@ void if_init(iface_t *iface, uint8_t type, ring_t *pkt_pool, ring_t *rx,
 
 /** Schedule packet reception
  *
- * \param[in]  iface   network interface
- * \param[in]  pkt     packet to be scheduled
+ * @param[in]     iface   network interface
+ * @param[inout]  pkt     packet to be scheduled
+ *                        The packet is set to null.
  */
-void if_schedule_receive(const iface_t *iface, pkt_t *pkt);
+void if_schedule_receive(iface_t *iface, pkt_t **pkt);
 
-/** Schedule packet transmission
+/** Free transmitted packet
  *
- * \param[in]  pkt  packet to be scheduled
+ * @param[in]  pkt  packet to be freed asynchronously
  */
-void if_schedule_tx_pkt_free(pkt_t *pkt);
+void if_schedule_tx_pkt_free(pkt_t **pkt);
 
 /** Dump interface statistics
  *
