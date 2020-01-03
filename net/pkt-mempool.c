@@ -190,12 +190,11 @@ void pkt_free(pkt_t *pkt)
 		return;
 	}
 #endif
-
+	buf_reset(&pkt->buf);
 #ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 	if (pkt_is_emergency(pkt))
 		return;
 #endif
-	buf_reset(&pkt->buf);
 	if (pkt_put(pkt_pool, pkt) < 0)
 		__abort();
 #ifdef CONFIG_EVENT
