@@ -26,7 +26,6 @@
 #define _MODULE_COMMON_H_
 #include <stdint.h>
 #include <net/if.h>
-#include <drivers/rf.h>
 #include <net/swen-l3.h>
 #include <interrupts.h>
 

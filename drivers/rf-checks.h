@@ -22,13 +22,12 @@
  *
 */
 
-#ifndef _RF_CFG_H_
-#define _RF_CFG_H_
+#ifndef _RF_CHECKS_H_
+#define _RF_CHECKS_H_
 
-#define RF_RCV_PIN_NB PC0
-#define RF_RCV_PIN PINC
+extern pkt_t *pkt_recv;
+extern rf_ctx_t rf_check_recv_ctx;
 
-#define RF_SND_PIN_NB PD1
-#define RF_SND_PORT PORTD
+int rf_checks(iface_t *iface);
 
 #endif

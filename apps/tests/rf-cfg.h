@@ -26,7 +26,6 @@
 #define _RF_CFG_H_
 #include "rf-common.h"
 
-#define RF_SAMPLING_US 150
 #define RF_RING_SIZE   256
 
 static unsigned snd_port;

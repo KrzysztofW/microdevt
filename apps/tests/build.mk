@@ -59,7 +59,7 @@ CFLAGS += -DCONFIG_BSD_COMPAT
 endif
 
 ifeq "$(or $(CONFIG_RF_RECEIVER), $(CONFIG_RF_SENDER))" "y"
-SOURCES += ../../drivers/rf.c
+SOURCES += ../../drivers/rf.c ../../drivers/rf-checks.c
 ifdef CONFIG_RF_SENDER
 CFLAGS += -DCONFIG_RF_SENDER
 endif

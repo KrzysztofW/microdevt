@@ -428,6 +428,11 @@ static inline int buf_addbuf(buf_t *dst, const buf_t *src)
 	return buf_add(dst, src->data, src->len);
 }
 
+static inline void __buf_addbuf(buf_t *dst, const buf_t *src)
+{
+	__buf_add(dst, src->data, src->len);
+}
+
 static inline int buf_addsbuf(buf_t *dst, const sbuf_t *src)
 {
 	return buf_add(dst, src->data, src->len);

@@ -23,6 +23,8 @@
 */
 
 #include <eeprom.h>
+#include <drivers/rf.h>
+#include <gpio.h>
 #include "module-common.h"
 
 const uint32_t rf_enc_defkey[4] = {
@@ -70,7 +72,7 @@ void module_init_debug_iface(iface_t *iface, uint8_t *addr)
 	iface->flags = IF_UP|IF_RUNNING|IF_NOARP;
 	if_init(iface, IF_TYPE_RF, &debug_iface_queues.pkt_pool,
 		&debug_iface_queues.rx, &debug_iface_queues.tx, 1);
-	rf_init(iface, &debug_ctx, 1);
+	rf_init(iface, &debug_ctx);
 }
 #endif
 
@@ -86,7 +88,7 @@ void module_init_iface(iface_t *iface, uint8_t *addr)
 	iface->flags = IF_UP|IF_RUNNING|IF_NOARP;
 	if_init(iface, IF_TYPE_RF, &iface_queues.pkt_pool, &iface_queues.rx,
 		&iface_queues.tx, 1);
-	rf_init(iface, &ctx, 1);
+	rf_init(iface, &ctx);
 }
 
 int module_check_magic(void)

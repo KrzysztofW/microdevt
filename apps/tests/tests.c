@@ -36,6 +36,7 @@
 #include <sys/scheduler.h>
 #include <net/tests.h>
 #include <drivers/rf.h>
+#include <drivers/rf-checks.h>
 #include <drivers/gsm-at.h>
 
 #define CHK_RSIZE 64
@@ -541,7 +542,7 @@ static int driver_rf_checks(void)
 	if_init(&iface, IF_TYPE_RF, &iface_queues.pkt_pool, &iface_queues.rx,
 		&iface_queues.tx, 1);
 
-	rf_init(&iface, &rf_ctx, 2);
+	rf_init(&iface, &rf_ctx);
 	ret = rf_checks(&iface);
 	net_swen_l3_flush_scheduler();
 

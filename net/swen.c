@@ -342,20 +342,22 @@ int swen_sendto(const iface_t *iface, uint8_t to, const sbuf_t *sbuf)
 	if (to == iface->hw_addr[0]) {
 		buf_t buf = sbuf2buf(sbuf);
 
-		if (swen_event_cb) {
+		if (swen_event_cb)
 			swen_event_cb(to, EV_READ, &buf);
-		}
 		return 0;
 	}
-
 	if ((pkt = pkt_alloc()) == NULL)
 		return -1;
 
+	if (sbuf->len > pkt->buf.size - sizeof(swen_hdr_t))
+		goto error;
+
 	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
+
 	if (buf_addsbuf(&pkt->buf, sbuf) >= 0
 	    && swen_output(pkt, iface, L3_PROTO_NONE, &to) >= 0)
 		return 0;
-
+ error:
 	pkt_free(pkt);
 	return -1;
 }
@@ -370,10 +372,8 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 {
 	swen_hdr_t *hdr = btod(pkt);
 
-	if (pkt_len(pkt) < sizeof(swen_hdr_t))
-		goto end;
-
-	if (hdr->to != iface->hw_addr[0] || cksum(hdr, pkt->buf.len) != 0) {
+	if (pkt_len(pkt) < sizeof(swen_hdr_t) ||
+	    hdr->to != iface->hw_addr[0] || cksum(hdr, pkt->buf.len) != 0) {
 #ifdef CONFIG_RF_GENERIC_COMMANDS
 		if (swen_generic_cmds_record_value == -1)
 			swen_parse_generic_cmds(&pkt->buf);

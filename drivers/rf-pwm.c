@@ -28,12 +28,8 @@
 #ifdef CONFIG_RND_SEED
 #include <sys/random.h>
 #endif
-#include <net/swen.h>
-#ifdef CONFIG_RF_CHECKS
-#include <net/event.h>
-#endif
 #include <sys/scheduler.h>
-#include "rf.h"
+#include "rf-pwm.h"
 #include "rf-cfg.h"
 #ifndef X86
 #include "adc.h"
@@ -62,8 +58,8 @@ extern iface_t *rf_debug_iface2;
 #error "RF_SND_PIN and RF_SND_PORT are not defined"
 #endif
 #ifdef CONFIG_RF_CHECKS
-static pkt_t *pkt_recv;
-static rf_ctx_t rf_check_recv_ctx;
+extern pkt_t *pkt_recv;
+extern rf_ctx_t rf_check_recv_ctx;
 #endif
 #endif
 
@@ -339,200 +335,6 @@ static void rf_snd_tim_cb(void *arg)
 	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, arg);
 #endif
 #endif
-}
-#endif
-
-#ifdef CONFIG_RF_CHECKS
-#ifdef CONFIG_RF_RECEIVER
-static uint8_t received;
-
-static void
-rf_checks_event_cb(uint8_t from, uint8_t events, buf_t *buf)
-{
-	if (events & EV_READ)
-		received = 1;
-}
-
-static void
-rf_checks_send_data(const iface_t *iface, uint8_t cnt, uint8_t bit)
-{
-	rf_ctx_t *ctx = iface->priv;
-
-	ctx->rcv.cnt = cnt;
-	rf_fill_data(iface, bit);
-}
-
-static void rf_simulate_garbage_data(const iface_t *iface)
-{
-	unsigned i;
-
-	for (i = 0; i < 0xFF; i++) {
-		uint8_t cnt = rand();
-		uint8_t bit = rand() & 0x1;
-
-		rf_checks_send_data(iface, cnt, bit);
-	}
-}
-
-static void
-rf_simulate_sending_data(const iface_t *iface, const sbuf_t *sbuf)
-{
-	int i;
-	uint8_t clk = 1, bit;
-
-	rf_simulate_garbage_data(iface);
-
-	/* send frame delimiter */
-	rf_checks_send_data(iface, 60, 0);
-
-	for (i = 0; i < sbuf->len; i++) {
-		int j;
-		uint8_t d = sbuf->data[i];
-
-		for (j = 0; j < 8; j++) {
-			uint8_t cnt;
-
-			bit = (d & 0x80) >> 7;
-			d <<= 1;
-			cnt = bit ? 4 : 2;
-			rf_checks_send_data(iface, cnt, clk);
-			clk ^= 1;
-		}
-	}
-	if (clk == 0)
-		rf_checks_send_data(iface, 2, 1);
-
-	/* send frame delimiter */
-	rf_checks_send_data(iface, 60, 0);
-}
-
-static void rf_receive_checks(iface_t *iface)
-{
-	sbuf_t sbuf;
-	uint8_t data[] = {
-		0x69, 0x68, 0x03, 0xAF, 0xB9, 0x74, 0x65, 0x73, 0x74,
-	};
-	uint8_t addr = 0x69;
-	uint8_t *cur_addr = iface->hw_addr;
-
-	/* save current address */
-	iface->hw_addr = &addr;
-
-	swen_ev_set(rf_checks_event_cb);
-	sbuf_init(&sbuf, data, sizeof(data));
-	rf_simulate_sending_data(iface, &sbuf);
-	while (received == 0)
-		scheduler_run_task();
-
-	/* restore address */
-	iface->hw_addr = cur_addr;
-}
-#endif
-
-#ifdef CONFIG_RF_SENDER
-static int rf_buffer_checks(rf_ctx_t *ctx, pkt_t *pkt)
-{
-	int i;
-	int data_len = pkt->buf.len;
-	int burst = 0;
-
-#ifdef CONFIG_RF_BURST
-	burst = ctx->burst;
-#endif
-	ctx->snd_data.pkt = pkt;
-	ctx->snd_data.buf = pkt->buf;
-	rf_check_recv_ctx.rcv_data.pkt = pkt_recv;
-
-	/* send bytes */
-	while (rf_snd(ctx) >= 0) {}
-
-	if (pkt_recv->buf.len == 0) {
-		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-		return -1;
-	}
-
-	if (pkt_recv->buf.len != data_len * (burst + 1)) {
-		DEBUG_LOG("%s:%d failed (len:%d, expected: %d)\n",
-			  __func__, __LINE__, pkt_recv->buf.len,
-			  data_len * burst + 1);
-		return -1;
-	}
-	for (i = 0; i < burst; i++) {
-		buf_t tmp;
-
-		buf_init(&tmp, pkt_recv->buf.data + (pkt->buf.len * i),
-			 pkt->buf.len);
-		if (buf_cmp(&pkt->buf, &tmp) != 0) {
-			DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
-static int rf_send_checks(const iface_t *iface)
-{
-	uint8_t data[] = {
-		0x69, 0x70, 0x00, 0x10, 0xC8, 0xA0, 0x4B, 0xF7,
-		0x17, 0x7F, 0xE7, 0x81, 0x92, 0xE4, 0x0E, 0xA3,
-		0x83, 0xE7, 0x29, 0x74, 0x34, 0x03
-	};
-	uint8_t data2[] = {
-		0x69, 0x70, 0x00, 0x10, 0xC8, 0xA0, 0x4B, 0xF7,
-		0x17, 0x7F, 0xE7, 0x81, 0x92, 0xE4, 0x0E, 0xA3,
-		0x00
-	};
-	rf_ctx_t *ctx = iface->priv;
-	pkt_t *pkt;
-
-	pkt = pkt_alloc();
-	pkt_recv = pkt_alloc();
-
-	if (pkt == NULL || pkt_recv == NULL) {
-		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-		return -1;
-	}
-
-	buf_init(&pkt->buf, data, sizeof(data));
-	if (rf_buffer_checks(ctx, pkt) < 0) {
-		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-		return -1;
-	}
-	memset(&ctx->snd, 0, sizeof(ctx->snd));
-	buf_reset(&pkt_recv->buf);
-	buf_init(&pkt->buf, data2, sizeof(data2));
-
-	if (rf_buffer_checks(ctx, pkt) < 0) {
-		DEBUG_LOG("%s:%d failed\n", __func__, __LINE__);
-		return -1;
-	}
-
-	memset(&ctx->snd, 0, sizeof(ctx->snd));
-	pkt_free(pkt_recv);
-	pkt_free(pkt);
-
-	return 0;
-}
-#endif
-
-int rf_checks(iface_t *iface)
-{
-	rf_ctx_t *ctx = iface->priv;
-
-#ifdef CONFIG_RF_SENDER
-	if (rf_send_checks(iface) < 0)
-		return -1;
-#endif
-#ifdef CONFIG_RF_RECEIVER
-	timer_del(&ctx->timer);
-	rf_receive_checks(iface);
-	timer_reschedule(&ctx->timer, RF_SAMPLING_US);
-#endif
-#ifndef TEST
-	DEBUG_LOG("RF checks succeeded\n");
-#endif
-	return 0;
 }
 #endif
 

@@ -31,7 +31,6 @@
 #include <net/socket.h>
 #include <net-apps/net-apps.h>
 #include <sys/timer.h>
-#include <drivers/rf.h>
 
 /* #define ENC28J60_INT */
 /* #define NETWORK_WD_RESET */

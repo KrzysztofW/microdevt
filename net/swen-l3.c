@@ -358,7 +358,11 @@ swen_l3_assoc_bind(swen_l3_assoc_t *assoc, uint8_t to, const iface_t *iface)
 #ifdef CONFIG_RND_SEED
 	assoc->seq_id = rand_r(&rnd_seed);
 #else
+#ifndef TEST
 	assoc->seq_id = rand();
+#else
+	assoc->seq_id = 0x1F;
+#endif
 #endif
 	assoc->iface = iface;
 	assoc->dst = to;

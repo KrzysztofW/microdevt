@@ -24,6 +24,7 @@
 
 #ifndef _BYTE_H_
 #define _BYTE_H_
+#include <log.h>
 
 struct byte {
 	uint8_t c;
@@ -42,7 +43,7 @@ static inline void byte_init(byte_t *byte, uint8_t c)
 	byte->pos = 8;
 }
 
-static inline int byte_is_empty(const byte_t *byte)
+static inline uint8_t byte_is_empty(const byte_t *byte)
 {
 	return byte->pos == 0;
 }
@@ -59,16 +60,21 @@ static inline int byte_add_bit(byte_t *byte, uint8_t bit)
 	return -1;
 }
 
-static inline int byte_get_bit(byte_t *byte)
+static inline uint8_t __byte_get_bit(byte_t *byte)
 {
 	uint8_t bit;
 
-	if (byte->pos == 0)
-		return -1;
 	bit = byte->c >> 7;
-	byte->c = byte->c << 1;
+	byte->c <<= 1;
 	byte->pos--;
 	return bit;
+}
+
+static inline int byte_get_bit(byte_t *byte)
+{
+	if (byte->pos == 0)
+		return -1;
+	return __byte_get_bit(byte);
 }
 
 static inline void print_byte(const byte_t *byte)
@@ -76,7 +82,7 @@ static inline void print_byte(const byte_t *byte)
 	int j;
 
 	for (j = 0; j < byte->pos; j++) {
-		printf("%s", ((byte->c  >> (7 - j)) & 1) ? "X" : " ");
+		LOG("%s", ((byte->c  >> (7 - j)) & 1) ? "X" : " ");
 	}
 }
 
