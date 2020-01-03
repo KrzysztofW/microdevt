@@ -100,6 +100,21 @@ Misc Utils
 Networking
 ----------
 
+Interface
+~~~~~~~~~
+
+.. doxygenfunction:: if_init
+   :project: doxygen
+
+.. doxygenfunction:: if_schedule_receive
+   :project: doxygen
+
+.. doxygenfunction:: if_schedule_tx_pkt_free
+   :project: doxygen
+
+.. doxygenfunction:: if_dump_stats
+   :project: doxygen
+
 Packet memory pool
 ~~~~~~~~~~~~~~~~~~
 

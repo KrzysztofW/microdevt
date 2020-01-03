@@ -85,12 +85,12 @@ typedef struct iface iface_t;
 
 /** Initialize an interface.
  *
- * \param[in]  iface    interface to initialize
- * \param[in]  type     type of interface (eg: IF_TYPE_ETHERNET)
- * \param[in]  pkt_pool driver's free packet pool
- * \param[in]  rx       inbound packet bucket
- * \param[in]  tx       outbound packet bucket
- * \param[in]  is_interrupt_driven  indicates if the driver handle
+ * @param[in]  iface    interface to initialize
+ * @param[in]  type     type of interface (eg: IF_TYPE_ETHERNET)
+ * @param[in]  pkt_pool driver's free packet pool
+ * @param[in]  rx       inbound packet bucket
+ * @param[in]  tx       outbound packet bucket
+ * @param[in]  is_interrupt_driven  indicates if the driver handle
  *             packet reception/sending on hardware interrupt
  */
 void if_init(iface_t *iface, uint8_t type, ring_t *pkt_pool, ring_t *rx,
