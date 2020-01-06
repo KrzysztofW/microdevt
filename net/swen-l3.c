@@ -192,7 +192,7 @@ static void swen_l3_task_cb(void *arg)
 		break;
 	}
 	if (!timer_is_pending(&assoc->timer))
-	    timer_reschedule(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY);
+		timer_reschedule(&assoc->timer, SWEN_L3_RETRANSMIT_DELAY);
 }
 
 #ifdef TEST

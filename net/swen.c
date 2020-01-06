@@ -339,6 +339,8 @@ int swen_sendto(iface_t *iface, uint8_t to, const sbuf_t *sbuf)
 {
 	pkt_t *pkt;
 
+#if 0
+	/* check if we're sending to us */
 	if (to == iface->hw_addr[0]) {
 		buf_t buf = sbuf2buf(sbuf);
 
@@ -346,6 +348,7 @@ int swen_sendto(iface_t *iface, uint8_t to, const sbuf_t *sbuf)
 			swen_event_cb(to, EV_READ, &buf);
 		return 0;
 	}
+#endif
 	if ((pkt = pkt_alloc()) == NULL)
 		return -1;
 
