@@ -20,8 +20,6 @@
 # The full GNU General Public License is included in this distribution in
 # the file called "LICENSE".
 #
-# Contact Information:
-# Krzysztof Witek <kwitek@kw-net.com>
 
 ROOT_PATH = ../..
 ARCH_DIR=$(ROOT_PATH)/arch

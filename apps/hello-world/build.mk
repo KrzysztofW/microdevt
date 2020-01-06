@@ -20,8 +20,6 @@
 # The full GNU General Public License is included in this distribution in
 # the file called "LICENSE".
 #
-# Contact Information:
-# Krzysztof Witek <kwitek@kw-net.com>
 
 ifdef CONFIG_SCHEDULER_MAX_TASKS
 CFLAGS += -DCONFIG_SCHEDULER_MAX_TASKS=$(CONFIG_SCHEDULER_MAX_TASKS)
