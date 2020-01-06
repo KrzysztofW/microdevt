@@ -46,6 +46,9 @@ endif
 ifeq ($(CONFIG_AVR_MCU),atmega2561)
 AVR_FLAGS += -DATMEGA2561
 endif
+ifeq ($(CONFIG_AVR_MCU),atmega2560)
+AVR_FLAGS += -DATMEGA2560
+endif
 ifeq ($(CONFIG_AVR_MCU),atmega328p)
 AVR_FLAGS += -DATMEGA328P
 endif
