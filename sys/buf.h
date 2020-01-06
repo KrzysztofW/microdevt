@@ -358,7 +358,8 @@ static inline void buf_print(const buf_t *buf);
 static inline void sbuf_print(const sbuf_t *buf);
 
 static inline int
-__buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
+__buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s,
+			 uint8_t skip)
 {
 	uint8_t *d;
 	unsigned skipped_len;
@@ -368,7 +369,8 @@ __buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 		return -1;
 	skipped_len = d - buf->data;
 	sbuf_init(sbuf, buf->data, skipped_len);
-	buf_adj(buf, skipped_len + s->len);
+	if (skip)
+		buf_adj(buf, skipped_len + s->len);
 
 	return 0;
 }
@@ -376,13 +378,13 @@ __buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 static inline int
 buf_get_sbuf_upto_sbuf_and_skip(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 {
-	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s);
+	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s, 1);
 }
 
 static inline int
 buf_get_sbuf_upto_sbuf(buf_t *buf, sbuf_t *sbuf, const sbuf_t *s)
 {
-	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s);
+	return __buf_get_sbuf_upto_sbuf(buf, sbuf, s, 0);
 }
 
 static inline int buf_get_sbuf_upto(buf_t *buf, sbuf_t *sbuf, const char *s)
