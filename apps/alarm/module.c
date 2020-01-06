@@ -31,6 +31,7 @@
 #include <interrupts.h>
 #include <drivers/sensors.h>
 #include <eeprom.h>
+#include <sys/opts.h>
 #include "module-common.h"
 #include "gpio.h"
 
@@ -52,6 +53,7 @@ iface_t *rf_debug_iface1 = &rf_iface;
 #ifdef CONFIG_NETWORKING
 extern iface_t eth_iface;
 #endif
+static uint8_t cur_mod;
 
 static tim_t timer_1sec = TIMER_INIT(timer_1sec);
 
@@ -80,20 +82,6 @@ static sbuf_t s_delete_cmd = SBUF_INITS("delete cmd");
 static sbuf_t s_list_cmds = SBUF_INITS("list cmd");
 #endif
 
-#define MAX_ARGS 8
-typedef enum arg_type {
-	ARG_TYPE_NONE,
-	ARG_TYPE_INT8,
-	ARG_TYPE_INT16,
-	ARG_TYPE_STRING,
-} arg_type_t;
-
-typedef struct cmd {
-	const sbuf_t *s;
-	uint8_t args[MAX_ARGS];
-	uint8_t cmd;
-} cmd_t;
-
 static cmd_t cmds[] = {
 	{ .s = &s_disarm, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISARM },
 	{ .s = &s_arm, .args = { ARG_TYPE_NONE }, .cmd = CMD_ARM },
@@ -108,14 +96,14 @@ static cmd_t cmds[] = {
 	  .cmd = CMD_ENABLE_FAN },
 	{ .s = &s_siren_on, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_ON },
 	{ .s = &s_siren_off, .args = { ARG_TYPE_NONE }, .cmd = CMD_SIREN_OFF },
-	{ .s = &s_humidity_th, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
+	{ .s = &s_humidity_th, .args = { ARG_TYPE_UINT8, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_HUM_TH },
-	{ .s = &s_sensor_report, .args = { ARG_TYPE_INT16, ARG_TYPE_INT8,
+	{ .s = &s_sensor_report, .args = { ARG_TYPE_UINT16, ARG_TYPE_UINT8,
 					   ARG_TYPE_NONE },
 	  .cmd = CMD_GET_SENSOR_REPORT },
-	{ .s = &s_siren_duration, .args = { ARG_TYPE_INT16, ARG_TYPE_NONE },
+	{ .s = &s_siren_duration, .args = { ARG_TYPE_UINT16, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_SIREN_DURATION },
-	{ .s = &s_siren_timeout, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
+	{ .s = &s_siren_timeout, .args = { ARG_TYPE_UINT8, ARG_TYPE_NONE },
 	  .cmd = CMD_SET_SIREN_TIMEOUT },
 	{ .s = &s_disconnect, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISCONNECT },
 	{ .s = &s_disable_pwr_down, .args = { ARG_TYPE_NONE },
@@ -125,9 +113,9 @@ static cmd_t cmds[] = {
 	{ .s = &s_connect, .args = { ARG_TYPE_NONE }, .cmd = CMD_CONNECT },
 	{ .s = &s_disable, .args = { ARG_TYPE_NONE }, .cmd = CMD_DISABLE },
 #ifdef CONFIG_RF_GENERIC_COMMANDS
-	{ .s = &s_record_cmd, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
+	{ .s = &s_record_cmd, .args = { ARG_TYPE_UINT8, ARG_TYPE_NONE },
 	  .cmd = CMD_RECORD_GENERIC_COMMAND },
-	{ .s = &s_delete_cmd, .args = { ARG_TYPE_INT8, ARG_TYPE_NONE },
+	{ .s = &s_delete_cmd, .args = { ARG_TYPE_UINT8, ARG_TYPE_NONE },
 	  .cmd = CMD_GENERIC_COMMANDS_DELETE, },
 	{ .s = &s_list_cmds, .args = { ARG_TYPE_NONE },
 	  .cmd = CMD_GENERIC_COMMANDS_LIST, },
@@ -294,28 +282,28 @@ static void show_recordable_cmds(void)
 	uint8_t i;
 
 	LOG("List of recordable commands:\n");
-	for (i = 0; i < sizeof(cmds) / sizeof(cmd_t); i++) {
+	for (i = 0; i < countof(cmds); i++) {
 		if (cmd_is_recordable(cmds[i].cmd))
 			LOG("%2u %s\n", cmds[i].cmd, cmds[i].s->data);
 	}
 }
 #endif
 
-static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
+static void handle_rx_commands(uint8_t cmd, buf_t *args)
 {
 	module_cfg_t c;
 	module_cfg_t *cfg;
 	swen_l3_assoc_t *assoc;
 	uint8_t mod_id;
 
-	if (id == 0)
+	if (cur_mod == 0)
 		cfg = &module_cfg;
 	else
 		cfg = &c;
-	cfg_load(cfg, id);
+	cfg_load(cfg, cur_mod);
 
 	if (cmd != CMD_CONNECT && cfg->state == MODULE_STATE_UNINITIALIZED) {
-		LOG("module %u not initilized\n", id);
+		LOG("module %u not initilized\n", cur_mod);
 		return;
 	}
 
@@ -335,14 +323,14 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 
 	switch (cmd) {
 	case CMD_ARM:
-		if (id == 0)
+		if (cur_mod == 0)
 			module_arm(&module_cfg, 1);
 		else
 			cfg->state = MODULE_STATE_ARMED;
 		break;
 	case CMD_DISARM:
 		cfg->state = MODULE_STATE_DISARMED;
-		if (id == 0)
+		if (cur_mod == 0)
 			module_arm(&module_cfg, 0);
 		break;
 	case CMD_SET_HUM_TH:
@@ -366,7 +354,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		cfg->fan_enabled = 0;
 		break;
 	case CMD_GET_STATUS:
-		if (id == 0) {
+		if (cur_mod == 0) {
 			module_status_t master_status;
 
 			get_module_status(&master_status, &module_cfg, NULL);
@@ -375,7 +363,7 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		}
 		break;
 	case CMD_GET_SENSOR_VALUES:
-		if (id == 0) {
+		if (cur_mod == 0) {
 			sensor_value_t master_sensor_value;
 
 			get_sensor_values(&master_sensor_value, &module_cfg);
@@ -385,15 +373,15 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		break;
 
 	case CMD_SIREN_ON:
-		if (id == 0)
+		if (cur_mod == 0)
 			set_siren_on(&module_cfg, 1);
 		break;
 	case CMD_SIREN_OFF:
-		if (id == 0)
+		if (cur_mod == 0)
 			gpio_siren_off();
 		break;
 	case CMD_DISABLE:
-		if (id == 0)
+		if (cur_mod == 0)
 			return;
 		cfg->state = MODULE_STATE_DISABLED;
 		cmd = CMD_DISCONNECT;
@@ -407,21 +395,21 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		break;
 	}
 
-	cfg_update(cfg, id);
-	if (id == 0)
+	cfg_update(cfg, cur_mod);
+	if (cur_mod == 0)
 		return;
 
 	if (!(cfg->features & MODULE_FEATURE_RF)) {
 		if (cfg->features == 0 && cmd == CMD_CONNECT) {
 			LOG("enabling module\n");
 			cfg->state = MODULE_STATE_DISARMED;
-			cfg_update(cfg, id);
+			cfg_update(cfg, cur_mod);
 		} else {
 			LOG("module does not support RF commands\n");
 			return;
 		}
 	}
-	assoc = &modules[id].assoc;
+	assoc = &modules[cur_mod].assoc;
 
 	if (cmd == CMD_CONNECT) {
 		if (swen_l3_get_state(assoc) != S_STATE_CLOSED) {
@@ -430,9 +418,9 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		}
 		swen_l3_event_register(assoc, EV_WRITE, rf_connecting_on_event);
 		if (!swen_l3_is_assoc_bound(assoc))
-			swen_l3_assoc_bind(assoc, module_id_to_addr(id),
+			swen_l3_assoc_bind(assoc, module_id_to_addr(cur_mod),
 					   &rf_iface);
-		swen_l3_associate(&modules[id].assoc);
+		swen_l3_associate(&modules[cur_mod].assoc);
 		return;
 	}
 	if (swen_l3_get_state(assoc) != S_STATE_CONNECTED) {
@@ -462,84 +450,19 @@ static void handle_rx_commands(uint8_t id, uint8_t cmd, buf_t *args)
 		return;
 	}
 
-	module_add_op(&modules[id].op_queue, cmd, &assoc->event);
-}
-
-static int fill_args(uint8_t arg, buf_t *args, buf_t *buf)
-{
-	buf_t b;
-	sbuf_t sbuf;
-	int16_t v16;
-	sbuf_t space = SBUF_INITS(" ");
-	sbuf_t end;
-	char c_end;
-
-	buf_skip_spaces(buf);
-	if (arg == ARG_TYPE_NONE || buf->len <= 1)
-		return -1;
-
-	if (arg == ARG_TYPE_STRING) {
-		/* take the first string from buf */
-		if (buf_get_sbuf_upto_sbuf_and_skip(buf, &sbuf, &space) < 0)
-			sbuf_init(&sbuf, buf->data, buf->len);
-
-		return buf_addsbuf(args, &sbuf);
-	}
-
-	b = BUF(8);
-
-	c_end = '\0';
-	end = SBUF_INIT(&c_end, 1);
-
-	if (buf_get_sbuf_upto_sbuf_and_skip(buf, &sbuf, &space) < 0
-	    && buf_get_sbuf_upto_sbuf_and_skip(buf, &sbuf, &end) < 0)
-		return -1;
-
-	if (sbuf.len == 0 || buf_addsbuf(&b, &sbuf) < 0
-	    || buf_addc(&b, c_end) < 0)
-		return -1;
-
-	v16 = atoi((char *)b.data);
-
-	switch (arg) {
-	case ARG_TYPE_INT8:
-		if (v16 > 127 || v16 < -127)
-			return -1;
-		return buf_addc(args, (int8_t)v16);
-	case ARG_TYPE_INT16:
-		return buf_add(args, &v16, sizeof(int16_t));
-	default:
-		return -1;
-	}
+	module_add_op(&modules[cur_mod].op_queue, cmd, &assoc->event);
 }
 
 static void print_usage(void)
 {
-	uint8_t i;
-
-	LOG("");
-	for (i = 0; i < sizeof(cmds) / sizeof(cmd_t); i++) {
-		cmd_t *cmd = &cmds[i];
-		uint8_t *args = cmd->args;
-
-		LOG("mod[id] %s", cmd->s->data);
-		while (args[0] != ARG_TYPE_NONE) {
-			if (args[0] == ARG_TYPE_STRING)
-				LOG(" <string>");
-			else
-				LOG(" <number>");
-			args++;
-		}
-		LOG("\n");
-	}
-	LOG("\n");
+	LOG("\nmod <id> +\n\n");
+	opts_print_usage(cmds, countof(cmds));
 }
 
 void alarm_parse_uart_commands(buf_t *buf)
 {
-	buf_t tmp = BUF(10);
+	buf_t args = BUF(10);
 	uint8_t id;
-	uint8_t i;
 	sbuf_t s;
 	iface_t *ifce = NULL;
 
@@ -565,36 +488,18 @@ void alarm_parse_uart_commands(buf_t *buf)
 
 	if (buf_get_sbuf_upto_and_skip(buf, &s, "mod") < 0
 	    || buf_get_sbuf_upto_and_skip(buf, &s, " ") < 0
-	    || buf_addsbuf(&tmp, &s) < 0 || buf_addc(&tmp, '\0') < 0)
+	    || buf_addsbuf(&args, &s) < 0 || buf_addc(&args, '\0') < 0)
 		goto usage;
 
-	id = atoi((char *)tmp.data);
+	id = atoi((char *)args.data);
 	if (id >= NB_MODULES)
 		goto usage;
 
-	buf_reset(&tmp);
+	buf_reset(&args);
 
-	for (i = 0; i < sizeof(cmds) / sizeof(cmd_t); i++) {
-		const cmd_t *cmd = &cmds[i];
-		const uint8_t *a;
-		uint8_t c;
-		sbuf_t sbuf;
-
-		if (buf_get_sbuf_upto_sbuf_and_skip(buf, &sbuf, cmd->s) < 0)
-			continue;
-		if (buf->len > tmp.size)
-			goto usage;
-
-		a = cmd->args;
-		c = cmd->cmd;
-		while (a[0] != ARG_TYPE_NONE) {
-			if (fill_args(a[0], &tmp, buf) < 0)
-				goto usage;
-			a++;
-		}
-		handle_rx_commands(id, c, &tmp);
-		return;
-	}
+	cur_mod = id;
+	opts_parse_buf(cmds, countof(cmds), buf, &args, handle_rx_commands);
+	return;
  usage:
 	LOG("usage: [help] | mod[0-%d] command\n", NB_MODULES - 1);
 }
@@ -848,7 +753,8 @@ static void generic_cmds_cb(uint16_t cmd, uint8_t status)
 
 	if (status == GENERIC_CMD_STATUS_RCV) {
 		DEBUG_LOG("mod0: received generic cmd %u\n", cmd);
-		handle_rx_commands(0, cmd, &args);
+		cur_mod = 0;
+		handle_rx_commands(cmd, &args);
 		return;
 	}
 	generic_cmds_print_status(status);

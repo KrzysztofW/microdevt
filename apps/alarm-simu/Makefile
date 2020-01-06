@@ -43,6 +43,9 @@ SOURCES = main.c ../../sys/scheduler.c  ../../sys/array.c
 SOURCES += module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 SOURCES += ../alarm/alarm-module1/module.c
 
+SOURCES += ../../sys/opts.c
+CFLAGS += -DOPT_MAX_ARGS=3
+
 include config
 include build.mk
 include $(ROOT_PATH)/arch/build.mk

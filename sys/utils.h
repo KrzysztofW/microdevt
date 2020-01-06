@@ -36,6 +36,7 @@
 	const typeof(((type *)0)->member) *__mptr = (ptr);    \
 	(type *)((char *)__mptr - offsetof(type, member));} )
 
+#define countof(array) (sizeof(array) / sizeof(array[0]))
 
 #define POWEROF2(x) ((((x) - 1) & (x)) == 0)
 
