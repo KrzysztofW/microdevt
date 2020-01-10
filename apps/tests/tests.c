@@ -607,6 +607,14 @@ int main(int argc, char **argv)
 	}
 	printf("  ==> driver gsm-at tests succeeded\n");
 
+#ifdef CONFIG_RF_GENERIC_COMMANDS_CHECKS
+	if (net_swen_generic_cmds_tests() < 0) {
+		fprintf(stderr,
+			"  ==> net swen generic commands tests failed\n");
+		return -1;
+	}
+#endif
+	printf("  ==> net swen generic commands tests succeeded\n");
 #ifdef CONFIG_SWEN_L3
 	if (net_swen_l3_tests() < 0) {
 		fprintf(stderr, "  ==> net swen-l3 tests failed\n");

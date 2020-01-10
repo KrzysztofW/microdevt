@@ -53,7 +53,7 @@ static tim_t gcmd_timer = TIMER_INIT(gcmd_timer);
 
 #define LOOP_STOP 0
 #define LOOP_CONTINUE -1
-/* #define CONSISTENCY_CHECK */
+/* #define EEPROM_CONSISTENCY_CHECK */
 
 static uint8_t
 #ifdef CONFIG_AVR_MCU
@@ -73,25 +73,29 @@ static unsigned swen_generic_cmds_addr_offset(void *addr)
 	return a - swen_generic_cmds;
 }
 
-#ifdef CONSISTENCY_CHECK
-static void swen_generic_cmds_check_consistency(void)
+#ifdef EEPROM_CONSISTENCY_CHECK
+void swen_generic_cmds_dump_storage(uint8_t check_eeprom)
 {
 	uint8_t data[CONFIG_RF_GENERIC_COMMANDS_SIZE];
 	sbuf_t sbuf;
 
 	eeprom_load(data, swen_generic_cmds_storage,
 		    CONFIG_RF_GENERIC_COMMANDS_SIZE);
-	if (memcmp(data, swen_generic_cmds,
-		   CONFIG_RF_GENERIC_COMMANDS_SIZE) == 0)
-		return;
-	sbuf = SBUF_INIT(data, CONFIG_RF_GENERIC_COMMANDS_SIZE);
+	if (check_eeprom) {
+		if (memcmp(data, swen_generic_cmds,
+			   CONFIG_RF_GENERIC_COMMANDS_SIZE) == 0)
+			return;
+	}
 
+	sbuf = SBUF_INIT(data, CONFIG_RF_GENERIC_COMMANDS_SIZE);
 	LOG("EEPROM:\n");
 	sbuf_print_hex(&sbuf);
 	LOG("RAM:\n");
 	sbuf = SBUF_INIT(swen_generic_cmds, CONFIG_RF_GENERIC_COMMANDS_SIZE);
 	sbuf_print_hex(&sbuf);
-	__abort();
+
+	if (check_eeprom)
+		__abort();
 }
 #endif
 
@@ -114,7 +118,6 @@ void swen_generic_cmds_init(void (*cb)(uint16_t cmd, uint8_t status))
 		eeprom_update(swen_generic_cmds_storage, hdr,
 			      sizeof(swen_generic_cmds_storage_hdr_t) +
 			      sizeof(swen_generic_cmd_hdr_t));
-		return;
 	}
 	eeprom_load(swen_generic_cmds +
 		    sizeof(swen_generic_cmds_storage_hdr_t),
@@ -144,18 +147,18 @@ int swen_generic_cmds_for_each(int (*cb)(uint8_t number,
 					 void *arg), void *arg)
 {
 	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
+	swen_generic_cmd_hdr_t *cmd_hdr = &hdr->cmds[0];
 	uint16_t i = 0;
 	uint8_t number = 0;
 
 	while (i < CONFIG_RF_GENERIC_COMMANDS_SIZE) {
-		swen_generic_cmd_hdr_t *cmd_hdr = &hdr->cmds[i];
-
-		if (cb(number, cmd_hdr, arg) == 0)
+		if (cb(number, cmd_hdr, arg) == LOOP_STOP)
 			return i;
 		if (cmd_hdr->length == 0)
 			return -1;
 		i += sizeof(swen_generic_cmd_hdr_t) + cmd_hdr->length;
 		number++;
+		cmd_hdr = (void *)((uint8_t *)cmd_hdr + i);
 	}
 	return -1;
 }
@@ -192,31 +195,63 @@ static int
 delete_recorded_cmd_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr,
 		       void *arg)
 {
-	uint8_t nb = (uintptr_t)arg;
+	int nb = (intptr_t)arg;
 
-	if (number == nb && cmd_hdr->cmd != -1) {
+	if ((nb == -1 || (uint8_t)number == nb) && cmd_hdr->cmd != -1) {
 		unsigned offset = swen_generic_cmds_addr_offset(cmd_hdr);
 
 		cmd_hdr->cmd = -1;
 		eeprom_update(swen_generic_cmds_storage + offset,
 			      cmd_hdr, sizeof(swen_generic_cmd_hdr_t));
-#ifdef CONSISTENCY_CHECK
-		swen_generic_cmds_check_consistency();
+#ifdef EEPROM_CONSISTENCY_CHECK
+		swen_generic_cmds_dump_storage(1);
 #endif
-		return LOOP_STOP;
+		if (nb != -1)
+			return LOOP_STOP;
 	}
 	return LOOP_CONTINUE;
 }
 
-void swen_generic_cmds_delete_recorded_cmd(uint8_t number)
+static int
+swen_generic_cmds_is_empty_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr,
+			      void *arg)
+{
+	unsigned *len = arg;
+
+	if (cmd_hdr->length)
+		*len += cmd_hdr->length + sizeof(swen_generic_cmd_hdr_t);
+	return cmd_hdr->cmd == -1 || cmd_hdr->length == 0 ?
+		LOOP_CONTINUE : LOOP_STOP;
+}
+
+static void swen_generic_cmds_wipe(void)
+{
+	unsigned len = 0;
+	swen_generic_cmds_storage_hdr_t *hdr;
+	swen_generic_cmds_storage_hdr_t *storage_hdr;
+
+	if (swen_generic_cmds_for_each(swen_generic_cmds_is_empty_cb, &len)
+	    >= 0)
+		return;
+
+	hdr = (void *)swen_generic_cmds;
+	memset(hdr->cmds, 0, len);
+	storage_hdr = (void *)swen_generic_cmds_storage;
+	eeprom_update(storage_hdr->cmds, hdr->cmds, len);
+}
+
+void swen_generic_cmds_delete_recorded_cmd(int number)
 {
 	uint8_t status;
 
 	if (swen_generic_cmds_for_each(delete_recorded_cmd_cb,
-				       (void *)(uintptr_t)number) < 0)
+				       (void *)(intptr_t)number) < 0
+	    && number != -1) {
 		status = GENERIC_CMD_STATUS_ERROR_NOT_FOUND;
-	else
+	} else {
 		status = GENERIC_CMD_STATUS_OK;
+		swen_generic_cmds_wipe();
+	}
 	swen_generic_cmds_cb(swen_generic_cmds_record_value, status);
 }
 
@@ -232,11 +267,10 @@ cmd_record_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr, void *arg)
 		status = GENERIC_CMD_STATUS_ERROR_FULL;
 		goto end;
 	}
-	if ((cmd_hdr->length >= buf->len && cmd_hdr->cmd == -1) ||
+	if ((cmd_hdr->length == buf->len && cmd_hdr->cmd == -1) ||
 	    cmd_hdr->length == 0) {
 		uint8_t *storage;
 
-		timer_del(&gcmd_timer);
 		cmd_hdr->length = buf->len;
 		cmd_hdr->cmd = swen_generic_cmds_record_value;
 		memcpy(cmd_hdr->data, buf->data, buf->len);
@@ -250,6 +284,7 @@ cmd_record_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr, void *arg)
 	}
 	return LOOP_CONTINUE;
  end:
+	timer_del(&gcmd_timer);
 	swen_generic_cmds_cb(swen_generic_cmds_record_value, status);
 	swen_generic_cmds_record_value = -1;
 	return LOOP_STOP;
@@ -280,22 +315,24 @@ static void swen_generic_cmds_record(buf_t *buf)
 		return;
 	}
 	swen_generic_cmds_for_each(cmd_record_cb, buf);
-#ifdef CONSISTENCY_CHECK
-	swen_generic_cmds_check_consistency();
+#ifdef EEPROM_CONSISTENCY_CHECK
+	swen_generic_cmds_dump_storage(1);
 #endif
 }
 
 static void swen_parse_generic_cmds(buf_t *buf)
 {
 	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
+	swen_generic_cmd_hdr_t *cmd_hdr = &hdr->cmds[0];
 	int ret = swen_generic_cmds_for_each(cmds_parse_cb, buf);
 
-#ifdef CONSISTENCY_CHECK
-	swen_generic_cmds_check_consistency();
+#ifdef EEPROM_CONSISTENCY_CHECK
+	swen_generic_cmds_dump_storage(1);
 #endif
 	if (ret < 0)
 		return;
-	swen_generic_cmds_cb(hdr->cmds[ret].cmd, GENERIC_CMD_STATUS_RCV);
+	cmd_hdr = (void *)((uint8_t *)cmd_hdr + ret);
+	swen_generic_cmds_cb(cmd_hdr->cmd, GENERIC_CMD_STATUS_RCV);
 }
 
 #endif
@@ -378,6 +415,9 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 	if (pkt_len(pkt) < sizeof(swen_hdr_t) ||
 	    hdr->to != iface->hw_addr[0] || cksum(hdr, pkt->buf.len) != 0) {
 #ifdef CONFIG_RF_GENERIC_COMMANDS
+		/* check the minimum generic command length */
+		if (pkt->buf.len < 3)
+			goto end;
 		if (swen_generic_cmds_record_value == -1)
 			swen_parse_generic_cmds(&pkt->buf);
 		else
@@ -425,4 +465,82 @@ void swen_input(iface_t *iface)
 	while ((pkt = pkt_get(iface->rx)))
 		__swen_input(pkt, iface);
 }
+
+#if defined(CONFIG_RF_GENERIC_COMMANDS) &&		\
+    defined(CONFIG_RF_GENERIC_COMMANDS_CHECKS)
+int swen_generic_cmds_check(iface_t *iface)
+{
+	const char *cmd1 = "123";
+	const char *cmd2 = "456";
+	uint8_t data[] = {
+		0xA7, /* magic number */
+		0x04, 0x00, 0x31, 0x32, 0x33, 0x00, /* cmd1 */
+		0x04, 0x01, 0x34, 0x35, 0x36, 0x00, /* cmd2 */
+	};
+	uint8_t data_deleted_cmd1[] = {
+		0xA7, /* magic number */
+		0x04, 0xFF, 0x31, 0x32, 0x33, 0x00, /* cmd1 */
+		0x04, 0x01, 0x34, 0x35, 0x36, 0x00, /* cmd2 */
+	};
+	uint8_t data_deleted_cmd2[] = {
+		0xA7, /* magic number */
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	};
+	pkt_t *pkt = pkt_alloc();
+	sbuf_t s1;
+	sbuf_t s2;
+
+	if (pkt == NULL)
+		return -1;
+
+	swen_generic_cmds_record_value = 0;
+	if (buf_adds(&pkt->buf, cmd1) < 0)
+		return -1;
+
+	swen_generic_cmds_record(&pkt->buf);
+
+	buf_reset(&pkt->buf);
+	swen_generic_cmds_record_value = 1;
+	if (buf_adds(&pkt->buf, cmd2) < 0)
+		return -1;
+
+	swen_generic_cmds_record(&pkt->buf);
+	__swen_input(pkt, iface);
+
+	pkt = pkt_alloc();
+	if (pkt == NULL)
+		return -1;
+
+	if (buf_adds(&pkt->buf, cmd1) < 0)
+		return -1;
+
+	__swen_input(pkt, iface);
+#ifdef EEPROM_CONSISTENCY_CHECK
+	swen_generic_cmds_dump_storage(1);
+#endif
+	sbuf_init(&s1, data, sizeof(data));
+	sbuf_init(&s2, swen_generic_cmds, sizeof(data));
+	if (sbuf_cmp(&s1, &s2) != 0)
+		return -1;
+
+	/* cmd deletion */
+	swen_generic_cmds_delete_recorded_cmd(0);
+	sbuf_init(&s1, data_deleted_cmd1, sizeof(data_deleted_cmd1));
+	if (sbuf_cmp(&s1, &s2) != 0)
+		return -1;
+
+#ifdef EEPROM_CONSISTENCY_CHECK
+	swen_generic_cmds_dump_storage(1);
+#endif
+	swen_generic_cmds_delete_recorded_cmd(1);
+	sbuf_init(&s1, data_deleted_cmd2, sizeof(data_deleted_cmd2));
+	if (sbuf_cmp(&s1, &s2) != 0)
+		return -1;
+#ifdef EEPROM_CONSISTENCY_CHECK
+	swen_generic_cmds_dump_storage(1);
+#endif
+	return 0;
+}
+#endif
 #endif

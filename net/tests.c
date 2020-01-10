@@ -920,6 +920,23 @@ int net_tcp_tests(void)
 
 #endif
 
+#ifdef CONFIG_RF_GENERIC_COMMANDS
+static void net_swen_generic_cmds_cb(uint16_t cmd, uint8_t status) {}
+
+int net_swen_generic_cmds_tests(void)
+{
+	iface_t iface;
+	int ret;
+
+	pkt_mempool_init();
+	swen_generic_cmds_init(net_swen_generic_cmds_cb);
+	if_init(&iface, IF_TYPE_RF, &iface_queues.pkt_pool, NULL, NULL, 0);
+	ret = swen_generic_cmds_check(&iface);
+	pkt_mempool_shutdown();
+	return ret;
+}
+#endif
+
 #ifdef CONFIG_SWEN_L3
 
 static iface_t iface_swen_l3_remote;

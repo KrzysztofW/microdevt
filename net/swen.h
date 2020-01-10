@@ -85,8 +85,18 @@ void swen_generic_cmds_get_list(buf_t *buf);
  *
  * @param[in] number command number
  */
-void swen_generic_cmds_delete_recorded_cmd(uint8_t number);
+void swen_generic_cmds_delete_recorded_cmd(int number);
+
+/** Delete all recorded commands
+ */
+static inline void swen_generic_cmds_delete_all_recorded_cmd(void)
+{
+	swen_generic_cmds_delete_recorded_cmd(-1);
+}
+
+void swen_generic_cmds_dump_storage(uint8_t check_eeprom);
 
 extern void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
+int swen_generic_cmds_check(iface_t *iface);
 
 #endif

@@ -29,6 +29,7 @@ int net_arp_tests(void);
 int net_icmp_tests(void);
 int net_udp_tests(void);
 int net_tcp_tests(void);
+int net_swen_generic_cmds_tests(void);
 int net_swen_l3_tests(void);
 
 #endif
