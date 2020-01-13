@@ -97,6 +97,15 @@ void swen_generic_cmds_dump_storage(uint8_t check_eeprom)
 	if (check_eeprom)
 		__abort();
 }
+void swen_generic_cmds_erase_storage(void)
+{
+	swen_generic_cmds_storage_hdr_t *hdr = (void *)swen_generic_cmds;
+
+	hdr->magic = MAGIC;
+	memset(swen_generic_cmds + 1, 0, CONFIG_RF_GENERIC_COMMANDS_SIZE);
+	eeprom_update(swen_generic_cmds_storage, swen_generic_cmds,
+		      CONFIG_RF_GENERIC_COMMANDS_SIZE);
+}
 #endif
 
 void swen_generic_cmds_init(void (*cb)(uint16_t cmd, uint8_t status))
@@ -115,9 +124,8 @@ void swen_generic_cmds_init(void (*cb)(uint16_t cmd, uint8_t status))
 
 		hdr->magic = MAGIC;
 		cmd_hdr->length = 0;
-		eeprom_update(swen_generic_cmds_storage, hdr,
-			      sizeof(swen_generic_cmds_storage_hdr_t) +
-			      sizeof(swen_generic_cmd_hdr_t));
+		eeprom_update(swen_generic_cmds_storage, swen_generic_cmds,
+			      CONFIG_RF_GENERIC_COMMANDS_SIZE);
 	}
 	eeprom_load(swen_generic_cmds +
 		    sizeof(swen_generic_cmds_storage_hdr_t),

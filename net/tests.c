@@ -929,6 +929,7 @@ int net_swen_generic_cmds_tests(void)
 	int ret;
 
 	pkt_mempool_init();
+	swen_generic_cmds_erase_storage();
 	swen_generic_cmds_init(net_swen_generic_cmds_cb);
 	if_init(&iface, IF_TYPE_RF, &iface_queues.pkt_pool, NULL, NULL, 0);
 	ret = swen_generic_cmds_check(&iface);

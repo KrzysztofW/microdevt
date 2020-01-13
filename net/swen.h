@@ -94,9 +94,10 @@ static inline void swen_generic_cmds_delete_all_recorded_cmd(void)
 	swen_generic_cmds_delete_recorded_cmd(-1);
 }
 
-void swen_generic_cmds_dump_storage(uint8_t check_eeprom);
 
-extern void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
+void swen_generic_cmds_dump_storage(uint8_t check_eeprom);
+void swen_generic_cmds_erase_storage(void);
 int swen_generic_cmds_check(iface_t *iface);
 
+extern void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
 #endif
