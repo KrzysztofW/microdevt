@@ -48,6 +48,11 @@ typedef struct swen_generic_cmds_storage_hdr {
 	swen_generic_cmd_hdr_t cmds[];
 } swen_generic_cmds_storage_hdr_t;
 
+typedef struct cmd_replay_data {
+	uint8_t number;
+	iface_t *iface;
+} cmd_replay_data_t;
+
 #define SWEN_GENERIC_CMDS_RECORD_TIMEOUT 10 /* seconds */
 static tim_t gcmd_timer = TIMER_INIT(gcmd_timer);
 
@@ -343,6 +348,33 @@ static void swen_parse_generic_cmds(buf_t *buf)
 	swen_generic_cmds_cb(cmd_hdr->cmd, GENERIC_CMD_STATUS_RCV);
 }
 
+static int
+replay_cmd_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr, void *arg)
+{
+	cmd_replay_data_t *rd = arg;
+	pkt_t *pkt;
+
+	if (number != rd->number)
+		return LOOP_CONTINUE;
+
+	pkt = pkt_alloc();
+	if (pkt && buf_add(&pkt->buf, cmd_hdr->data, cmd_hdr->length) >= 0 &&
+	    rd->iface->send(rd->iface, pkt) >= 0)
+		return LOOP_STOP;
+
+	DEBUG_LOG("cannot send\n");
+	return LOOP_STOP;
+}
+
+int swen_generic_cmd_replay(iface_t *iface, uint8_t number)
+{
+	cmd_replay_data_t replay_data;
+
+	replay_data.number = number;
+	replay_data.iface = iface;
+
+	return swen_generic_cmds_for_each(replay_cmd_cb, &replay_data);
+}
 #endif
 
 void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
@@ -476,10 +508,17 @@ void swen_input(iface_t *iface)
 
 #if defined(CONFIG_RF_GENERIC_COMMANDS) &&		\
     defined(CONFIG_RF_GENERIC_COMMANDS_CHECKS)
+static pkt_t *sent_pkt;
+static int iface_send(iface_t *iface, pkt_t *pkt)
+{
+	sent_pkt = pkt;
+	return 0;
+}
+
 int swen_generic_cmds_check(iface_t *iface)
 {
-	const char *cmd1 = "123";
-	const char *cmd2 = "456";
+	const char cmd1[] = "123";
+	const char cmd2[] = "456";
 	uint8_t data[] = {
 		0xA7, /* magic number */
 		0x04, 0x00, 0x31, 0x32, 0x33, 0x00, /* cmd1 */
@@ -532,9 +571,37 @@ int swen_generic_cmds_check(iface_t *iface)
 	if (sbuf_cmp(&s1, &s2) != 0)
 		return -1;
 
+	/* cmd replay */
+	iface->send = iface_send;
+	if (swen_generic_cmd_replay(iface, 1) < 0) {
+		LOG("cannot replay");
+		return -1;
+	}
+	s1 = SBUF_INIT_BIN(cmd2);
+	s2 = buf2sbuf(&sent_pkt->buf);
+	if (sbuf_cmp(&s1, &s2) != 0) {
+		pkt_free(sent_pkt);
+		LOG("cannot replay");
+		return -1;
+	}
+	pkt_free(sent_pkt);
+	if (swen_generic_cmd_replay(iface, 0) < 0) {
+		LOG("cannot replay");
+		return -1;
+	}
+	s1 = SBUF_INIT_BIN(cmd1);
+	s2 = buf2sbuf(&sent_pkt->buf);
+	if (sbuf_cmp(&s1, &s2) != 0) {
+		pkt_free(sent_pkt);
+		LOG("cannot replay");
+		return -1;
+	}
+	pkt_free(sent_pkt);
+
 	/* cmd deletion */
 	swen_generic_cmds_delete_recorded_cmd(0);
 	sbuf_init(&s1, data_deleted_cmd1, sizeof(data_deleted_cmd1));
+	sbuf_init(&s2, swen_generic_cmds, sizeof(data));
 	if (sbuf_cmp(&s1, &s2) != 0)
 		return -1;
 

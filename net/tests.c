@@ -920,8 +920,12 @@ int net_tcp_tests(void)
 
 #endif
 
-#ifdef CONFIG_RF_GENERIC_COMMANDS
+#ifdef CONFIG_RF_GENERIC_COMMANDS_CHECKS
 static void net_swen_generic_cmds_cb(uint16_t cmd, uint8_t status) {}
+static int iface_send(iface_t *iface, pkt_t *pkt)
+{
+	return 0;
+}
 
 int net_swen_generic_cmds_tests(void)
 {
@@ -931,6 +935,7 @@ int net_swen_generic_cmds_tests(void)
 	pkt_mempool_init();
 	swen_generic_cmds_erase_storage();
 	swen_generic_cmds_init(net_swen_generic_cmds_cb);
+	iface.send = iface_send;
 	if_init(&iface, IF_TYPE_RF, &iface_queues.pkt_pool, NULL, NULL, 0);
 	ret = swen_generic_cmds_check(&iface);
 	pkt_mempool_shutdown();

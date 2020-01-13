@@ -94,6 +94,12 @@ static inline void swen_generic_cmds_delete_all_recorded_cmd(void)
 	swen_generic_cmds_delete_recorded_cmd(-1);
 }
 
+/** Replay a recorded command
+ *
+ * @param[in] number  command number
+ * @param[in] iface   interface
+ */
+int swen_generic_cmd_replay(iface_t *iface, uint8_t number);
 
 void swen_generic_cmds_dump_storage(uint8_t check_eeprom);
 void swen_generic_cmds_erase_storage(void);
