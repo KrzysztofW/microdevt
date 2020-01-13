@@ -42,6 +42,15 @@ read_fuses:
 write_fuses:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny $(FUSES)
 
+read_eeprom:
+	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:r:$(file_name):r
+
+write_eeprom:
+	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:w:$(file_name):r
+
+verify_eeprom:
+	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:v:$(file_name):r
+
 erase:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
 
