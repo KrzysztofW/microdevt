@@ -1,7 +1,7 @@
 /*
  * microdevt - Microcontroller Development Toolkit
  *
- * Copyright (c) 2017, Krzysztof Witek
+ * Copyright (c) 2020, Krzysztof Witek
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -29,7 +29,7 @@
 #include <sys/timer.h>
 #include <net/if.h>
 
-/* Timings for the PT2272 RF protocol:
+/* Timings for the PT2262/PT2272 RF protocol:
  * Reset:   8060us
  * Period:  1040us
  * Zero hi:  260us
@@ -49,9 +49,20 @@
 #define RF_RESET_TICKS 31
 #endif
 
-/* time after reception in which the transmitter is still transmitting */
+/* Time after reception in which the peer transmitter is still transmitting
+ * so the local transmission should be postponed.
+*/
 #ifndef RF_FINISH_DELAY
 #define RF_FINISH_DELAY 300000
+#endif
+
+/* #define RF_DELAY_BETWEEN_SENDS RF_FINISH_DELAY */
+
+#ifdef CONFIG_RF_SENDER
+#if (defined(RF_FINISH_DELAY) && defined(CONFIG_RF_RECEIVER))	\
+	|| defined(RF_DELAY_BETWEEN_SENDS)
+#define RF_WAIT_BEFORE_SENDING
+#endif
 #endif
 
 typedef struct rf_data {
@@ -72,7 +83,7 @@ typedef struct rf_ctx {
 #endif
 	uint8_t cnt;
 #ifdef CONFIG_RF_SENDER
-#ifdef RF_FINISH_DELAY
+#ifdef RF_WAIT_BEFORE_SENDING
 	tim_t wait_before_sending_timer;
 #endif
 	uint8_t flags;

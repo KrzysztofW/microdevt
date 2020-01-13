@@ -1,7 +1,7 @@
 /*
  * microdevt - Microcontroller Development Toolkit
  *
- * Copyright (c) 2017, Krzysztof Witek
+ * Copyright (c) 2020, Krzysztof Witek
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -40,6 +40,21 @@ extern iface_t *rf_debug_iface1;
 extern iface_t *rf_debug_iface2;
 #endif
 
+#ifdef CONFIG_RF_SENDER
+static void rf_start_sending(iface_t *iface);
+
+#ifdef RF_WAIT_BEFORE_SENDING
+static void rf_snd_delay_cb(void *arg)
+{
+#ifndef CONFIG_RF_RECEIVER
+	iface_t *iface = arg;
+
+	rf_start_sending(iface);
+#endif
+}
+#endif
+#endif
+
 #ifdef CONFIG_RF_RECEIVER
 static void rf_recv_sync_cb(void *arg);
 
@@ -53,15 +68,7 @@ static int rf_add_bit(rf_ctx_t *ctx, uint8_t bit)
 	return buf_addc(&ctx->recv_data.pkt->buf, byte);
 }
 
-#ifdef CONFIG_RF_RECEIVER
 static void rf_init_receiver(iface_t *iface);
-#endif
-#ifdef CONFIG_RF_SENDER
-static void rf_start_sending(iface_t *iface);
-#ifdef RF_FINISH_DELAY
-static void rf_recv_finish_cb(void *arg) {}
-#endif
-#endif
 
 static void rf_recv_finish(iface_t *iface)
 {
@@ -80,14 +87,14 @@ static void rf_recv_finish(iface_t *iface)
 #if defined(CONFIG_RF_SENDER) && defined(RF_FINISH_DELAY)
 	timer_del(&ctx->wait_before_sending_timer);
 	timer_add(&ctx->wait_before_sending_timer, RF_FINISH_DELAY,
-		  rf_recv_finish_cb, NULL);
+		  rf_snd_delay_cb, NULL);
 #endif
 	/* we can't send yet but we can still receive */
  end:
 	rf_init_receiver(iface);
 }
 
-static void rf_recv_data(void *arg)
+static void rf_recv_data_cb(void *arg)
 {
 	iface_t *iface = arg;
 	rf_ctx_t *ctx = iface->priv;
@@ -113,7 +120,7 @@ static void rf_recv_data(void *arg)
 	ctx->prev_val = v;
 	ctx->cnt = 0;
  end:
-	timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_recv_data, iface);
+	timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_recv_data_cb, iface);
 }
 
 static void rf_recv_sync_cb(void *arg)
@@ -163,7 +170,7 @@ static void rf_recv_sync_cb(void *arg)
 		goto end;
 	}
 
-	cb = rf_recv_data;
+	cb = rf_recv_data_cb;
 	ctx->cnt = 0;
 	ctx->prev_val = 1;
  end:
@@ -230,12 +237,26 @@ static void rf_snd_calibrate_cb(void *arg)
 
 static void rf_snd_finish(void *arg)
 {
-#ifdef CONFIG_RF_RECEIVER
 	iface_t *iface = arg;
+#ifdef CONFIG_RF_SENDER
+	rf_ctx_t *ctx = iface->priv;
+#endif
 
+#ifdef CONFIG_RF_RECEIVER
 	rf_init_receiver(iface);
 #endif
 	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
+#if defined(CONFIG_RF_SENDER) && defined(RF_DELAY_BETWEEN_SENDS)
+	timer_del(&ctx->wait_before_sending_timer);
+	timer_add(&ctx->wait_before_sending_timer, RF_DELAY_BETWEEN_SENDS,
+		  rf_snd_delay_cb, NULL);
+#elif defined(CONFIG_RF_SENDER)
+	if ((ctx->snd_data.pkt = pkt_get(iface->tx)) != NULL) {
+		ctx->snd_buf = ctx->snd_data.pkt->buf;
+		timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_snd_sync_cb,
+			  iface);
+	}
+#endif
 }
 
 static void rf_snd_cb(void *arg)
@@ -254,13 +275,8 @@ static void rf_snd_cb(void *arg)
 #endif
 			if_schedule_tx_pkt_free(&ctx->snd_data.pkt);
 			RF_SND_PORT |= 1 << RF_SND_PIN_NB;
-			if ((ctx->snd_data.pkt = pkt_get(iface->tx)) == NULL) {
-				timer_add(&ctx->timer, RF_PULSE_WIDTH,
-					  rf_snd_finish, iface);
-				return;
-			}
-			ctx->snd_buf = ctx->snd_data.pkt->buf;
-			timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_snd_sync_cb,
+
+			timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_snd_finish,
 				  iface);
 			return;
 		}
@@ -352,7 +368,7 @@ void rf_init(iface_t *iface, rf_ctx_t *ctx)
 #ifdef CONFIG_RF_RECEIVER
 	rf_init_receiver(iface);
 #endif
-#if defined(CONFIG_RF_SENDER) && defined(RF_FINISH_DELAY)
+#ifdef RF_WAIT_BEFORE_SENDING
 	timer_init(&ctx->wait_before_sending_timer);
 #endif
 }
