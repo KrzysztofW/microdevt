@@ -78,6 +78,11 @@ typedef struct buf buf_t;
 		.data = (uint8_t *)__data,				\
 		.size = __len						\
 	}
+#define BUF_INIT_BIN(__data) (buf_t)					\
+	{								\
+		.data = (uint8_t *)__data,				\
+		.size = sizeof(__data)					\
+	}
 #define SBUF_INIT_NULL (sbuf_t)						\
 	{								\
 		.data = NULL, .len = 0					\
