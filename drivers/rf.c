@@ -216,8 +216,9 @@ static void rf_snd_sync_cb(void *arg)
 	rf_ctx_t *ctx = iface->priv;
 
 	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
-	timer_add(&ctx->timer, RF_PULSE_WIDTH * RF_RESET_TICKS, rf_snd_cb,
-		  iface);
+	timer_add(&ctx->timer, RF_PULSE_WIDTH
+		  * (RF_RESET_TICKS + RF_LOW_TICKS + RF_HI_TICKS + 2),
+		  rf_snd_cb, iface);
 }
 
 static void rf_snd_calibrate_cb(void *arg)
