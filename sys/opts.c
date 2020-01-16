@@ -60,6 +60,10 @@ static int opts_get_arg(uint8_t arg, buf_t *args, buf_t *buf)
 	v16 = atoi((char *)b.data);
 
 	switch (arg) {
+	case ARG_TYPE_BOOL:
+		if (v16 > 1)
+			return -1;
+		/* fall through */
 	case ARG_TYPE_UINT8:
 		if (v16 > UINT8_MAX)
 			return -1;
@@ -115,6 +119,9 @@ void opts_print_usage(cmd_t *cmds, uint8_t cmd_len)
 			switch (*a) {
 			case ARG_TYPE_CHAR:
 				LOG("<char>");
+				break;
+			case ARG_TYPE_BOOL:
+				LOG("<bool>");
 				break;
 			case ARG_TYPE_UINT8:
 				LOG("<uint8>");
