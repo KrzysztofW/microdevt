@@ -50,8 +50,9 @@ static void timer_dump_list(list_t *head)
 			    head->prev, head->next);
 			first = 0;
 		}
-		LOG("tim:%p (prev:%p next:%p) ", timer,
-		    timer->list.prev, timer->list.next);
+		LOG("tim:%p (prev:%p next:%p) in %s:%u", timer,
+		    timer->list.prev, timer->list.next, timer->func,
+		    timer->line);
 	}
 	if (!first)
 		LOG("\n");
@@ -123,7 +124,7 @@ void timer_init(tim_t *timer)
 }
 
 #ifdef DEBUG_TIMERS
-void __timer_add(const char *func, int line, tim_t *timer, uint32_t expiry,
+void __timer_add(const char *func, unsigned line, tim_t *timer, uint32_t expiry,
 		 void (*cb)(void *), void *arg)
 #else
 void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
@@ -135,10 +136,15 @@ void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 
 	if (timer_is_pending(timer)) {
 #ifdef DEBUG_TIMERS
-		DEBUG_LOG("%s:%d (%p)\n", func, line, timer);
+		DEBUG_LOG("%s:%d (%p) in %s:%u\n", func, line, timer,
+			  timer->func, timer->line);
 #endif
 		__abort();
 	}
+#ifdef DEBUG_TIMERS
+	timer->func = func;
+	timer->line = line;
+#endif
 	timer->ticks = expiry / CONFIG_TIMER_RESOLUTION_US;
 
 	/* don't schedule at current idx */
@@ -153,6 +159,7 @@ void timer_add(tim_t *timer, uint32_t expiry, void (*cb)(void *), void *arg)
 	list_add_tail(&timer->list, &timer_list[idx]);
 	timer_count++;
 	irq_restore(flags);
+
 	if (!__timer_subsystem_is_runing())
 		__timer_subsystem_start();
 }
@@ -171,7 +178,7 @@ void timer_del(tim_t *timer)
 }
 
 #ifdef DEBUG_TIMERS
-void __timer_reschedule(const char *func, int line, tim_t *timer,
+void __timer_reschedule(const char *func, unsigned line, tim_t *timer,
 			uint32_t expiry)
 {
 	__timer_add(func, line, timer, expiry, timer->cb, timer->arg);

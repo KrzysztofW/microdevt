@@ -35,6 +35,10 @@ struct timer {
 	struct list_head list;
 	void (*cb)(void *);
 	void *arg;
+#ifdef DEBUG_TIMERS
+	const char *func;
+	unsigned line;
+#endif
 	uint32_t ticks;
 } __PACKED__;
 typedef struct timer tim_t;
@@ -70,11 +74,11 @@ void timer_init(tim_t *timer);
 
 #ifdef DEBUG_TIMERS
 void timer_dump(void);
-void __timer_add(const char *func, int line, tim_t *timer, uint32_t expiry,
+void __timer_add(const char *func, unsigned line, tim_t *timer, uint32_t expiry,
 		 void (*cb)(void *), void *arg);
 #define timer_add(timer, expiry, cb, arg)			\
 	__timer_add(__func__, __LINE__, timer, expiry, cb, arg)
-void __timer_reschedule(const char *func, int line, tim_t *timer,
+void __timer_reschedule(const char *func, unsigned line, tim_t *timer,
 			uint32_t expiry);
 #define timer_reschedule(timer, expiry)				\
 	__timer_reschedule(__func__, __LINE__, timer, expiry)
