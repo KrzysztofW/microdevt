@@ -103,7 +103,7 @@ int opts_parse_buf(const cmd_t *cmds, uint8_t cmds_len, buf_t *in,
 	return -1;
 }
 
-void opts_print_usage(cmd_t *cmds, uint8_t cmd_len)
+void opts_print_usage(const cmd_t *cmds, uint8_t cmd_len)
 {
 	uint8_t i;
 

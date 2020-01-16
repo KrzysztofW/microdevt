@@ -46,7 +46,7 @@ typedef struct cmd {
 
 int opts_parse_buf(const cmd_t *cmds, uint8_t cmds_len, buf_t *in,
 		   buf_t *args, void (*cb)(uint8_t cmd, buf_t *args));
-void opts_print_usage(cmd_t *cmds, uint8_t cmd_len);
+void opts_print_usage(const cmd_t *cmds, uint8_t cmd_len);
 static inline void
 opts_get_string(const cmd_t *cmds, uint8_t cmds_len, uint8_t cmd)
 {
