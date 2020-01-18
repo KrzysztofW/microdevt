@@ -182,10 +182,12 @@ static int get_recorded_cmds_cb(uint8_t number,
 	buf_t *buf = arg;
 
 	if (cmd_hdr->cmd != -1) {
+		uint16_t v;
+
 		if (cmd_hdr->length == 0 || buf_has_room(buf, 2) < 0)
 			return LOOP_STOP;
-		__buf_addc(buf, number);
-		__buf_addc(buf, cmd_hdr->cmd);
+		v = (cmd_hdr->cmd << 8) | number;
+		__buf_add(buf, &v, sizeof(v));
 	}
 
 	return LOOP_CONTINUE;
@@ -193,15 +195,7 @@ static int get_recorded_cmds_cb(uint8_t number,
 
 void swen_generic_cmds_get_list(buf_t *buf)
 {
-	int buf_len = buf->len;
-
-	if (buf_addc(buf, GENERIC_CMD_STATUS_LIST) < 0)
-		return;
 	swen_generic_cmds_for_each(get_recorded_cmds_cb, buf);
-
-	/* remove the GENERIC_CMD_STATUS_LIST byte if the list is empty */
-	if (buf->len == buf_len + 1)
-		__buf_shrink(buf, 1);
 }
 
 static int
@@ -358,11 +352,14 @@ replay_cmd_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr, void *arg)
 		return LOOP_CONTINUE;
 
 	pkt = pkt_alloc();
-	if (pkt && buf_add(&pkt->buf, cmd_hdr->data, cmd_hdr->length) >= 0 &&
-	    rd->iface->send(rd->iface, pkt) >= 0)
-		return LOOP_STOP;
-
+	if (pkt == NULL || buf_add(&pkt->buf, cmd_hdr->data, cmd_hdr->length) < 0)
+		goto end;
+	if (rd->iface->send(rd->iface, pkt) < 0)
+		goto end;
+	return LOOP_STOP;
+ end:
 	DEBUG_LOG("cannot send\n");
+	pkt_free(pkt);
 	return LOOP_STOP;
 }
 

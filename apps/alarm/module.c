@@ -634,7 +634,7 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 	swen_l3_associate(assoc);
 }
 
-#ifdef CONFIG_RF_GENERIC_COMMANDS
+#if defined(CONFIG_RF_GENERIC_COMMANDS) && !defined(CONFIG_AVR_SIMU)
 static void generic_cmds_print_status(uint8_t status)
 {
 	LOG("Generic cmd status: ");
@@ -656,24 +656,15 @@ static void generic_cmds_print_status(uint8_t status)
 	}
 }
 
-static void generic_cmds_handle_answer(buf_t *buf)
+static void generic_cmds_print_list(buf_t *buf)
 {
-	uint8_t status;
+	LOG("Generic cmd list:\n");
+	while (buf->len > 1) {
+		uint16_t n;
 
-	if (buf_getc(buf, &status) < 0)
-		return;
-	if (status == GENERIC_CMD_STATUS_LIST) {
-		LOG("Generic cmd list:\n");
-		while (buf->len) {
-			uint8_t n, c;
-
-			__buf_getc(buf, &n);
-			if (buf_getc(buf, &c) >= 0)
-				LOG("id: %u cmd: %u\n", n, c);
-		}
-		return;
+		__buf_get_u16(buf, &n);
+		LOG("id: %u cmd: %u\n", n & 0xFF, n >> 8);
 	}
-	generic_cmds_print_status(status);
 }
 #endif
 
@@ -732,9 +723,9 @@ static void module_parse_commands(uint8_t addr, buf_t *buf)
 			modules[id].faulty = 1;
 		}
 		return;
-#ifdef CONFIG_RF_GENERIC_COMMANDS
+#if defined(CONFIG_RF_GENERIC_COMMANDS) && !defined(CONFIG_AVR_SIMU)
 	case CMD_RECORD_GENERIC_COMMAND_ANSWER:
-		generic_cmds_handle_answer(buf);
+		generic_cmds_print_list(buf);
 		return;
 #endif
 	default:
