@@ -101,16 +101,15 @@ static void rf_recv_data_cb(void *arg)
 	uint8_t v = RF_RCV_PIN & (1 << RF_RCV_PIN_NB);
 
 	if (v == ctx->prev_val) {
-		ctx->cnt++;
-		if (ctx->cnt > RF_LOW_TICKS + RF_HI_TICKS + 1) {
+		if (ctx->cnt > RF_LOW_TICKS + RF_HI_TICKS) {
 			rf_recv_finish(iface);
 			return;
 		}
+		ctx->cnt++;
 		goto end;
 	}
 
-	if (ctx->cnt > RF_LOW_TICKS + RF_HI_TICKS + 1 ||
-	    (ctx->cnt > 1 && rf_add_bit(ctx, !!ctx->prev_val) < 0)) {
+	if (ctx->cnt > RF_LOW_TICKS && rf_add_bit(ctx, !!ctx->prev_val) < 0) {
 #ifdef CONFIG_IFACE_STATS
 		iface->rx_errors++;
 #endif
@@ -127,13 +126,14 @@ static void rf_recv_sync_cb(void *arg)
 {
 	iface_t *iface = arg;
 	rf_ctx_t *ctx = iface->priv;
-	uint8_t v = RF_RCV_PIN & (1 << RF_RCV_PIN_NB);
-	void (*cb)(void *);
 #ifdef CONFIG_RND_SEED
 	static uint16_t rnd;
+#endif
 
+	ctx->prev_val = RF_RCV_PIN & (1 << RF_RCV_PIN_NB);
+#ifdef CONFIG_RND_SEED
 	rnd <<= 1;
-	rnd |= !!v;
+	rnd |= ctx->prev_val;
 	rnd_seed *= rnd;
 #endif
 
@@ -150,12 +150,11 @@ static void rf_recv_sync_cb(void *arg)
 #endif
 	}
 #endif
-	cb = rf_recv_sync_cb;
-	if (v == 0) {
+	if (ctx->prev_val == 0) {
 		ctx->cnt++;
 		goto end;
 	}
-	if (ctx->cnt < RF_RESET_TICKS - 2) {
+	if (ctx->cnt < RF_RESET_TICKS - (RF_LOW_TICKS + RF_HI_TICKS) * 2) {
 		ctx->cnt = 0;
 		goto end;
 	}
@@ -170,11 +169,11 @@ static void rf_recv_sync_cb(void *arg)
 		goto end;
 	}
 
-	cb = rf_recv_data_cb;
 	ctx->cnt = 0;
-	ctx->prev_val = 1;
+	timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_recv_data_cb, iface);
+	return;
  end:
-	timer_add(&ctx->timer, RF_PULSE_WIDTH, cb, iface);
+	timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_recv_sync_cb, iface);
 }
 #endif
 
@@ -204,10 +203,10 @@ static void rf_snd_low_cb(void *arg)
 
 	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
 	if (ctx->flags)
-		delay = RF_PULSE_WIDTH;
+		delay = RF_PULSE_WIDTH * RF_LOW_TICKS;
 	else
 		delay = RF_PULSE_WIDTH * RF_HI_TICKS;
-	timer_add(&ctx->timer, delay + RF_PULSE_WIDTH, rf_snd_cb, iface);
+	timer_add(&ctx->timer, delay, rf_snd_cb, iface);
 }
 
 static void rf_snd_sync_cb(void *arg)
@@ -228,24 +227,21 @@ static void rf_snd_calibrate_cb(void *arg)
 
 	RF_SND_PORT ^= 1 << RF_SND_PIN_NB;
 	if (ctx->cnt < (RF_HI_TICKS + RF_LOW_TICKS) * 10) {
-		timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_snd_calibrate_cb,
-			  iface);
+		timer_add(&ctx->timer, RF_PULSE_WIDTH * RF_LOW_TICKS,
+			  rf_snd_calibrate_cb, iface);
 		ctx->cnt++;
 		return;
 	}
 	timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_snd_sync_cb, iface);
 }
 
-static void rf_snd_finish(void *arg)
+static void rf_snd_finish_cb(void *arg)
 {
 	iface_t *iface = arg;
 #ifdef CONFIG_RF_SENDER
 	rf_ctx_t *ctx = iface->priv;
 #endif
 
-#ifdef CONFIG_RF_RECEIVER
-	rf_init_receiver(iface);
-#endif
 	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
 #if defined(CONFIG_RF_SENDER) && defined(RF_DELAY_BETWEEN_SENDS)
 	timer_del(&ctx->wait_before_sending_timer);
@@ -254,9 +250,13 @@ static void rf_snd_finish(void *arg)
 #elif defined(CONFIG_RF_SENDER)
 	if ((ctx->snd_data.pkt = pkt_get(iface->tx)) != NULL) {
 		ctx->snd_buf = ctx->snd_data.pkt->buf;
-		timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_snd_sync_cb,
-			  iface);
+		timer_add(&ctx->timer, RF_PULSE_WIDTH * RF_LOW_TICKS,
+			  rf_snd_sync_cb, iface);
+		return;
 	}
+#endif
+#ifdef CONFIG_RF_RECEIVER
+	rf_init_receiver(iface);
 #endif
 }
 
@@ -277,8 +277,8 @@ static void rf_snd_cb(void *arg)
 			if_schedule_tx_pkt_free(&ctx->snd_data.pkt);
 			RF_SND_PORT |= 1 << RF_SND_PIN_NB;
 
-			timer_add(&ctx->timer, RF_PULSE_WIDTH, rf_snd_finish,
-				  iface);
+			timer_add(&ctx->timer, RF_PULSE_WIDTH * RF_LOW_TICKS,
+				  rf_snd_finish_cb, iface);
 			return;
 		}
 		byte_init(&ctx->snd_data.byte, byte);
@@ -294,7 +294,7 @@ static void rf_snd_cb(void *arg)
 		delay = RF_PULSE_WIDTH * RF_HI_TICKS;
 		ctx->flags = RF_FLAG_SENDING_HI;
 	} else {
-		delay = RF_PULSE_WIDTH;
+		delay = RF_PULSE_WIDTH * RF_LOW_TICKS;
 		ctx->flags = RF_FLAG_NONE;
 	}
 	timer_add(&ctx->timer, delay, rf_snd_low_cb, iface);
@@ -352,6 +352,7 @@ int rf_output(iface_t *iface, pkt_t *pkt)
 #endif
 		return -1;
 	}
+
 #if !defined(CONFIG_RF_RECEIVER) || defined(CONFIG_RF_CHECKS)
 	rf_start_sending(iface);
 #endif

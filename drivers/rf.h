@@ -37,16 +37,16 @@
  */
 
 #ifndef RF_PULSE_WIDTH
-#define RF_PULSE_WIDTH 260 /* microseconds */
+#define RF_PULSE_WIDTH 150 /* microseconds */
 #endif
 #ifndef RF_LOW_TICKS
-#define RF_LOW_TICKS 1
+#define RF_LOW_TICKS 2
 #endif
 #ifndef RF_HI_TICKS
-#define RF_HI_TICKS  3
+#define RF_HI_TICKS  6
 #endif
 #ifndef RF_RESET_TICKS
-#define RF_RESET_TICKS 31
+#define RF_RESET_TICKS (RF_HI_TICKS * 5 * 2)
 #endif
 
 /* Time after reception in which the peer transmitter is still transmitting
