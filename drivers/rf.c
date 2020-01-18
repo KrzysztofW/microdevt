@@ -238,23 +238,28 @@ static void rf_snd_calibrate_cb(void *arg)
 static void rf_snd_finish_cb(void *arg)
 {
 	iface_t *iface = arg;
-#ifdef CONFIG_RF_SENDER
 	rf_ctx_t *ctx = iface->priv;
-#endif
 
 	RF_SND_PORT &= ~(1 << RF_SND_PIN_NB);
-#if defined(CONFIG_RF_SENDER) && defined(RF_DELAY_BETWEEN_SENDS)
-	timer_del(&ctx->wait_before_sending_timer);
-	timer_add(&ctx->wait_before_sending_timer, RF_DELAY_BETWEEN_SENDS,
-		  rf_snd_delay_cb, NULL);
-#elif defined(CONFIG_RF_SENDER)
-	if ((ctx->snd_data.pkt = pkt_get(iface->tx)) != NULL) {
+	if (ctx->burst_cnt < ctx->burst) {
+		ctx->burst_cnt++;
+	} else {
+		ctx->burst_cnt = 0;
+		if_schedule_tx_pkt_free(&ctx->snd_data.pkt);
+		ctx->snd_data.pkt = pkt_get(iface->tx);
+	}
+
+	if (ctx->snd_data.pkt) {
 		ctx->snd_buf = ctx->snd_data.pkt->buf;
+#ifdef RF_DELAY_BETWEEN_SENDS
+		timer_add(&ctx->timer, RF_DELAY_BETWEEN_SENDS, rf_snd_sync_cb,
+			  iface);
+#else
 		timer_add(&ctx->timer, RF_PULSE_WIDTH * RF_LOW_TICKS,
 			  rf_snd_sync_cb, iface);
+#endif
 		return;
 	}
-#endif
 #ifdef CONFIG_RF_RECEIVER
 	rf_init_receiver(iface);
 #endif
@@ -271,12 +276,15 @@ static void rf_snd_cb(void *arg)
 		uint8_t byte;
 
 		if (buf_getc(&ctx->snd_buf, &byte) < 0) {
+#ifdef CONFIG_RF_CHECKS
+			/* this will free the packet */
+			rf_snd_finish_cb(arg);
+			return;
+#endif
 #ifdef CONFIG_IFACE_STATS
 			iface->tx_packets++;
 #endif
-			if_schedule_tx_pkt_free(&ctx->snd_data.pkt);
 			RF_SND_PORT |= 1 << RF_SND_PIN_NB;
-
 			timer_add(&ctx->timer, RF_PULSE_WIDTH * RF_LOW_TICKS,
 				  rf_snd_finish_cb, iface);
 			return;

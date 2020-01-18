@@ -333,17 +333,9 @@ static void rf_snd_tim_cb(void *arg)
 }
 #endif
 
-void rf_init(iface_t *iface, rf_ctx_t *ctx, uint8_t burst)
+void rf_init(iface_t *iface, rf_ctx_t *ctx)
 {
 	timer_init(&ctx->timer);
-#if defined (CONFIG_RF_SENDER) && defined (CONFIG_RF_BURST)
-#ifdef RF_DEBUG
-	ctx->burst = 0;
-#else
-	if (burst)
-		ctx->burst = burst - 1;
-#endif
-#endif
 	iface->priv = ctx;
 #if defined (CONFIG_RF_RECEIVER) && !defined(X86) && !defined(RF_DEBUG)
 	timer_add(&ctx->timer, RF_SAMPLING_US, rf_rcv_tim_cb, iface);

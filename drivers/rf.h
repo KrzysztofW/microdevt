@@ -89,15 +89,26 @@ typedef struct rf_ctx {
 	uint8_t flags;
 	rf_data_t snd_data;
 	buf_t snd_buf;
+	uint8_t burst;
+	uint8_t burst_cnt;
 #endif
 } rf_ctx_t;
 
 static inline void rf_input(iface_t *iface) {}
-void
-rf_init(iface_t *iface, rf_ctx_t *ctx);
+void rf_init(iface_t *iface, rf_ctx_t *ctx);
 void rf_shutdown(const iface_t *iface);
 int rf_output(iface_t *iface, pkt_t *pkt);
 void rf_recv_pin_interrupt(iface_t *iface, uint8_t val);
 void rf_snd(void *arg);
+#ifdef CONFIG_RF_SENDER
+static inline void rf_set_burst(iface_t *iface, uint8_t burst)
+{
+	rf_ctx_t *ctx = iface->priv;
+
+	if (burst)
+		burst--;
+	ctx->burst = burst;
+}
+#endif
 
 #endif

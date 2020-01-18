@@ -25,8 +25,6 @@
 #ifndef _RF_COMMON_H_
 #define _RF_COMMON_H_
 
-#define RF_BURST_NUMBER 2
-
 /* Modules' addresses */
 #define RF_MOD0_HW_ADDR 0x69
 #define RF_MOD1_HW_ADDR 0x70
