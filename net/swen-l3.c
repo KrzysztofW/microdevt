@@ -42,11 +42,12 @@ typedef enum swen_l3_op {
 	S_OP_WATCHDOG,
 } swen_l3_op_t;
 
-#define SWEN_L3_RETRANSMIT_DELAY 1000000 /* 1s */
-#ifdef CONFIG_AVR_SIMU
-#define SWEN_L3_MAX_RETRIES 3
+#ifndef CONFIG_AVR_SIMU
+#define SWEN_L3_MAX_RETRIES 30
+#define SWEN_L3_RETRANSMIT_DELAY 1500000 /* 1.5s */
 #else
-#define SWEN_L3_MAX_RETRIES 60
+#define SWEN_L3_MAX_RETRIES 3
+#define SWEN_L3_RETRANSMIT_DELAY 100000
 #endif
 
 /* reserve one byte for retry info and one byte for seqid */
