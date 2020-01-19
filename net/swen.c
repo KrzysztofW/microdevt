@@ -394,7 +394,7 @@ swen_output(pkt_t *pkt, iface_t *iface, uint8_t type, const void *dst)
 	pkt_adj(pkt, -(int)sizeof(swen_hdr_t));
 	hdr = btod(pkt);
 	hdr->from = *(iface->hw_addr);
-
+#ifdef SWEN_MULTI_PROTOCOL
 #ifdef CONFIG_IP_OVER_SWEN
 	if (type == L3_PROTO_IP) {
 		if (swen_get_route(dst, &hdr->to) < 0)
@@ -404,8 +404,15 @@ swen_output(pkt_t *pkt, iface_t *iface, uint8_t type, const void *dst)
 #endif
 		hdr->to = *(uint8_t *)dst;
 	hdr->proto = type;
+#else
+	hdr->to = *(uint8_t *)dst;
+#endif
 	hdr->chksum = 0;
-	hdr->chksum = htons(cksum(hdr, pkt_len(pkt)));
+
+	/* No need to htons() as chksum field is placed at odd position
+	 * in the header */
+	hdr->chksum = cksum(hdr, pkt_len(pkt));
+
 	return iface->send(iface, pkt);
 }
 
@@ -464,6 +471,7 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 	}
 	pkt_adj(pkt, (int)sizeof(swen_hdr_t));
 
+#ifdef SWEN_MULTI_PROTOCOL
 	switch (hdr->proto) {
 	case L3_PROTO_NONE:
 		if (swen_event_cb)
@@ -490,6 +498,10 @@ static inline void __swen_input(pkt_t *pkt, const iface_t *iface)
 		/* unsupported */
 		break;
 	}
+#else
+	if (swen_event_cb)
+		swen_event_cb(hdr->from, EV_READ, &pkt->buf);
+#endif
  end:
 	pkt_free(pkt);
 }

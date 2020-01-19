@@ -38,11 +38,18 @@ enum generic_cmd_status {
 	GENERIC_CMD_STATUS_ERROR_NOT_FOUND,
 };
 
+#if defined(CONFIG_SWEN_L3) || defined(CONFIG_IP_OVER_SWEN) ||	\
+	defined(CONFIG_SWEN_ROLLING_CODES)
+#define SWEN_MULTI_PROTOCOL
+#endif
+
 typedef struct __PACKED__ swen_hdr_t {
 	uint8_t to;
 	uint8_t from;
-	uint8_t proto;
 	uint16_t chksum;
+#ifdef SWEN_MULTI_PROTOCOL
+	uint8_t proto;
+#endif
 } swen_hdr_t;
 
 void swen_input(iface_t *iface);
