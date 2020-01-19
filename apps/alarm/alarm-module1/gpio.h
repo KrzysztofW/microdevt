@@ -53,6 +53,25 @@
 #define PWR_SENSOR_IN_PORT PINB
 #define PWR_SENSOR_DDR DDRB
 
+static inline void pir_int_enable(void)
+{
+#ifndef CONFIG_AVR_SIMU
+	/* PCINT18 enabled (PIR) */
+	PCMSK2 = 1 << PCINT18;
+#endif
+}
+
+static inline void pir_int_disable(void)
+{
+	/* PCINT18 disabled (PIR) */
+	PCMSK2 = 0;
+}
+
+static inline uint8_t pir_read_bit(void)
+{
+	return !!(PIR_IN_PORT & (1 << PIR));
+}
+
 static inline void gpio_init(void)
 {
 	/* set output pins */
@@ -71,14 +90,13 @@ static inline void gpio_init(void)
 	/* analog: PC1 - HIH, PC3 - temp sensor */
 	PORTC = 0xFF & ~((1 << PC0) | (1 << PC2) | (1 << PC1) | (1 << PC3));
 
-	/* analog input pins */
+	/* input pins */
 	ADC_SET_PRESCALER_64();
 	ADC_SET_REF_VOLTAGE_INTERNAL();
 	DDRC = 0xFF & ~((1 << PC0) | (1 << PC1) | (1 << PC3));
 
 #ifndef CONFIG_AVR_SIMU
-	/* PCINT18 enabled (PIR) */
-	PCMSK2 = 1 << PCINT18;
+	pir_int_enable();
 
 	/* PCINT0 enabled (PWR_SENSOR) */
 	PCMSK0 = 1 << PCINT0;

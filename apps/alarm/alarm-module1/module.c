@@ -116,11 +116,18 @@ static void pir_interrupt_cb(void)
 {
 	module_add_op(urgent_tx_queue, CMD_NOTIF_ALARM_ON, &mod1_assoc.event);
 }
-
+#ifdef CONFIG_RF_RECEIVER
 ISR(PCINT2_vect)
 {
-	pir_interrupt(&module_cfg, pir_interrupt_cb);
+	static uint8_t pir_prev_v;
+	uint8_t pir_v = pir_read_bit();
+
+	if (pir_v != pir_prev_v) {
+		pir_interrupt(&module_cfg, pir_interrupt_cb);
+		pir_prev_v = pir_v;
+	}
 }
+#endif
 #endif
 
 static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2);
@@ -193,6 +200,9 @@ static int handle_tx_commands(uint8_t cmd)
 static void handle_rx_commands(uint8_t cmd, uint16_t val1, uint16_t val2)
 {
 	DEBUG_LOG("mod1: got cmd:0x%X\n", cmd);
+#if !defined(CONFIG_AVR_SIMU) && defined(CONFIG_POWER_MANAGEMENT)
+	power_management_pwr_down_reset();
+#endif
 	switch (cmd) {
 	case CMD_GET_FEATURES:
 		module_add_op(urgent_tx_queue, CMD_FEATURES, &mod1_assoc.event);
@@ -302,7 +312,7 @@ static void module_parse_commands(buf_t *buf)
 	handle_rx_commands(cmd, v16, v16_2);
 }
 
-#if defined(DEBUG) && defined(CONFIG_AVR_SIMU)
+#ifdef DEBUG
 static void module_print_status(void)
 {
 	int humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH];
@@ -351,6 +361,11 @@ void module1_parse_uart_commands(buf_t *buf)
 	}
 	if (buf_get_sbuf_upto_and_skip(buf, &s, "arm") >= 0) {
 		module_arm(&module_cfg, 1);
+		return;
+	}
+	if (buf_get_sbuf_upto_and_skip(buf, &s, "rec") >= 0) {
+		LOG("recording\n");
+		swen_generic_cmds_start_recording(CMD_RUN_FAN);
 		return;
 	}
 	LOG("unsupported command\n");

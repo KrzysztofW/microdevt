@@ -35,7 +35,7 @@
 #include "gpio.h"
 #include "../module-common.h"
 
-#if defined(DEBUG) && defined(CONFIG_AVR_SIMU)
+#ifdef DEBUG
 #define UART_RING_SIZE 16
 STATIC_RING_DECL(uart_ring, UART_RING_SIZE);
 
@@ -86,6 +86,7 @@ int main(void)
 #endif
 	timer_checks();
 #endif
+
 #ifndef CONFIG_AVR_SIMU
 	watchdog_enable(WATCHDOG_TIMEOUT_8S);
 #endif
