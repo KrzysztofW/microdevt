@@ -108,6 +108,13 @@ static inline void swen_generic_cmds_delete_all_recorded_cmd(void)
  */
 int swen_generic_cmd_replay(iface_t *iface, uint8_t number);
 
+/** Get human readable record status
+ *
+ * @param[in] status status
+ * @return status string
+ */
+const char *swen_generic_cmd_status2str(uint8_t status);
+
 void swen_generic_cmds_dump_storage(uint8_t check_eeprom);
 void swen_generic_cmds_erase_storage(void);
 int swen_generic_cmds_check(iface_t *iface);

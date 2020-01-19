@@ -635,26 +635,6 @@ static void module_check_slave_status(uint8_t id, const module_cfg_t *cfg,
 }
 
 #if defined(CONFIG_RF_GENERIC_COMMANDS) && !defined(CONFIG_AVR_SIMU)
-static void generic_cmds_print_status(uint8_t status)
-{
-	LOG("Generic cmd status: ");
-	switch (status) {
-	case GENERIC_CMD_STATUS_OK:
-		LOG("OK\n");
-		break;
-	case GENERIC_CMD_STATUS_ERROR_FULL:
-		LOG("FULL\n");
-		break;
-	case GENERIC_CMD_STATUS_ERROR_DUPLICATE:
-		LOG("DUPLICATE\n");
-		break;
-	case GENERIC_CMD_STATUS_ERROR_TIMEOUT:
-		LOG("TIMEOUT\n");
-		break;
-	default:
-		LOG("Unhandled status: %u\n", status);
-	}
-}
 
 static void generic_cmds_print_list(buf_t *buf)
 {
@@ -748,7 +728,7 @@ static void generic_cmds_cb(uint16_t cmd, uint8_t status)
 		handle_rx_commands(cmd, &args);
 		return;
 	}
-	generic_cmds_print_status(status);
+	LOG("Generic cmd status: %s\n", swen_generic_cmd_status2str(status));
 }
 #endif
 

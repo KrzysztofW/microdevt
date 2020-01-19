@@ -372,6 +372,22 @@ int swen_generic_cmd_replay(iface_t *iface, uint8_t number)
 
 	return swen_generic_cmds_for_each(replay_cmd_cb, &replay_data);
 }
+
+const char *swen_generic_cmd_status2str(uint8_t status)
+{
+	switch (status) {
+	case GENERIC_CMD_STATUS_OK:
+		return "OK";
+	case GENERIC_CMD_STATUS_ERROR_FULL:
+		return "FULL";
+	case GENERIC_CMD_STATUS_ERROR_DUPLICATE:
+		return "DUPLICATE";
+	case GENERIC_CMD_STATUS_ERROR_TIMEOUT:
+		return "TIMEOUT";
+	default:
+		return "unsupported";
+	}
+}
 #endif
 
 void (*swen_event_cb)(uint8_t from, uint8_t events, buf_t *buf);
