@@ -240,8 +240,9 @@ static void print_module_status(const module_cfg_t *cfg, uint8_t id,
 {
 	uint8_t features = cfg->features;
 
-	LOG("\nModule %d:\n", id);
+	LOG("\nModule %u:\n", id);
 	LOG(" State:  %s\n", state_to_string(status->state));
+	LOG(" Reboot cnt: %u\n", status->reboot_counter);
 	if (features & (MODULE_FEATURE_HUMIDITY | MODULE_FEATURE_TEMPERATURE)) {
 		LOG(" Sensor report interval: %u secs\n"
 		    " Sensor report module: %u\n",
@@ -531,7 +532,8 @@ module_parse_status(const module_cfg_t *cfg, uint8_t id, buf_t *buf,
 
 	memset(status, 0, sizeof(module_status_t));
 	if (buf_getc(buf, &status->flags) < 0 ||
-	    buf_getc(buf, &status->state) < 0)
+	    buf_getc(buf, &status->state) < 0 ||
+	    buf_getc(buf, &status->reboot_counter) < 0)
 		return -1;
 
 	if (features & MODULE_FEATURE_SIREN) {

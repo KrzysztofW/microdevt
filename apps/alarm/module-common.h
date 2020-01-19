@@ -84,6 +84,7 @@ typedef struct __PACKED__ module_cfg {
 	uint16_t siren_duration;
 	uint8_t  siren_timeout;
 	sensor_status_t sensor;
+	uint8_t  reboot_counter;
 } module_cfg_t;
 
 enum humidity_tendency {
@@ -139,6 +140,7 @@ typedef struct __PACKED__ siren_status {
 typedef struct __PACKED__ module_status {
 	uint8_t  flags;
 	uint8_t  state;
+	uint8_t  reboot_counter;
 	siren_status_t siren;
 	sensor_status_t sensor;
 } module_status_t;

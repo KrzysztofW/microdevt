@@ -374,6 +374,7 @@ static void get_module_status(module_status_t *status, module_cfg_t *cfg,
 		status->flags |= STATUS_FLAGS_MAIN_PWR_ON;
 #endif
 	status->state = cfg->state;
+	status->reboot_counter = cfg->reboot_counter;
 	if (assoc && swen_l3_get_state(assoc) == S_STATE_CONNECTED)
 		status->flags |= STATUS_FLAGS_CONN_RF_UP;
 }

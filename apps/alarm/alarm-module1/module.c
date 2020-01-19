@@ -88,6 +88,8 @@ static void cfg_load(void)
 	}
 #endif
 	eeprom_load(&module_cfg, &persistent_cfg, sizeof(module_cfg_t));
+	module_cfg.reboot_counter++;
+	cfg_update();
 }
 
 static void power_action(uint8_t state)
@@ -323,6 +325,7 @@ static void module_print_status(void)
 	LOG("\nStatus:\n");
 	LOG(" State:  %s\n",
 	    module_cfg.state == MODULE_STATE_ARMED ? "armed" : "disarmed");
+	LOG(" Reboot cnt: %u\n", module_cfg.reboot_counter);
 	LOG(" Humidity:  %u%%\n"
 	    " Global humidity:  %d%%\n"
 	    " Humidity tendency:  %u\n"
