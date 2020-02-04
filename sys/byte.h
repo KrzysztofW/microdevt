@@ -48,6 +48,11 @@ static inline uint8_t byte_is_empty(const byte_t *byte)
 	return byte->pos == 0;
 }
 
+static inline uint8_t byte_is_set(const byte_t *byte)
+{
+	return byte->pos == 8;
+}
+
 static inline int byte_add_bit(byte_t *byte, uint8_t bit)
 {
 	byte->c = (byte->c << 1) | bit;
