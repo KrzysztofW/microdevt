@@ -92,7 +92,9 @@ static void uart_task(void *arg)
 	buf = BUF(rlen + 1);
 	__ring_get(uart_ring, &buf, rlen);
 	parse_serial_console(&buf);
+#ifdef CONFIG_POWER_MANAGEMENT
 	power_management_pwr_down_reset();
+#endif
 }
 
 ISR(USART_RX_vect)
@@ -110,7 +112,9 @@ ISR(USART_RX_vect)
 static void pir_interrupt_cb(void *arg)
 {
 	LOG("PIR sensor on\n");
+#ifdef CONFIG_POWER_MANAGEMENT
 	power_management_pwr_down_reset();
+#endif
 }
 
 ISR(PCINT2_vect)

@@ -22,6 +22,7 @@
  *
 */
 
+#ifdef CONFIG_POWER_MANAGEMENT
 #ifndef _POWER_MANAGEMENT_H_
 #define _POWER_MANAGEMENT_H_
 #include <power-management.h>
@@ -61,4 +62,5 @@ void power_management_power_down_enable(void);
  */
 void power_management_power_down_disable(void);
 
+#endif
 #endif
