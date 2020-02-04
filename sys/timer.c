@@ -37,6 +37,7 @@
 static uint8_t cur_idx;
 static list_t timer_list[TIMER_TABLE_SIZE];
 static uint16_t timer_count;
+uint32_t timer_ticks;
 
 #ifdef DEBUG_TIMERS
 static void timer_dump_list(list_t *head)
@@ -88,6 +89,7 @@ static uint8_t ticks_to_idx(uint32_t *delta_ticks)
 void timer_process(void)
 {
 	cur_idx = (cur_idx + 1) & TIMER_TABLE_MASK;
+	timer_ticks++;
 
 	while (!list_empty(&timer_list[cur_idx])) {
 		tim_t *timer = list_first_entry(&timer_list[cur_idx], tim_t,

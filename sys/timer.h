@@ -43,6 +43,10 @@ struct timer {
 } __PACKED__;
 typedef struct timer tim_t;
 
+/** Timer tick counter
+ */
+extern uint32_t timer_ticks;
+
 /** Initialize a timer at compile time
  */
 #define TIMER_INIT(__tim) { .list = LIST_HEAD_INIT((__tim).list) }
