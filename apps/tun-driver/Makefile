@@ -21,38 +21,24 @@
 # the file called "LICENSE".
 #
 
+ROOT_PATH = ../..
+ARCH_DIR=$(ROOT_PATH)/arch
+
 EXE = tun-driver
 CFLAGS = -Wall -Werror -O0 -fno-inline -g
-SOURCES = tun-driver.c tun.c
-
-export CFG_FILE = $(PWD)/config
-export DEBUG
-export CFLAGS
+SRC = tun-driver.c tun.c
 
 include config
-
-include ../../arch/build.mk
-include build.mk
-
-ifeq ($(DEBUG), 1)
-	CFLAGS += -DDEBUG
-else
-	CFLAGS += -DNDEBUG
-endif
+include $(ROOT_PATH)/build.mk
 
 NET_APPS_DIR=../../net-apps
-ARCH_DIR=../../arch
 include $(NET_APPS_DIR)/build.mk
-
-CFLAGS += -I../.. -DVERSION=\"$(GIT_VERSION)\"
 
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
-SOURCES += ../../sys/scheduler.c
-OBJ = $(SOURCES:.c=.o)
 
-all: libnet $(SOURCES) $(EXE)
-include ../../common.mk
+all: libnet $(SRC) $(EXE)
+include $(ROOT_PATH)/common.mk
 
 libnet:
 	make -C ../../net

@@ -54,7 +54,7 @@ verify_eeprom:
 erase:
 	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
 
-run_simu: all_not_optimized
+run_simu: all_not_size_optimized
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
 
 # not supported by the simulator
@@ -64,7 +64,7 @@ $(EXE): $(OBJ) $(STATIC_LIBS) config
 	$(CC) $(EXE).a $(STATIC_LIBS) $(EXE).a $(LDFLAGS) -o $@
 
 # supported by the simulator
-$(EXE)_not_optimized: $(OBJ) $(STATIC_LIBS) config
+$(EXE)_not_size_optimized: $(OBJ) $(STATIC_LIBS) config
 	$(CC) $(OBJ) $(STATIC_LIBS) $(LDFLAGS) -o $(EXE)
 
 %.c:

@@ -25,26 +25,11 @@ ROOT_PATH = ../..
 ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = hello_world
-CFLAGS = -Wall -Werror -Os -g -c -DVERSION=\"$(GIT_VERSION)\"
-ifeq ($(DEBUG), 1)
-	CFLAGS += -DDEBUG
-else
-	CFLAGS += -DNDEBUG
-endif
-
-
-SOURCES = main.c ../../sys/scheduler.c ../../sys/timer.c
-SOURCES += $(ARCH_DIR)/$(ARCH)/watchdog.c
+CFLAGS = -Wall -Werror -Os -g -c
+SRC = main.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config
-include build.mk
-include $(ROOT_PATH)/arch/build.mk
-
-export CFG_FILE = $(PWD)/config
-export DEBUG
-export CFLAGS
-
-OBJ = $(SOURCES:.c=.o)
+include $(ROOT_PATH)/build.mk
 
 # 1mhz (internal clk/8)
 # FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m
@@ -58,11 +43,9 @@ FUSES = -U lfuse:w:0xee:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m
 # preserve eeprom: hfuse:w:0xd1:m
 # BOD 2.7V: efuse:w:0xfd:m
 
-CFLAGS += -I../.. -I.
-
-all: $(SOURCES) $(EXE)
-all_not_optimized: $(SOURCES) $(EXE)_not_optimized
+all: $(SRC) $(EXE)
+all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
 include ../../common.mk
-
 include ../../arch/avr/common.mk
-.PHONY: all all_not_optimized
+
+.PHONY: all all_not_size_optimized

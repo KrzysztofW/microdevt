@@ -27,48 +27,30 @@ ROOT_PATH = ../..
 ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = alarm
-#CFLAGS = -Wall -Werror -Os -g -c -DSWEN_L3_DEBUG -DRF_DEBUG -DVERSION=\"$(GIT_VERSION)\"
-CFLAGS = -Wall -Werror -Os -g -c -DRF_DEBUG -DVERSION=\"$(GIT_VERSION)\"
+CFLAGS = -Wall -Werror -Os -g -c -DRF_DEBUG -DOPT_MAX_ARGS=3
 
 # definition to fake the simulator
 CFLAGS += -DUSART0_RX_vect=USART_RX_vect -DDDRF=DDRD -DPORTF=PORTD -DPF1=PD1
 
-ifeq ($(DEBUG), 1)
-	CFLAGS += -DDEBUG
-else
-	CFLAGS += -DNDEBUG
-endif
-
-SOURCES = main.c ../../sys/scheduler.c  ../../sys/array.c
-SOURCES += module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
-SOURCES += ../alarm/alarm-module1/module.c
-
-SOURCES += ../../sys/opts.c
-CFLAGS += -DOPT_MAX_ARGS=3
+SRC = main.c ../../sys/array.c ../alarm/alarm-module1/module.c
+SRC += module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
+SRC += ../../sys/opts.c
 
 include config
-include build.mk
-include $(ROOT_PATH)/arch/build.mk
-
-export CFG_FILE = $(PWD)/config
-export DEBUG
-export CFLAGS
+include $(ROOT_PATH)/build.mk
 
 NET_APPS_DIR=../../net-apps
 
 include $(NET_APPS_DIR)/build.mk
 
 STATIC_LIBS = ../../net/libnet-avr.a
-OBJ = $(SOURCES:.c=.o)
 
-CFLAGS += -I../.. -I.
-
-all: libnet $(SOURCES) $(EXE)_not_optimized
-all_not_optimized: libnet $(SOURCES) $(EXE)_not_optimized
-include ../../common.mk
+all: libnet $(SRC) $(EXE)_not_size_optimized
+all_not_size_optimized: libnet $(SRC) $(EXE)_not_size_optimized
+include $(ROOT_PATH)/common.mk
 
 libnet:
 	make -C ../../net
 
-include ../../arch/avr/common.mk
-.PHONY: all all_not_optimized
+include $(ARCH_DIR)/$(ARCH)/common.mk
+.PHONY: all all_not_size_optimized

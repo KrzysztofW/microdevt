@@ -30,12 +30,12 @@ ARCH = x86
 
 else ifeq ($(CONFIG_ARCH),AVR)
 ifeq "$(or $(CONFIG_USART0), $(CONFIG_USART1))" "y"
-	SOURCES += $(ARCH_DIR)/avr/_stdio.c
-	SOURCES += $(ARCH_DIR)/avr/usart.c
+	SRC += $(ARCH_DIR)/avr/_stdio.c
+	SRC += $(ARCH_DIR)/avr/usart.c
 endif
 
 ifdef CONFIG_ADC
-	SOURCES += $(ARCH_DIR)/avr/adc.c
+	SRC += $(ARCH_DIR)/avr/adc.c
 endif
 AVR_FLAGS = -DF_CPU=${CONFIG_AVR_F_CPU} -mmcu=${CONFIG_AVR_MCU}
 AVR_FLAGS += -DF_CPU=$(CONFIG_AVR_F_CPU) -DCONFIG_AVR_MCU

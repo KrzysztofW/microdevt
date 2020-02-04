@@ -39,7 +39,7 @@ LDFLAGS += -shared
 SO = libnet-$(ARCH).so
 endif
 
-OBJ = $(SOURCES:.c=.o)
+OBJ = $(SRC:.c=.o)
 LIBNAME=libnet-$(ARCH)
 
 ifeq ($(DEBUG), 1)

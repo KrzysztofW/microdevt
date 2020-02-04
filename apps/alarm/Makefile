@@ -25,35 +25,19 @@ ROOT_PATH = ../..
 ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = alarm
-CFLAGS = -Wall -Werror -Os -g -c -DVERSION=\"$(GIT_VERSION)\"
-CFLAGS += -DALTERNATE_SPI_PORT
+CFLAGS = -Wall -Werror -Os -g -c -DOPT_MAX_ARGS=3
 
-ifeq ($(DEBUG), 1)
-	CFLAGS += -DDEBUG
-else
-	CFLAGS += -DNDEBUG
-endif
-
-SOURCES = main.c ../../sys/scheduler.c  ../../sys/array.c
-SOURCES += module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
-
-SOURCES += ../../sys/opts.c
-CFLAGS += -DOPT_MAX_ARGS=3
+SRC = main.c ../../sys/array.c ../../sys/opts.c
+SRC += module-common.c module.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config
-include build.mk
-include $(ROOT_PATH)/arch/build.mk
-
-export CFG_FILE = $(PWD)/config
-export DEBUG
-export CFLAGS
+include $(ROOT_PATH)/build.mk
 
 NET_APPS_DIR = ../../net-apps
 
 include $(NET_APPS_DIR)/build.mk
 
 STATIC_LIBS = ../../net/libnet-avr.a
-OBJ = $(SOURCES:.c=.o)
 
 # 1mhz (internal clk/8)
 # FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m
@@ -67,13 +51,11 @@ FUSES = -U lfuse:w:0xee:m -U hfuse:w:0x99:m -U efuse:w:0xfd:m
 # preserve eeprom: hfuse:w:0x91:m
 # BOD 2.7V: efuse:w:0xfd:m
 
-CFLAGS += -I../.. -I.
-
-all: libnet $(SOURCES) $(EXE)
-include ../../common.mk
+all: libnet $(SRC) $(EXE)
+include $(ROOT_PATH)/common.mk
 
 libnet:
 	make -C ../../net
 
-include ../../arch/avr/common.mk
+include $(ARCH_DIR)/$(ARCH)/common.mk
 .PHONY: all

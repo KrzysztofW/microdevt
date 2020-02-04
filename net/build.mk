@@ -25,43 +25,43 @@ ifdef CONFIG_TIMER_CHECKS
 CFLAGS += -DCONFIG_TIMER_CHECKS
 endif
 
-SOURCES = ../sys/timer.c ../arch/$(ARCH)/timer.c ../sys/scheduler.c ../crypto/xtea.c
+SRC = ../sys/timer.c ../arch/$(ARCH)/timer.c ../sys/scheduler.c ../crypto/xtea.c
 
 ifdef CONFIG_ETHERNET
-SOURCES += eth.c
-SOURCES += arp.c
+SRC += eth.c
+SRC += arp.c
 CFLAGS += -DCONFIG_ETHERNET -DCONFIG_ARP
 endif
 
-SOURCES += if.c
+SRC += if.c
 
 ifdef CONFIG_IP
-SOURCES += ip.c
+SRC += ip.c
 CFLAGS += -DCONFIG_IP
 ifdef CONFIG_IP_TTL
 CFLAGS += -DCONFIG_IP_TTL=$(CONFIG_IP_TTL)
 endif
 endif
 
-SOURCES += tr-chksum.c ../sys/chksum.c route.c
+SRC += tr-chksum.c ../sys/chksum.c route.c
 
 ifdef CONFIG_PKT_NB_MAX
 CFLAGS += -DCONFIG_PKT_NB_MAX=$(CONFIG_PKT_NB_MAX)
 CFLAGS += -DCONFIG_PKT_SIZE=$(CONFIG_PKT_SIZE)
 CFLAGS += -DCONFIG_PKT_DRIVER_NB_MAX=$(CONFIG_PKT_DRIVER_NB_MAX)
-SOURCES += pkt-mempool.c
+SRC += pkt-mempool.c
 ifdef CONFIG_PKT_MEM_POOL_EMERGENCY_PKT
 CFLAGS += -DCONFIG_PKT_MEM_POOL_EMERGENCY_PKT=$(CONFIG_PKT_MEM_POOL_EMERGENCY_PKT)
 endif
 endif
 
 ifdef CONFIG_ICMP
-SOURCES += icmp.c
+SRC += icmp.c
 CFLAGS += -DCONFIG_ICMP
 endif
 
 ifdef CONFIG_UDP
-SOURCES += udp.c
+SRC += udp.c
 CFLAGS += -DCONFIG_UDP
 endif
 
@@ -72,12 +72,12 @@ endif
 ifeq ($(CONFIG_EVENT),)
 $(error CONFIG_EVENT is required for DNS)
 endif
-SOURCES += dns.c
+SRC += dns.c
 CFLAGS += -DCONFIG_DNS
 endif
 
 ifdef CONFIG_TCP
-SOURCES += tcp.c
+SRC += tcp.c
 CFLAGS += -DCONFIG_TCP
 ifdef CONFIG_TCP_CLIENT
 CFLAGS += -DCONFIG_TCP_CLIENT
@@ -102,7 +102,7 @@ CFLAGS += -DCONFIG_ARP_EXPIRY
 endif
 
 ifeq "$(or $(CONFIG_UDP), $(CONFIG_TCP))" "y"
-SOURCES += socket.c
+SRC += socket.c
 CFLAGS += -DCONFIG_TRANSPORT_MAX_HT=$(CONFIG_TRANSPORT_MAX_HT)
 CFLAGS += -DCONFIG_TCP_SYN_TABLE_SIZE=$(CONFIG_TCP_SYN_TABLE_SIZE)
 CFLAGS += -DCONFIG_EPHEMERAL_PORT_START=$(CONFIG_EPHEMERAL_PORT_START)
@@ -115,7 +115,7 @@ ifeq ($(CONFIG_MAX_SOCK_HT_SIZE),)
 $(error CONFIG_MAX_SOCK_HT_SIZE not set)
 endif
 CFLAGS += -DCONFIG_MAX_SOCK_HT_SIZE=$(CONFIG_MAX_SOCK_HT_SIZE)
-SOURCES += ../sys/hash-tables.c
+SRC += ../sys/hash-tables.c
 endif
 
 ifdef CONFIG_BSD_COMPAT
@@ -124,14 +124,14 @@ endif
 
 ifdef CONFIG_EVENT
 CFLAGS += -DCONFIG_EVENT
-SOURCES += event.c
+SRC += event.c
 endif
 
 ifdef CONFIG_SWEN
-SOURCES += swen.c
+SRC += swen.c
 CFLAGS += -DCONFIG_SWEN
 ifdef CONFIG_SWEN_ROLLING_CODES
-SOURCES += swen-rc.c
+SRC += swen-rc.c
 CFLAGS += -DCONFIG_SWEN_ROLLING_CODES
 endif
 ifdef CONFIG_RF_RECEIVER
@@ -144,12 +144,12 @@ ifdef CONFIG_RF_SENDER
 CFLAGS += -DCONFIG_RF_SENDER
 endif
 ifdef CONFIG_SWEN_L3
-SOURCES += swen-l3.c
+SRC += swen-l3.c
 CFLAGS += -DCONFIG_SWEN_L3
 endif
 endif
 
 ifdef TEST
 CFLAGS += -DTEST
-SOURCES += tests.c
+SRC += tests.c
 endif

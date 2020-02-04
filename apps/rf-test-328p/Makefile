@@ -25,26 +25,14 @@ ROOT_PATH = ../..
 ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = rf-test
-CFLAGS = -Wall -Werror -Os -g -c -DVERSION=\"$(GIT_VERSION)\" -DOPT_MAX_ARGS=3
-ifeq ($(DEBUG), 1)
-	CFLAGS += -DDEBUG
-else
-	CFLAGS += -DNDEBUG
-endif
-
-SOURCES = main.c ../../sys/scheduler.c ../../sys/opts.c
-SOURCES += $(ARCH_DIR)/$(ARCH)/watchdog.c
+CFLAGS = -Wall -Werror -Os -g -c -DOPT_MAX_ARGS=3
+SRC = main.c ../../sys/opts.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config
-include build.mk
-include $(ROOT_PATH)/arch/build.mk
-
-export CFG_FILE = $(PWD)/config
-export DEBUG
-export CFLAGS
+include $(ROOT_PATH)/build.mk
 
 STATIC_LIBS = ../../net/libnet-avr.a
-OBJ = $(SOURCES:.c=.o)
+OBJ = $(SRC:.c=.o)
 
 # 1mhz (internal clk/8)
 # FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xd1:m -U efuse:w:0xff:m
@@ -58,12 +46,12 @@ FUSES = -U lfuse:w:0xee:m -U hfuse:w:0xd1:m -U efuse:w:0xff:m
 
 CFLAGS += -I../.. -I.
 
-all: libnet $(SOURCES) $(EXE)
-all_not_optimized: libnet $(SOURCES) $(EXE)_not_optimized
-include ../../common.mk
+all: libnet $(SRC) $(EXE)
+all_not_size_optimized: libnet $(SRC) $(EXE)_not_size_optimized
+include $(ROOT_PATH)/common.mk
 
 libnet:
 	make -C ../../net
 
-include ../../arch/avr/common.mk
-.PHONY: all all_not_optimized
+include $(ARCH_DIR)/$(ARCH)/common.mk
+.PHONY: all all_not_size_optimized

@@ -21,38 +21,25 @@
 # the file called "LICENSE".
 #
 
+ROOT_PATH = ../..
+ARCH_DIR=$(ROOT_PATH)/arch
+
 EXE = tests
-CFLAGS = -Wall -Werror -O0 -g
-SOURCES = tests.c
-export CFG_FILE = $(PWD)/config
-export DEBUG
-export CFLAGS
-export TEST=1
+CFLAGS = -Wall -Werror -O0 -g -DTEST
+SRC = tests.c ../../sys/array.c ../../drivers/gsm-at.c
 
 include config
+include $(ROOT_PATH)/build.mk
 
-include ../../arch/build.mk
-include build.mk
+export TEST=1
 
-ifeq ($(DEBUG), 1)
-	CFLAGS += -DDEBUG
-else
-	CFLAGS += -DNDEBUG
-endif
-
-NET_APPS_DIR=../../net-apps
-ARCH_DIR=../../arch
+NET_APPS_DIR = ../../net-apps
 include $(NET_APPS_DIR)/build.mk
-
-CFLAGS += -I../.. -I. -DTEST
 
 LIBS = -L../../net -lnet-x86
 STATIC_LIBS = ../../net/libnet-x86.a
-SOURCES += ../../sys/array.c
-SOURCES += ../../drivers/gsm-at.c ../../crypto/xtea.c
-OBJ = $(SOURCES:.c=.o)
 
-all: libnet $(SOURCES) $(EXE)
+all: libnet $(SRC) $(EXE)
 
 static: libnet $(EXE)_static
 
