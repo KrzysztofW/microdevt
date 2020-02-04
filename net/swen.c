@@ -259,7 +259,7 @@ void swen_generic_cmds_delete_recorded_cmd(int number)
 		status = GENERIC_CMD_STATUS_OK;
 		swen_generic_cmds_wipe();
 	}
-	swen_generic_cmds_cb(swen_generic_cmds_record_value, status);
+	(*swen_generic_cmds_cb)(swen_generic_cmds_record_value, status);
 }
 
 static int

@@ -441,7 +441,6 @@ static void tcp_retrn_ack_pkts(tcp_conn_t *tcp_conn, uint32_t remote_ack)
 }
 #endif
 
-
 static void
 set_tuid(tcp_uid_t *tuid, const ip_hdr_t *ip_hdr, const tcp_hdr_t *tcp_hdr)
 {
