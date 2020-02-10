@@ -75,6 +75,9 @@ static int opts_get_arg(uint8_t arg, buf_t *args, buf_t *buf)
 		return -1;
 
 	switch (arg) {
+	case ARG_TYPE_BOOL:
+		if (v > 1)
+			return -1;
 	case ARG_TYPE_UINT8:
 	case ARG_TYPE_INT8:
 		return buf_addc(args, v);
@@ -152,6 +155,9 @@ static uint8_t opts_print_usage_cb(const cmd_t *cmd, void *args)
 		switch (*a) {
 		case ARG_TYPE_CHAR:
 			LOG(" <char>");
+			break;
+		case ARG_TYPE_BOOL:
+			LOG(" <bool>");
 			break;
 		case ARG_TYPE_UINT8:
 			LOG(" <uint8>");
