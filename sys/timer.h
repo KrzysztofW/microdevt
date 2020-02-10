@@ -65,6 +65,15 @@ static inline void timer_subsystem_stop(void)
 	__timer_subsystem_stop();
 }
 
+/** Start architecture dependant timer interrupt
+ */
+static inline void timer_subsystem_start(void)
+{
+	__timer_subsystem_start();
+}
+
+/** Reset timer counter
+ */
 static inline void timer_subsystem_reset(void)
 {
 	__timer_subsystem_reset();
