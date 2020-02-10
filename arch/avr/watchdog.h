@@ -40,22 +40,28 @@
 
 void watchdog_enable_interrupt(void (*cb)(void *arg), void *arg);
 
+#ifdef ATTINY85
+#define WATCHDOG_CTRL_REG WDTCR
+#else
+#define WATCHDOG_CTRL_REG WDTCSR
+#endif
+
 static inline void watchdog_enable_reset(void)
 {
-	WDTCSR |= _BV(WDE);
+	WATCHDOG_CTRL_REG |= _BV(WDE);
 }
 
 static inline void watchdog_disable_reset(void)
 {
-	WDTCSR &= ~(_BV(WDE));
+	WATCHDOG_CTRL_REG &= ~(_BV(WDE));
 }
 
 static inline void watchdog_shutdown(void)
 {
 	wdt_reset();
 	MCUSR = 0;
-	WDTCSR |= _BV(WDCE);
-	WDTCSR = 0;
+	WATCHDOG_CTRL_REG |= _BV(WDCE);
+	WATCHDOG_CTRL_REG = 0;
 }
 
 static inline void watchdog_enable(uint8_t timeout)
