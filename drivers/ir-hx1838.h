@@ -23,8 +23,9 @@
 */
 
 #define IR_TICK_DURATION_US 1200
-#if IR_TICK_DURATION_US < CONFIG_TIMER_RESOLUTION_US
-#error "Timer resolution too low. Increase CONFIG_TIMER_RESOLUTION_US option."
+#if IR_TICK_DURATION_US <= CONFIG_TIMER_RESOLUTION_US
+#error Timer resolution too low. Lower CONFIG_TIMER_RESOLUTION_US option. \
+	The recommended value is 300.
 #endif
 #define IR_TICK (IR_TICK_DURATION_US / CONFIG_TIMER_RESOLUTION_US)
 
@@ -39,4 +40,13 @@
  *
  */
 void ir_falling_edge_interrupt_cb(void);
-void ir_init(void (*cb)(uint8_t));
+
+/** Initialize the IR driver.
+ *
+ * @param[in] cb callback funtion to be called when an IR command is captured.
+ *                        The first argument of the callback is the received command,
+ *                        The second argument of the callback tells if the last command
+ *                        has been repeated (received from a burst -
+ *                        IR remote boutton pressed and held).
+ */
+void ir_init(void (*cb)(uint8_t cmd, uint8_t is_repeated));

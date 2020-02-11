@@ -24,30 +24,65 @@
 
 #include <sys/timer.h>
 #include <sys/byte.h>
+#include <sys/scheduler.h>
 #include "ir-hx1838.h"
 
-static uint32_t ticks;
 static byte_t byte;
 static uint8_t byte_pos;
 static uint8_t prev_byte;
-static void (*ir_cb)(uint8_t cmd);
+static uint32_t ticks;
+static void (*ir_cb)(uint8_t cmd, uint8_t is_repeated);
+
+static void ir_task_cb(void *arg)
+{
+	uint16_t cmd = (uint16_t)(uintptr_t)arg;
+
+	(*ir_cb)((uint8_t)cmd, cmd >> 15);
+}
+
+static uint32_t get_timer_tick_diff(uint32_t t)
+{
+	/* protection against wrapping ticks */
+	if (t > timer_ticks)
+		return UINT32_MAX - t + timer_ticks;
+	return timer_ticks - t;
+}
 
 void ir_falling_edge_interrupt_cb(void)
 {
 	int b;
 	uint32_t tick_diff;
+	static uint32_t last_byte_ticks;
+	static uint8_t repeat_cnt;
 
-	/* protection against wrapping ticks */
-	if (ticks > timer_ticks)
-		tick_diff = UINT32_MAX - ticks + timer_ticks;
-	else
-		tick_diff = timer_ticks - ticks;
+	tick_diff = get_timer_tick_diff(ticks);
 	ticks = timer_ticks;
 
-	if (tick_diff > IR_TICK * 3)
-		goto error;
+	if (tick_diff > 3 * IR_TICK) {
+		uint16_t cmd;
 
-	if ((b = byte_add_bit(&byte, tick_diff > IR_TICK + 1)) < 0)
+		tick_diff = get_timer_tick_diff(last_byte_ticks);
+
+		if (tick_diff > 81 * IR_TICK)
+			goto error;
+
+		/* Repeat the last command when receiving bursts
+		 * (button not released).
+		 */
+		repeat_cnt++;
+		last_byte_ticks = ticks;
+
+		/* Do not repeat the command immediately to avoid
+		 * unexpected duplicates.
+		 */
+		if (repeat_cnt < 4)
+			return;
+
+		cmd = 0x8000 | prev_byte;
+		schedule_task(ir_task_cb, (void *)(uintptr_t)cmd);
+		return;
+	}
+	if ((b = byte_add_bit(&byte, tick_diff > IR_TICK)) < 0)
 		return;
 
 	byte_pos++;
@@ -56,16 +91,17 @@ void ir_falling_edge_interrupt_cb(void)
 	 * 3rd byte: data
 	 * 4th byte: inv 3rd byte
 	 */
-	if (byte_pos == 1 && b == 0)
-		return;
-	if (byte_pos == 2 && b == 0xFF)
+	if ((byte_pos == 1 && b == 0) ||
+	    (byte_pos == 2 && b == 0xFF))
 		return;
 	if (byte_pos == 3) {
 		prev_byte = b;
 		return;
 	}
 	if (byte_pos == 4 && (uint8_t)~prev_byte == b) {
-		(*ir_cb)(prev_byte);
+		last_byte_ticks = ticks;
+		repeat_cnt = 0;
+		schedule_task(ir_task_cb, (void *)(uintptr_t)prev_byte);
 		return;
 	}
 
@@ -74,7 +110,7 @@ void ir_falling_edge_interrupt_cb(void)
 	byte_pos = 0;
 }
 
-void ir_init(void (*cb)(uint8_t))
+void ir_init(void (*cb)(uint8_t, uint8_t))
 {
 	ticks = timer_ticks;
 	ir_cb = cb;
