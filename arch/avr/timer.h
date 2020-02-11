@@ -61,24 +61,38 @@
 
 void __timer_subsystem_init(void);
 
-static inline void __timer_subsystem_start(void)
+
+static inline void timer_interrupt_enable(void)
 {
 #ifdef ATTINY85
-	OCR0A = TIM_COUNTER8;
 	TIMSK |= 1 << OCIE0A;
 #else
-	OCR1A = TIM_COUNTER16;
 	TIMSK1 |= 1 << OCIE1A;
 #endif
 }
 
-static inline void __timer_subsystem_stop(void)
+static inline void __timer_subsystem_start(void)
+{
+#ifdef ATTINY85
+	OCR0A = TIM_COUNTER8;
+#else
+	OCR1A = TIM_COUNTER16;
+#endif
+	timer_interrupt_enable();
+}
+
+static inline void timer_interrupt_disable(void)
 {
 #ifdef ATTINY85
 	TIMSK &= ~(1 << OCIE0A);
 #else
 	TIMSK1 &= ~(1 << OCIE1A);
 #endif
+}
+
+static inline void __timer_subsystem_stop(void)
+{
+	timer_interrupt_disable();
 }
 
 static inline void __timer_subsystem_reset(void)
