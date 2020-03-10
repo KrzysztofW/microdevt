@@ -25,3 +25,8 @@ GIT_VERSION := "$(shell git describe --abbrev=4 --dirty --always --tags)"
 
 clean_common:
 	@echo ""
+
+check-syntax:
+	$(CC) -fsyntax-only $(filter-out -DNDEBUG,$(CFLAGS)) -DDEBUG $(SRC)
+
+.PHONY: check-syntax
