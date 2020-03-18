@@ -86,6 +86,12 @@ void ir_falling_edge_interrupt_cb(void)
 		return;
 
 	byte_pos++;
+
+	/* check address */
+#ifdef CONFIG_IR_ADDRESS
+	if (byte_pos == 1 && b != CONFIG_IR_ADDRESS)
+		goto error;
+#endif
 #ifndef CONFIG_IR_DONT_CHECK_INVERSIONS
 	/* 1st byte: 0x00
 	 * 2nd byte: inv 1st (0xFF)
