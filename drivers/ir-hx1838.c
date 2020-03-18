@@ -63,7 +63,7 @@ void ir_falling_edge_interrupt_cb(void)
 
 		tick_diff = get_timer_tick_diff(last_byte_ticks);
 
-		if (tick_diff > 81 * IR_TICK)
+		if (tick_diff > 81 * IR_TICK * 2)
 			goto error;
 
 		/* Repeat the last command when receiving bursts
