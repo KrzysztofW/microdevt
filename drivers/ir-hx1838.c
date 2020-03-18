@@ -86,6 +86,7 @@ void ir_falling_edge_interrupt_cb(void)
 		return;
 
 	byte_pos++;
+#ifndef CONFIG_IR_DONT_CHECK_INVERSIONS
 	/* 1st byte: 0x00
 	 * 2nd byte: inv 1st (0xFF)
 	 * 3rd byte: data
@@ -94,17 +95,26 @@ void ir_falling_edge_interrupt_cb(void)
 	if ((byte_pos == 1 && b == 0) ||
 	    (byte_pos == 2 && b == 0xFF))
 		return;
+#endif
 	if (byte_pos == 3) {
 		prev_byte = b;
 		return;
 	}
-	if (byte_pos == 4 && (uint8_t)~prev_byte == b) {
+	if (byte_pos == 4
+#ifndef CONFIG_IR_DONT_CHECK_INVERSIONS
+	    && (uint8_t)~prev_byte == b
+#endif
+	    )
+	{
 		last_byte_ticks = ticks;
 		repeat_cnt = 0;
 		schedule_task(ir_task_cb, (void *)(uintptr_t)prev_byte);
 		return;
 	}
-
+#ifdef CONFIG_IR_DONT_CHECK_INVERSIONS
+	if (byte_pos < 3)
+		return;
+#endif
  error:
 	byte_reset(&byte);
 	byte_pos = 0;

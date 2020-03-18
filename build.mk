@@ -147,6 +147,10 @@ SRC += $(ROOT_PATH)/sys/power-management.c
 endif
 endif
 
+ifdef CONFIG_IR_DONT_CHECK_INVERSIONS
+CFLAGS += -DCONFIG_IR_DONT_CHECK_INVERSIONS
+endif
+
 include $(ROOT_PATH)/arch/build.mk
 
 CFLAGS += -DVERSION=\"$(GIT_VERSION)\" -I$(ROOT_PATH) -I.
