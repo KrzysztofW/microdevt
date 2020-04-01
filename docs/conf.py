@@ -33,6 +33,8 @@ release = '1.0'
 extensions = [ "breathe"
 ]
 
+master_doc = 'index'
+
 breathe_projects = {
     'doxygen': 'xml/',
 }

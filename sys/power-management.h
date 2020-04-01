@@ -22,7 +22,6 @@
  *
 */
 
-#ifdef CONFIG_POWER_MANAGEMENT
 #ifndef _POWER_MANAGEMENT_H_
 #define _POWER_MANAGEMENT_H_
 #include <power-management.h>
@@ -39,6 +38,7 @@ extern uint16_t power_management_inactivity;
 /** Set a sleep delay
  *
  * The uC will go to sleep after that delay.
+ * Unit: second.
  */
 #define power_management_set_inactivity(value)	\
 	power_management_inactivity = value
@@ -62,5 +62,4 @@ void power_management_power_down_enable(void);
  */
 void power_management_power_down_disable(void);
 
-#endif
 #endif
