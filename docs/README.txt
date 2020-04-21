@@ -1,7 +1,7 @@
 Generate the documentation
 ==========================
 
-- install doxygen, sphinx and breathe
+- install doxygen, sphinx, sphinx-rtd-theme and breathe
 - run `doxygen' command
 - run `make html'
 - open the documentation with a browser: `firefox _build/html/index.html'
