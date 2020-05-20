@@ -1,7 +1,7 @@
 Upstream Author: Krzysztof Witek
 
 Copyright:
-	 Copyright (c) 2017 Krzysztof Witek kw-net.com
+	 Copyright (c) 2017 Krzysztof Witek www.kw-net.com
 
 License: GPL-2
 
