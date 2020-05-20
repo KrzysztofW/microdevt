@@ -211,8 +211,9 @@ static inline void __buf_add(buf_t *buf, const void *data, int len)
 	buf->len += len;
 }
 
-static inline void __buf_adds(buf_t *buf, const char *data, int len)
+static inline void __buf_adds(buf_t *buf, const char *data)
 {
+	int len = strlen(data);
 	uint8_t c = '\0';
 
 	__buf_add(buf, (uint8_t *)data, len);
@@ -225,7 +226,7 @@ static inline int buf_adds(buf_t *buf, const char *data)
 
 	if (buf_has_room(buf, len + 1) < 0)
 		return -1;
-	__buf_adds(buf, data, len);
+	__buf_add(buf, data, len);
 	return 0;
 }
 
