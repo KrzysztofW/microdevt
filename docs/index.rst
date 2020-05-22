@@ -1,7 +1,7 @@
 Upstream Author: Krzysztof Witek
 
 Copyright:
-	 Copyright (c) 2017 Krzysztof Witek kw-net.com
+	 Copyright (c) 2017 Krzysztof Witek www.kw-net.com
 
 License: GPL-2
 
@@ -12,6 +12,7 @@ Microdevt Documentation
    :maxdepth: 2
    :caption: Contents:
 
+   KW-NET Home page <https://www.kw-net.com>
    Quick-Start-Guide.rst
    Demo-apps.rst
    API.rst
