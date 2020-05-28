@@ -8,7 +8,7 @@ License: GPL-2
 Overview
 ========
 
-Micro-Devt is a microcontroller development toolkit for quickly developing
+Microdevt is a microcontroller development toolkit for quickly developing
 embedded applications.
 The toolkit provides asynchronous timers, a task scheduler and a zero-copy,
 event-based TCP/IP stack. The asynchronous approach of developing Microdevt
