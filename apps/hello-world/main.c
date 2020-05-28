@@ -23,18 +23,17 @@
 */
 
 /*
- * This simple application reads input from the serial console and prints
+ * This simple application reads commands from the serial console and prints out
  * the relative humidity and temperature.
- * The humidity and temperature values are read every 10 seconds using a timer
- * and stored locally.
+ * The humidity and temperature values are read every 10 seconds using a timer.
  * In case of inactivity, the app goes to sleep (power down mode).
  * In addition, the scheduler will make sure that if there are no pending tasks
- * the microcontroller will go the IDLE power save mode.
- * A timer makes a led bink every second and a PIR sensor wakes
+ * the microcontroller will go to the IDLE power save mode.
+ * A timer makes an LED bink every second and a PIR sensor wakes
  * the app up (see gpio.h file for PIN assignments).
  *
- * The app shows the usage of the serial console, timers, tasks,
- * the watchdog, the power management and input/output GPIOs of
+ * The app shows the usage of the serial console, the timers, the tasks,
+ * the watchdog, the power management and the input/output GPIOs of
  * an ATMEGA328p microcontroller.
  */
 
