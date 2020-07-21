@@ -57,6 +57,7 @@ extern unsigned reference_voltage_mv;
 	reference_voltage_mv = ADC_5000MV_REF_VOLTAGE
 
 #define adc_enable() ADCSRA |= 1 << ADEN
+#define adc_shutdown() ADCSRA &= ~(1 << ADEN)
 
 static inline uint16_t adc_read(uint8_t channel)
 {
@@ -74,7 +75,6 @@ static inline uint16_t adc_read(uint8_t channel)
 	return ADC;
 }
 
-#define adc_shutdown() ADCSRA &= ~(1 << ADEN)
 
 static inline uint16_t adc_to_millivolt(uint32_t val)
 {
