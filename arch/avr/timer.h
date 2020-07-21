@@ -57,10 +57,9 @@
 #define TIM_COUNTER16							\
 	((CONFIG_TIMER_RESOLUTION_US*(CONFIG_AVR_F_CPU/8ULL))/TIMER_DEVIDER)
 #define TIM_COUNTER8							\
-	((CONFIG_TIMER_RESOLUTION_US*(CONFIG_AVR_F_CPU/64))/TIMER_DEVIDER)
+	((CONFIG_TIMER_RESOLUTION_US*(CONFIG_AVR_F_CPU/64ULL))/TIMER_DEVIDER)
 
 void __timer_subsystem_init(void);
-
 
 static inline void timer_interrupt_enable(void)
 {
@@ -68,6 +67,15 @@ static inline void timer_interrupt_enable(void)
 	TIMSK |= 1 << OCIE0A;
 #else
 	TIMSK1 |= 1 << OCIE1A;
+#endif
+}
+
+static inline void timer_interrupt_disable(void)
+{
+#ifdef ATTINY85
+	TIMSK &= ~(1 << OCIE0A);
+#else
+	TIMSK1 &= ~(1 << OCIE1A);
 #endif
 }
 
@@ -79,15 +87,6 @@ static inline void __timer_subsystem_start(void)
 	OCR1A = TIM_COUNTER16;
 #endif
 	timer_interrupt_enable();
-}
-
-static inline void timer_interrupt_disable(void)
-{
-#ifdef ATTINY85
-	TIMSK &= ~(1 << OCIE0A);
-#else
-	TIMSK1 &= ~(1 << OCIE1A);
-#endif
 }
 
 static inline void __timer_subsystem_stop(void)
