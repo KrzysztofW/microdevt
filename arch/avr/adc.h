@@ -75,6 +75,21 @@ static inline uint16_t adc_read(uint8_t channel)
 	return ADC;
 }
 
+static inline uint8_t adc_read8(uint8_t channel)
+{
+	adc_enable();
+
+	/* select ADC channel */
+	ADMUX = (ADMUX & 0xF0) | (1 << ADLAR) | (channel & 0x0F);
+
+	/* single conversion mode */
+	ADCSRA |= 1 << ADSC;
+
+	/* wait until ADC conversion is complete */
+	while (ADCSRA & (1 << ADSC));
+
+	return ADCH;
+}
 
 static inline uint16_t adc_to_millivolt(uint32_t val)
 {
