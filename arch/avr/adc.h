@@ -40,7 +40,7 @@ extern unsigned reference_voltage_mv;
 #define ADC_5000MV_REF_VOLTAGE 5000U
 #define ADC_1100MV_REF_VOLTAGE 1100U
 
-#define ADC_SET_PRESCALER_64() ADCSRA = (1 << ADPS1) | (1 << ADPS0)
+#define ADC_SET_PRESCALER_64() ADCSRA = (1 << ADPS2) | (1 << ADPS1)
 #define ADC_SET_PRESCALER_128()					\
 	ADCSRA = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0))
 
