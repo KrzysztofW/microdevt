@@ -29,7 +29,7 @@ static void *wd_arg;
 
 void watchdog_enable_interrupt(void (*cb)(void *arg), void *arg)
 {
-	WDTCSR |= _BV(WDIE);
+	WATCHDOG_CTRL_REG |= _BV(WDIE);
 	wd_cb = cb;
 	wd_arg = arg;
 }
