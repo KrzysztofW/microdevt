@@ -26,8 +26,7 @@ ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = leds
 CFLAGS = -Wall -Werror -Os -g -c
-SRC = main.c leds.c ../../arch/avr/ws2812.c #$(ARCH_DIR)/$(ARCH)/watchdog.c
-
+SRC = main.c leds.c ../../arch/avr/ws2812.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 SRC += ../../sys/opts.c ../../drivers/ir-hx1838.c
 
 include config
