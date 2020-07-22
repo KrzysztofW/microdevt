@@ -40,7 +40,7 @@
 #define PUMP_ON_DURATION  10000000
 #define PUMP_OFF_DURATION (3600*1000000UL)
 #define PUMP_IDLE_TIME 24
-#define PWM_PUMP_DELAY 1200
+#define PWM_PUMP_DELAY_US 1200
 
 static unsigned counter = PUMP_IDLE_TIME;
 static uint8_t analog_val;
@@ -87,7 +87,7 @@ static void pwm_pump_cb(void *arg)
 		analog_val = adc_read8(ADJ_RESISTOR_PIN);
 		OCR1A = analog_val;
 	}
-	timer_reschedule(&pwm_pump_timer, PWM_PUMP_DELAY);
+	timer_reschedule(&pwm_pump_timer, PWM_PUMP_DELAY_US);
 }
 
 static void pwm_pump_tim_cb(void *arg)
