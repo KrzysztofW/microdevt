@@ -28,33 +28,24 @@
 
 #define ADJ_RESISTOR_PIN 2
 
-static void gpio_pwm_init(void)
+static inline void gpio_init(void)
 {
 	/* set as output */
-	DDRB |= (1 << PB3);
-
-	TCCR1 = 1 << CTC1 | 1 << PWM1A | 3 << COM1A0 | 7 << CS10;
-	GTCCR = 1 << PWM1B | 3 << COM1B0;
-
-	/* interrupts on OC1A match and overflow */
-	TIMSK |= 1 << OCIE1A | 1 << TOIE1;
+	DDRB |= (1 << PB3) | (1 << PB4);
 }
 
-static void gpio_init(void)
+static inline void gpio_turn_pump_on(void)
 {
-	DDRB &= ~(1 << PB4); /* set as input */
-	PORTB |= (1 << PB4); /* pullup resistors */
-	gpio_pwm_init();
+	PORTB |= (1 << PB3);
 }
 
-static void gpio_turn_pump_on(void)
+static inline void gpio_turn_pump_off(void)
 {
-	TCCR1 = 1 << CTC1 | 1 << PWM1A | 3 << COM1A0 | 7 << CS10;
+	PORTB &= ~(1 << PB3);
 }
 
-static void gpio_turn_pump_off(void)
+static inline void gpio_led_toggle(void)
 {
-	TCCR1 = 0;
+	PORTB ^= 1 << PB4;
 }
-
 #endif

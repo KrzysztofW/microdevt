@@ -25,6 +25,7 @@
 #include <avr/interrupt.h>
 #include <adc.h>
 #include <log.h>
+#include <watchdog.h>
 #include <_stdio.h>
 #include <common.h>
 #include <interrupts.h>
@@ -34,80 +35,54 @@
 
 #include "gpio.h"
 
-/* ADC based on https://www.marcelpost.com/wiki/index.php/ATtiny85_ADC */
-/* PWM based on http://www.technoblogy.com/show?LE0 */
-
 #define PUMP_ON_DURATION  10000000
 #define PUMP_OFF_DURATION (3600*1000000UL)
 #define PUMP_IDLE_TIME 24
-#define PWM_PUMP_DELAY_US 1200
 
-static unsigned counter = PUMP_IDLE_TIME;
-static uint8_t analog_val;
-static tim_t pump_timer = TIMER_INIT(pump_timer);
-static tim_t pwm_pump_timer = TIMER_INIT(pwm_pump_timer);
-
-ISR(TIMER1_OVF_vect) {
-	/* don't turn the pump off when the adjustable resistance
-	 * is at its near minimum  */
-	if (analog_val > 5)
-		PORTB &= ~(1 << PB3);
-}
-
-ISR(TIMER1_COMPA_vect) {
-	if (!((TIFR & (1 << TOV1))))
-		PORTB |= (1 << PB3);
-}
-
-static void pump_start_cb(void *arg);
+static int counter = 1;
+static tim_t pump_stop_timer  = TIMER_INIT(pump_stop_timer);
+static tim_t pump_start_timer = TIMER_INIT(pump_start_timer);
+static tim_t timer = TIMER_INIT(timer);
 
 static void pump_stop_cb(void *arg)
 {
 	gpio_turn_pump_off();
-	PORTB &= ~(1 << PB3);
-
-	if (counter) {
-		timer_add(&pump_timer, PUMP_OFF_DURATION, pump_stop_cb, NULL);
-		counter--;
-	} else {
-		counter = PUMP_IDLE_TIME;
-		timer_add(&pump_timer, 0, pump_start_cb, NULL);
-	}
 }
 
 static void pump_start_cb(void *arg)
 {
-	gpio_turn_pump_on();
-	timer_add(&pump_timer, PUMP_ON_DURATION, pump_stop_cb, NULL);
-}
+	timer_reschedule(&pump_start_timer, PUMP_OFF_DURATION);
 
-static void pwm_pump_cb(void *arg)
-{
-	if (PORTB | (1 << PB3)) {
-		analog_val = adc_read8(ADJ_RESISTOR_PIN);
-		OCR1A = analog_val;
+	if (--counter <= 0) {
+		counter = PUMP_IDLE_TIME;
+		timer_add(&pump_stop_timer, PUMP_ON_DURATION, pump_stop_cb, NULL);
+		gpio_turn_pump_on();
 	}
-	timer_reschedule(&pwm_pump_timer, PWM_PUMP_DELAY_US);
 }
 
-static void pwm_pump_tim_cb(void *arg)
+static void tim_cb(void *arg)
 {
-	schedule_task(pwm_pump_cb, NULL);
+	timer_reschedule(&timer, 1000000);
+	gpio_led_toggle();
+	watchdog_reset();
 }
 
 int main(void)
 {
+	watchdog_shutdown();
 	gpio_init();
-	ADC_SET_PRESCALER_64();
 	timer_subsystem_init();
 
-	timer_add(&pump_timer, 0, pump_start_cb, NULL);
-	timer_add(&pwm_pump_timer, 0, pwm_pump_tim_cb, NULL);
+	STATIC_ASSERT(PUMP_OFF_DURATION > PUMP_ON_DURATION);
+	timer_add(&pump_start_timer, 0, pump_start_cb, NULL);
+	timer_add(&timer, 0, tim_cb, NULL);
 
 	irq_enable();
+	watchdog_enable(WATCHDOG_TIMEOUT_4S);
 
 	while (1) {
 		scheduler_run_tasks();
+		watchdog_reset();
 	}
 	return 0;
 }

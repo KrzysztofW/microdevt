@@ -26,7 +26,7 @@ ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = watering-pump
 CFLAGS = -Wall -Werror -Os -g -c
-SRC = main.c
+SRC = main.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 include config
 include $(ROOT_PATH)/build.mk

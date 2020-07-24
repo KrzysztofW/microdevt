@@ -1,9 +1,5 @@
-# supported architecture: AVR AVR_SIMU
+# supported architecture: AVR
 CONFIG_ARCH=AVR
-
-# CONFIG_AVR_SIMU=y
-# CONFIG_AVR_SIMU_PATH=/home/chris/simulavr
-# CONFIG_AVR_SIMU_MCU=attiny85
 
 CONFIG_AVR_MCU=attiny85
 CONFIG_AVR_BMCU=t85
