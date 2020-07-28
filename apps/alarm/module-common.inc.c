@@ -235,17 +235,20 @@ static void sensor_status_on_ready_cb(void *arg)
 #ifdef FEATURE_HUMIDITY
 	module_cfg_t *cfg = arg;
 	humidity_info_t info;
+	int cur_val;
 #endif
 
 	read_sensor_values();
 #ifdef FEATURE_HUMIDITY
 	set_humidity_info(&info, cfg);
+	cur_val = global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1];
 
 	if (!cfg->fan_enabled || global_humidity_array[0] == 0)
 		return;
-	if (info.tendency == HUMIDITY_TENDENCY_RISING ||
-	    global_humidity_array[GLOBAL_HUMIDITY_ARRAY_LENGTH - 1]
-	    >= MAX_HUMIDITY_VALUE) {
+
+	if ((info.tendency == HUMIDITY_TENDENCY_RISING &&
+	     cur_val >= MIN_HUMIDITY_VALUE) ||
+	    cur_val >= MAX_HUMIDITY_VALUE) {
 		set_fan_on();
 	} else if (info.tendency == HUMIDITY_TENDENCY_STABLE &&
 		   fan_sec_cnt == 0) {
