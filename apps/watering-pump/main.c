@@ -38,32 +38,35 @@
 #define PUMP_ON_DURATION  10000000
 #define CORRECTION_PER_HOUR_DELAY 68 /* seconds */
 #define PUMP_OFF_DURATION ((3600 - CORRECTION_PER_HOUR_DELAY) * 1000000UL)
-#define PUMP_IDLE_TIME 24
+#define PUMP_IDLE_TIME 24 /* hours */
 
 static int counter = 1;
-static tim_t pump_stop_timer  = TIMER_INIT(pump_stop_timer);
-static tim_t pump_start_timer = TIMER_INIT(pump_start_timer);
-static tim_t timer = TIMER_INIT(timer);
+static tim_t pump_timer  = TIMER_INIT(pump_timer);
+static tim_t led_timer = TIMER_INIT(led_timer);
+
+static void pump_start_cb(void *arg);
 
 static void pump_stop_cb(void *arg)
 {
 	gpio_turn_pump_off();
+	timer_add(&pump_timer, PUMP_OFF_DURATION - PUMP_ON_DURATION,
+		  pump_start_cb, NULL);
 }
 
 static void pump_start_cb(void *arg)
 {
-	timer_reschedule(&pump_start_timer, PUMP_OFF_DURATION);
-
 	if (--counter <= 0) {
+		timer_add(&pump_timer, PUMP_ON_DURATION, pump_stop_cb, NULL);
 		counter = PUMP_IDLE_TIME;
-		timer_add(&pump_stop_timer, PUMP_ON_DURATION, pump_stop_cb, NULL);
 		gpio_turn_pump_on();
+		return;
 	}
+	timer_add(&pump_timer, PUMP_OFF_DURATION, pump_start_cb, NULL);
 }
 
 static void tim_cb(void *arg)
 {
-	timer_reschedule(&timer, 1000000);
+	timer_reschedule(&led_timer, 1000000);
 	gpio_led_toggle();
 }
 
@@ -74,8 +77,8 @@ int main(void)
 	timer_subsystem_init();
 
 	STATIC_ASSERT(PUMP_OFF_DURATION > PUMP_ON_DURATION);
-	timer_add(&pump_start_timer, 0, pump_start_cb, NULL);
-	timer_add(&timer, 0, tim_cb, NULL);
+	timer_add(&pump_timer, 0, pump_start_cb, NULL);
+	timer_add(&led_timer, 0, tim_cb, NULL);
 
 	irq_enable();
 	watchdog_enable(WATCHDOG_TIMEOUT_4S);
