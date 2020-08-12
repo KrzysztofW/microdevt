@@ -64,7 +64,6 @@ static void tim_cb(void *arg)
 {
 	timer_reschedule(&timer, 1000000);
 	gpio_led_toggle();
-	watchdog_reset();
 }
 
 int main(void)
@@ -81,7 +80,7 @@ int main(void)
 	watchdog_enable(WATCHDOG_TIMEOUT_4S);
 
 	while (1) {
-		scheduler_run_tasks();
+		scheduler_run_task();
 		watchdog_reset();
 	}
 	return 0;
