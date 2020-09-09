@@ -10,7 +10,7 @@ A basic AVR application with frequently used features:
 
 - Analog to digital converter
 - Watchdog
-- Watchdog interrupt to wake up the microcontroller
+- Watchdog interrupt to wake the microcontroller up
 - USAR input/output
 - Power management
 - Timers
@@ -23,7 +23,7 @@ The humidity and temperature values are read every 10 seconds using a timer
 and stored locally.
 In case of inactivity, the app goes to sleep (power down mode).
 In addition, the scheduler will make sure that if there are no pending tasks
-the microcontroller will go the IDLE power save mode.
+the microcontroller will go to the IDLE power save mode.
 A timer makes a led blink every second and a PIR sensor wakes
 the app up (see gpio.h file for PIN assignments).
 
@@ -33,7 +33,7 @@ Network Applications
 */net-apps*
 
 The network example applications show the usage of TCP, UDP and DNS protocols.
-The esiest way to explore them is to use the X86 tun-driver app in
+The esiest way to explore them is to use the X86 tun-driver app in the
 */apps/tun-driver* folder.
 
 By default, the tun-driver runs a TCP echo server. For different usages modify
@@ -46,7 +46,7 @@ To run the tun-driver apps:
     cd apps/tun-driver
     make run
 
-Then connect from a different terminal to the server and type some text:
+then connect from a different terminal to the server and type some text:
 
 .. code:: shell
 
