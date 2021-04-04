@@ -44,7 +44,7 @@ static void timer_dump_list(list_t *head)
 	tim_t *timer;
 	uint8_t first = 1;
 
-	list_for_each_entry(timer, head, list) {
+	LIST_FOR_EACH_ENTRY(timer, head, list) {
 		if (first) {
 			LOG("head:%p (p:%p n:%p) ", head,
 			    head->prev, head->next);
@@ -91,7 +91,7 @@ void timer_process(void)
 	timer_ticks++;
 
 	while (!list_empty(&timer_list[cur_idx])) {
-		tim_t *timer = list_first_entry(&timer_list[cur_idx], tim_t,
+		tim_t *timer = LIST_FIRST_ENTRY(&timer_list[cur_idx], tim_t,
 						list);
 
 		if (timer->ticks > 0) {

@@ -98,7 +98,7 @@ pkt_t *swen_l3_get_pkt(swen_l3_assoc_t *assoc)
 	if (list_empty(&assoc->incoming_pkts))
 		return NULL;
 
-	pkt = list_first_entry(&assoc->incoming_pkts, pkt_t, list);
+	pkt = LIST_FIRST_ENTRY(&assoc->incoming_pkts, pkt_t, list);
 	list_del(&pkt->list);
 	return pkt;
 }
@@ -139,7 +139,7 @@ static void swen_l3_free_assoc_pkts(swen_l3_assoc_t *assoc)
 	pkt_t *pkt, *pkt_tmp;
 
 	timer_del(&assoc->timer);
-	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
+	LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
 		list_del(&pkt->list);
 		pkt_free(pkt);
 	}
@@ -174,7 +174,7 @@ static void swen_l3_task_cb(void *arg)
 		return;
 	}
 
-	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
+	LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
 		uint8_t retries;
 
 		retries = swen_l3_get_pkt_retries(pkt);
@@ -375,7 +375,7 @@ static swen_l3_assoc_t *swen_l3_assoc_lookup(uint8_t dst)
 {
 	swen_l3_assoc_t *assoc;
 
-	list_for_each_entry(assoc, &assoc_list, list) {
+	LIST_FOR_EACH_ENTRY(assoc, &assoc_list, list) {
 		if (assoc->dst == dst)
 			return assoc;
 	}
@@ -401,7 +401,7 @@ static int swen_l3_retrn_ack_pkts(swen_l3_assoc_t *assoc, uint8_t seq_id)
 	pkt_t *pkt, *pkt_tmp;
 	int ret = -1;
 
-	list_for_each_entry_safe(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
+	LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp, &assoc->retrn_pkts, list) {
 		if (swen_l3_in_window(seq_id, swen_l3_get_pkt_seqid(pkt))) {
 			list_del(&pkt->list);
 			pkt_free(pkt);

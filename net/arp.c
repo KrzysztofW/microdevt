@@ -156,7 +156,7 @@ arp_output(iface_t *iface, int op, const uint8_t *tha, const uint8_t *tpa)
 
 static uint32_t arp_res_get_ip(arp_res_t *arp_res)
 {
-	pkt_t *pkt = list_first_entry(&arp_res->pkt_list, pkt_t, list);
+	pkt_t *pkt = LIST_FIRST_ENTRY(&arp_res->pkt_list, pkt_t, list);
 	ip_hdr_t *ip_hdr = btod(pkt);
 
 	return ip_hdr->dst;
@@ -166,7 +166,7 @@ static arp_res_t *arp_res_lookup(const uint32_t *ip)
 {
 	arp_res_t *arp_res;
 
-	list_for_each_entry(arp_res, &arp_wait_list, list) {
+	LIST_FOR_EACH_ENTRY(arp_res, &arp_wait_list, list) {
 		uint32_t arp_res_ip = arp_res_get_ip(arp_res);
 
 		if (arp_res_ip == *ip)
@@ -179,7 +179,7 @@ static void __arp_process_wait_list(arp_res_t *arp_res, uint8_t delete)
 {
 	pkt_t *pkt, *pkt_tmp;
 
-	list_for_each_entry_safe(pkt, pkt_tmp, &arp_res->pkt_list, list) {
+	LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp, &arp_res->pkt_list, list) {
 		list_del(&pkt->list);
 		if (delete)
 			pkt_free(pkt);

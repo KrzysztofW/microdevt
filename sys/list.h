@@ -116,6 +116,11 @@ static inline void __list_del_entry(list_t *entry)
 	__list_del_entry(e);						\
 	(e)->next = LIST_POISON1;					\
 	(e)->prev = LIST_POISON2
+
+#define list_del_init(e)						\
+	DEBUG_LOG("%s:%d del:%p\n", __func__, __LINE__, e);		\
+	__list_del_entry(e);						\
+	INIT_LIST_HEAD(e)
 #else
 static inline void list_del(list_t *entry)
 {
@@ -123,14 +128,7 @@ static inline void list_del(list_t *entry)
 	entry->next = LIST_POISON1;
 	entry->prev = LIST_POISON2;
 }
-#endif
 
-#ifdef LIST_DEBUG
-#define list_del_init(e)						\
-	DEBUG_LOG("%s:%d del:%p\n", __func__, __LINE__, e);		\
-	__list_del_entry(e);						\
-	INIT_LIST_HEAD(e)
-#else
 static inline void list_del_init(list_t *entry)
 {
 	__list_del_entry(entry);
@@ -165,48 +163,48 @@ static inline int list_is_singular(const list_t *head)
 	return !list_empty(head) && (head->next == head->prev);
 }
 
-#define list_entry(ptr, type, member) container_of(ptr, type, member)
+#define LIST_ENTRY(ptr, type, member) container_of(ptr, type, member)
 
-#define list_first_entry(ptr, type, member) list_entry((ptr)->next, type, member)
+#define LIST_FIRST_ENTRY(ptr, type, member) LIST_ENTRY((ptr)->next, type, member)
 
-#define list_last_entry(ptr, type, member) list_entry((ptr)->prev, type, member)
+#define LIST_LAST_ENTRY(ptr, type, member) LIST_ENTRY((ptr)->prev, type, member)
 
-#define list_next_entry(pos, member)				\
-	list_entry((pos)->member.next, typeof(*(pos)), member)
+#define LIST_NEXT_ENTRY(pos, member)				\
+	LIST_ENTRY((pos)->member.next, typeof(*(pos)), member)
 
-#define list_prev_entry(pos, member)				\
-	list_entry((pos)->member.prev, typeof(*(pos)), member)
+#define LIST_PREV_ENTRY(pos, member)				\
+	LIST_ENTRY((pos)->member.prev, typeof(*(pos)), member)
 
-#define list_for_each(pos, head)					\
+#define LIST_FOR_EACH(pos, head)					\
 	for (pos = (head)->next; pos != (head); pos = pos->next)
 
-#define list_for_each_prev(pos, head)					\
+#define LIST_FOR_EACH_PREV(pos, head)					\
 	for (pos = (head)->prev; pos != (head); pos = pos->prev)
 
-#define list_for_each_safe(pos, n, head)		       \
+#define LIST_FOR_EACH_SAFE(pos, n, head)		       \
 	for (pos = (head)->next, n = pos->next; pos != (head); \
 		pos = n, n = pos->next)
 
-#define list_for_each_prev_safe(pos, n, head)	\
+#define LIST_FOR_EACH_PREV_SAFE(pos, n, head)	\
 	for (pos = (head)->prev, n = pos->prev; \
 	     pos != (head); \
 	     pos = n, n = pos->prev)
 
-#define list_for_each_entry(pos, head, member)				\
-	for (pos = list_first_entry(head, typeof(*pos), member);	\
+#define LIST_FOR_EACH_ENTRY(pos, head, member)				\
+	for (pos = LIST_FIRST_ENTRY(head, typeof(*pos), member);	\
 	     &pos->member != (head);					\
-	     pos = list_next_entry(pos, member))
+	     pos = LIST_NEXT_ENTRY(pos, member))
 
-#define list_for_each_entry_reverse(pos, head, member)			\
-	for (pos = list_last_entry(head, typeof(*pos), member);		\
+#define LIST_FOR_EACH_ENTRY_REVERSE(pos, head, member)			\
+	for (pos = LIST_LAST_ENTRY(head, typeof(*pos), member);		\
 	     &pos->member != (head);					\
-	     pos = list_prev_entry(pos, member))
+	     pos = LIST_PREV_ENTRY(pos, member))
 
-#define list_for_each_entry_safe(pos, n, head, member)			\
-	for (pos = list_first_entry(head, typeof(*pos), member),	\
-		n = list_next_entry(pos, member);			\
+#define LIST_FOR_EACH_ENTRY_SAFE(pos, n, head, member)			\
+	for (pos = LIST_FIRST_ENTRY(head, typeof(*pos), member),	\
+		n = LIST_NEXT_ENTRY(pos, member);			\
 	     &pos->member != (head);					\
-	     pos = n, n = list_next_entry(n, member))
+	     pos = n, n = LIST_NEXT_ENTRY(n, member))
 
 /* singly linked lists */
 typedef struct slist_node {
@@ -251,8 +249,8 @@ static inline void slist_add_tail(slist_node_t *node, slist_t *list)
 	list->tail = node;
 }
 
-#define slist_first_entry(list, type, member)	\
-	list_entry((list)->head, type, member)
+#define SLIST_FIRST_ENTRY(list, type, member)	\
+	LIST_ENTRY((list)->head, type, member)
 
 static inline slist_node_t *slist_get_first(slist_t *list)
 {
@@ -267,7 +265,7 @@ static inline slist_node_t *slist_get_first(slist_t *list)
 	return node;
 }
 
-#define slist_for_each(pos, list)				\
+#define SLIST_FOR_EACH(pos, list)				\
 	for (pos = (list)->head; pos != NULL; pos = pos->next)
 
 #endif

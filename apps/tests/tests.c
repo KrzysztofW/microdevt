@@ -199,7 +199,7 @@ static int list_check(void)
 	}
 
 	i = LIST_ELEMS - 1;
-	list_for_each_entry(e, &list_head, list) {
+	LIST_FOR_EACH_ENTRY(e, &list_head, list) {
 		if (i != e->a && i != e->b) {
 			fprintf(stderr, "%s:%d failed i:%d a:%d b:%d\n",
 				__func__, __LINE__, i, e->a, e->b);
@@ -212,8 +212,8 @@ static int list_check(void)
 		fprintf(stderr, "%s:%d failed i:%d\n", __func__, __LINE__, i);
 		return -1;
 	}
-	list_for_each_safe(node, tmp, &list_head) {
-		e = list_entry(node, list_el_t, list);
+	LIST_FOR_EACH_SAFE(node, tmp, &list_head) {
+		e = LIST_ENTRY(node, list_el_t, list);
 		list_del(node);
 		free(e);
 	}
@@ -242,7 +242,7 @@ static int slist_check(void)
 		slist_add(&el->slist, &list_head);
 	}
 
-	e = slist_first_entry(&list_head, list_el_t, slist);
+	e = SLIST_FIRST_ENTRY(&list_head, list_el_t, slist);
 	i = LIST_ELEMS - 1;
 	if (e->a != i) {
 		fprintf(stderr, "%s:%d failed a != %d\n",
@@ -250,8 +250,8 @@ static int slist_check(void)
 		return -1;
 	}
 
-	slist_for_each(node, &list_head) {
-		e = list_entry(node, list_el_t, slist);
+	SLIST_FOR_EACH(node, &list_head) {
+		e = LIST_ENTRY(node, list_el_t, slist);
 		if (i != e->a && i != e->b) {
 			fprintf(stderr, "%s:%d failed i:%d a:%d b:%d\n",
 				__func__, __LINE__, i, e->a, e->b);
@@ -266,7 +266,7 @@ static int slist_check(void)
 	}
 
 	while ((node = slist_get_first(&list_head))) {
-		e = list_entry(node, list_el_t, slist);
+		e = LIST_ENTRY(node, list_el_t, slist);
 		free(e);
 	}
 
@@ -283,15 +283,15 @@ static int slist_check(void)
 		slist_add_tail(&el->slist, &list_head);
 	}
 
-	e = slist_first_entry(&list_head, list_el_t, slist);
+	e = SLIST_FIRST_ENTRY(&list_head, list_el_t, slist);
 	i = 0;
 	if (e->a != i) {
 		fprintf(stderr, "%s:%d failed a != %d\n",
 			__func__, __LINE__, i);
 		return -1;
 	}
-	slist_for_each(node, &list_head) {
-		e = list_entry(node, list_el_t, slist);
+	SLIST_FOR_EACH(node, &list_head) {
+		e = LIST_ENTRY(node, list_el_t, slist);
 		if (i != e->a && i != e->b) {
 			fprintf(stderr, "%s:%d failed i:%d a:%d b:%d\n",
 				__func__, __LINE__, i, e->a, e->b);
@@ -306,7 +306,7 @@ static int slist_check(void)
 	}
 
 	while ((node = slist_get_first(&list_head))) {
-		e = list_entry(node, list_el_t, slist);
+		e = LIST_ENTRY(node, list_el_t, slist);
 		free(e);
 	}
 

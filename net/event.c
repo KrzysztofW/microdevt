@@ -81,7 +81,7 @@ void event_unregister(event_t *ev)
 void event_resume_write_events(void)
 {
 	while (pkt_pool_get_nb_free() && !list_empty(&retry_list)) {
-		event_t *ev = list_first_entry(&retry_list, event_t, list);
+		event_t *ev = LIST_FIRST_ENTRY(&retry_list, event_t, list);
 
 		__list_del_entry(&ev->list);
 		if (ev->wanted & EV_WRITE) {

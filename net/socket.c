@@ -59,7 +59,7 @@ socket_lookup_tcp_conn(const listen_t *listen, const tcp_uid_t *uid)
 {
 	tcp_conn_t *tcp_conn;
 
-	list_for_each_entry(tcp_conn, &listen->tcp_conn_list_head,
+	LIST_FOR_EACH_ENTRY(tcp_conn, &listen->tcp_conn_list_head,
 			    list) {
 		if (memcmp(uid, &tcp_conn->syn.tuid, sizeof(tcp_uid_t)) == 0)
 			return tcp_conn;
@@ -250,7 +250,7 @@ static sock_info_t *fd2sockinfo(int fd)
 {
 	sock_info_t *sock_info;
 
-	list_for_each_entry(sock_info, &sock_list, list) {
+	LIST_FOR_EACH_ENTRY(sock_info, &sock_list, list) {
 		if (sock_info->fd == fd)
 			return sock_info;
 	}
@@ -263,7 +263,7 @@ static sock_info_t *port2sockinfo(uint8_t type, uint16_t port)
 {
 	sock_info_t *sock_info;
 
-	list_for_each_entry(sock_info, &sock_list, list) {
+	LIST_FOR_EACH_ENTRY(sock_info, &sock_list, list) {
 		if (sock_info->port == port && sock_info->type == type)
 			return sock_info;
 	}
@@ -303,7 +303,7 @@ static int unbind_port(sock_info_t *sock_info)
 	    && !list_empty(sock_info->event.rx_queue)) {
 		pkt_t *pkt, *pkt_tmp;
 
-		list_for_each_entry_safe(pkt, pkt_tmp,
+		LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp,
 					 sock_info->event.rx_queue, list) {
 
 			list_del(&pkt->list);
@@ -334,7 +334,7 @@ tcp_conn_t *socket_tcp_conn_lookup(const tcp_uid_t *uid)
 {
 	sock_info_t *sock_info;
 
-	list_for_each_entry(sock_info, &sock_list, list) {
+	LIST_FOR_EACH_ENTRY(sock_info, &sock_list, list) {
 		listen_t *listen = sock_info->listen;
 		tcp_conn_t *tcp_conn;
 
@@ -439,7 +439,7 @@ static void socket_listen_free(listen_t *listen)
 		free(listen);
 		return;
 	}
-	list_for_each_entry_safe(tcp_conn, tcp_conn_tmp,
+	LIST_FOR_EACH_ENTRY_SAFE(tcp_conn, tcp_conn_tmp,
 				 &listen->tcp_conn_list_head, list) {
 		tcp_conn_delete(tcp_conn);
 	}
@@ -631,7 +631,7 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 		errno = EAGAIN;
 		return -1;
 	}
-	tcp_conn = list_first_entry(&sock_info->listen->tcp_conn_list_head,
+	tcp_conn = LIST_FIRST_ENTRY(&sock_info->listen->tcp_conn_list_head,
 				    tcp_conn_t, list);
 	list_del_init(&tcp_conn->list);
 	sock_info->listen->backlog--;
@@ -674,7 +674,7 @@ sock_info_accept(sock_info_t *sock_info_server, sock_info_t *sock_info_client,
 	if (sock_info_server->listen == NULL ||
 	    list_empty(&sock_info_server->listen->tcp_conn_list_head))
 		return -1;
-	tcp_conn = list_first_entry(&sock_info_server->listen->tcp_conn_list_head,
+	tcp_conn = LIST_FIRST_ENTRY(&sock_info_server->listen->tcp_conn_list_head,
 				    tcp_conn_t, list);
 	list_del_init(&tcp_conn->list);
 	sock_info_server->listen->backlog--;
@@ -880,7 +880,7 @@ int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pktp,
 			return -1;
 		}
 
-		pkt = list_first_entry(&sock_info->trq.pkt_list, pkt_t, list);
+		pkt = LIST_FIRST_ENTRY(&sock_info->trq.pkt_list, pkt_t, list);
 		list_del(&pkt->list);
 
 		ip_hdr = btod(pkt);
@@ -904,7 +904,7 @@ int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pktp,
 			return -1;
 		}
 
-		pkt = list_first_entry(sock_info->event.rx_queue, pkt_t, list);
+		pkt = LIST_FIRST_ENTRY(sock_info->event.rx_queue, pkt_t, list);
 #else  /* CONFIG_EVENT */
 		if ((tcp_conn = socket_get_tcp_conn(sock_info)) == NULL) {
 #ifdef CONFIG_BSD_COMPAT
@@ -919,7 +919,7 @@ int __socket_get_pkt(sock_info_t *sock_info, pkt_t **pktp,
 #endif
 			return -1;
 		}
-		pkt = list_first_entry(&tcp_conn->pkt_list_head, pkt_t, list);
+		pkt = LIST_FIRST_ENTRY(&tcp_conn->pkt_list_head, pkt_t, list);
 #endif
 		list_del(&pkt->list);
 
@@ -1048,7 +1048,7 @@ void socket_shutdown(void)
 #else
 	sock_info_t *sock_info, *si_tmp;
 
-	list_for_each_entry_safe(sock_info, si_tmp, &sock_list, list) {
+	LIST_FOR_EACH_ENTRY_SAFE(sock_info, si_tmp, &sock_list, list) {
 		list_del(&sock_info->list);
 #ifdef CONFIG_TCP
 		socket_listen_free(sock_info->listen);
