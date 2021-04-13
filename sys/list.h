@@ -187,7 +187,7 @@ static inline int list_is_singular(const list_t *head)
 
 #define LIST_FOR_EACH_PREV_SAFE(pos, n, head)	\
 	for (pos = (head)->prev, n = pos->prev; \
-	     pos != (head); \
+	     pos != (head);			\
 	     pos = n, n = pos->prev)
 
 #define LIST_FOR_EACH_ENTRY(pos, head, member)				\
@@ -233,7 +233,7 @@ static inline int slist_empty(const slist_t *list)
 static inline void slist_add(slist_node_t *node, slist_t *list)
 {
 	if (slist_empty(list))
-	    list->tail = node;
+		list->tail = node;
 	node->next = list->head;
 	list->head = node;
 }
