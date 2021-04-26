@@ -69,6 +69,7 @@ static tcp_syn_t *syn_find_entry(const tcp_uid_t *uid)
 static inline void tcp_retransmit_init(tcp_retrn_t *retrn)
 {
 	timer_init(&retrn->timer);
+	retrn->timer.cb = NULL;
 	INIT_LIST_HEAD(&retrn->retrn_pkt_list);
 }
 
