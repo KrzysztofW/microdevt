@@ -309,6 +309,10 @@ static int slist_check(void)
 		e = LIST_ENTRY(node, list_el_t, slist);
 		free(e);
 	}
+	if (!slist_empty(&list_head)) {
+		fprintf(stderr, "%s:%d list not empty\n", __func__, __LINE__);
+		return -1;
+	}
 
 	return 0;
 }
