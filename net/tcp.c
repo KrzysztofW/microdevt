@@ -206,6 +206,7 @@ void tcp_conn_delete(tcp_conn_t *tcp_conn)
 tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
 {
 	tcp_conn_t *tcp_conn;
+
 	LIST_FOR_EACH_ENTRY(tcp_conn, &tcp_conns, list) {
 		/* tcp_conn must be packed */
 		if (memcmp(uid, &tcp_conn->syn.tuid, sizeof(tcp_uid_t)) == 0)

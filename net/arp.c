@@ -181,14 +181,14 @@ static void __arp_process_wait_list(arp_res_t *arp_res, uint8_t delete)
 
 	LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp, &arp_res->pkt_list, list) {
 		list_del(&pkt->list);
-		if (delete)
-			pkt_free(pkt);
-		else {
+		if (!delete) {
 			ip_hdr_t *ip_hdr = btod(pkt);
 
 			eth_output(pkt, arp_res->iface, ETHERTYPE_IP,
 				   &ip_hdr->dst);
+			continue;
 		}
+		pkt_free(pkt);
 	}
 	timer_del(&arp_res->tim);
 	list_del(&arp_res->list);
