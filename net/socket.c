@@ -1031,13 +1031,13 @@ static int socket_free_cb(sbuf_t *key, sbuf_t *val, void **arg)
 
 void socket_shutdown(void)
 {
+	tcp_shutdown();
 #ifdef CONFIG_HT_STORAGE
 #ifdef CONFIG_UDP
 	htable_free(&udp_binds);
 #endif
 #ifdef CONFIG_TCP
 	htable_free(&tcp_binds);
-	tcp_shutdown();
 #endif
 #if 0 /* this code prevents from finding leaks */
 #ifdef CONFIG_BSD_COMPAT

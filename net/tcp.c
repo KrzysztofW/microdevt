@@ -779,9 +779,17 @@ void tcp_init(void)
 {
 	htable_init(&tcp_conns);
 }
-
+#endif
 void tcp_shutdown(void)
 {
+#ifndef CONFIG_HT_STORAGE
+	tcp_conn_t *tcp_conn;
+	tcp_conn_t *tcp_conn_tmp;
+
+	LIST_FOR_EACH_ENTRY_SAFE(tcp_conn, tcp_conn_tmp, &tcp_conns, list) {
+		tcp_conn_delete(tcp_conn);
+	}
+#else
 	htable_free(&tcp_conns);
-}
 #endif
+}

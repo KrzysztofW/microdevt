@@ -145,9 +145,8 @@ void tcp_input(pkt_t *pkt);
 
 #ifdef CONFIG_HT_STORAGE
 void tcp_init(void);
-void tcp_shutdown(void);
 #else
 static inline void tcp_init(void) {}
-static inline void tcp_shutdown(void) {}
 #endif
+void tcp_shutdown(void);
 #endif
