@@ -44,6 +44,7 @@
 #define FAN_ON_DURATION (3 * 3600) /* 3 hours of activity */
 #define SENSOR_SAMPLING 60
 #define GLOBAL_HUMIDITY_ARRAY_LENGTH 30
+#define MIN_HUMIDITY_VALUE 60
 #define MAX_HUMIDITY_VALUE 80
 #define INIT_TIME 60
 #define WD_TIMEOUT 8 /* watchdog timeout set in main.c */
