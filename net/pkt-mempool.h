@@ -32,7 +32,7 @@
 
 /* #define PKT_TRACE */
 
-struct pkt {
+typedef struct pkt {
 	buf_t buf;
 	list_t list;
 	uint8_t offset;
@@ -41,8 +41,7 @@ struct pkt {
 	const char *last_get_func;
 	const char *last_put_func;
 #endif
-} __PACKED__;
-typedef struct pkt pkt_t;
+} pkt_t;
 
 #define btod(pkt) (void *)((pkt)->buf.data)
 #define pkt_adj(pkt, len) buf_adj(&(pkt)->buf, len)

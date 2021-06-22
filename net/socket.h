@@ -72,7 +72,7 @@ typedef int ssize_t;
 struct sockaddr {
 	sa_family_t sa_family;  /* address family, AF_xxx       */
 	char sa_data[14];       /* 14 bytes of protocol address */
-} __PACKED__;
+};
 
 /* Socket address, internet style. */
 struct sockaddr_in {
@@ -81,7 +81,7 @@ struct sockaddr_in {
 	in_port_t      sin_port;
 	struct in_addr sin_addr;
 	char           sin_zero[8];
-} __PACKED__;
+};
 
 /* internal data structures */
 
@@ -126,15 +126,14 @@ typedef union transport_queue {
 } transport_queue_t;
 
 #ifdef CONFIG_TCP
-struct listen {
+typedef struct listen {
 	uint8_t backlog;
 	uint8_t backlog_max;
 	struct list_head tcp_conn_list_head;
-} __PACKED__;
-typedef struct listen listen_t;
+} listen_t;
 #endif
 
-struct sock_info {
+typedef struct sock_info {
 #ifndef CONFIG_HT_STORAGE
 	struct list_head list;
 #endif
@@ -156,8 +155,7 @@ struct sock_info {
 #ifdef CONFIG_EVENT
 	event_t event;
 #endif
-} __PACKED__;
-typedef struct sock_info sock_info_t;
+} sock_info_t;
 
 #define FD2SBUF(fd) (sbuf_t)			\
 	{					\

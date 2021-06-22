@@ -38,11 +38,10 @@ static list_t tcp_conns = LIST_HEAD_INIT(tcp_conns);
 #endif
 static uint8_t tcp_conn_cnt;
 
-struct syn_entries {
+typedef struct syn_entries {
 	tcp_syn_t conns[CONFIG_TCP_SYN_TABLE_SIZE];
 	uint8_t pos;
-} __PACKED__;
-typedef struct syn_entries syn_entries_t;
+} syn_entries_t;
 
 syn_entries_t syn_entries;
 

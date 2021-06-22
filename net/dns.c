@@ -68,7 +68,7 @@ struct dns_query {
 } __PACKED__;
 typedef struct dns_query dns_query_t;
 
-struct dns_query_ctx {
+typedef struct dns_query_ctx {
 	sock_info_t sock_info;
 	list_t list;
 	tim_t timer;
@@ -76,8 +76,7 @@ struct dns_query_ctx {
 	void (*cb)(uint32_t ip);
 	uint8_t name_len;
 	/* space for name must be here */
-} __PACKED__;
-typedef struct dns_query_ctx dns_query_ctx_t;
+} dns_query_ctx_t;
 
 #define DNS_QUERY_TIMEOUT 10000UL /* millisecs */
 #define DNS_TYPE_LEN 2

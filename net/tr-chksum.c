@@ -52,17 +52,19 @@ void set_transport_cksum(const void *iph, void *trans_hdr, int len)
 {
 	const ip_hdr_t *ip_hdr = iph;
 	uint16_t *checksum;
+	void *tmp;
 
 	if (ip_hdr->p == IPPROTO_UDP) {
 		udp_hdr_t *udp_hdr = trans_hdr;
-		checksum = &udp_hdr->checksum;
+		tmp = &udp_hdr->checksum;
 	} else if (ip_hdr->p == IPPROTO_TCP) {
 		tcp_hdr_t *tcp_hdr = trans_hdr;
-		checksum = &tcp_hdr->checksum;
+		tmp = &tcp_hdr->checksum;
 	} else {
 		assert(0);
 		return;
 	}
+	checksum = tmp;
 	*checksum = 0;
 	*checksum = transport_cksum(ip_hdr, trans_hdr, len);
 	if (*checksum == 0)
