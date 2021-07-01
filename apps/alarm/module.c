@@ -35,12 +35,15 @@
 #include "module-common.h"
 #include "gpio.h"
 
+#ifndef ATMEGA328P
 #define THIS_MODULE_FEATURES MODULE_FEATURE_TEMPERATURE |		\
 	MODULE_FEATURE_SIREN | MODULE_FEATURE_LAN | MODULE_FEATURE_RF
-
 #define FEATURE_TEMPERATURE
 #define FEATURE_SIREN
 #define FEATURE_PWR
+#else
+#define THIS_MODULE_FEATURES 0
+#endif
 
 #include "module-common.inc.c"
 

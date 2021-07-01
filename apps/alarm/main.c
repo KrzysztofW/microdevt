@@ -54,7 +54,11 @@ static void uart_task(void *arg)
 		alarm_parse_uart_commands(&buf);
 }
 
+#ifdef ATMEGA328P
+ISR(USART_RX_vect)
+#else
 ISR(USART0_RX_vect)
+#endif
 {
 	uint8_t c = UDR0;
 
