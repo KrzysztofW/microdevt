@@ -154,7 +154,9 @@ static void power_action(uint8_t state)
 
 static void sensor_action(void)
 {
+#ifdef FEATURE_TEMPERATURE
 	send_sensor_report(&rf_iface, module_cfg.sensor.notif_addr);
+#endif
 }
 
 static void timer_1sec_cb(void *arg)
@@ -162,21 +164,31 @@ static void timer_1sec_cb(void *arg)
 	timer_reschedule(&timer_1sec, ONE_SECOND);
 	cron_func(&module_cfg, power_action, sensor_action);
 }
-
+#ifdef FEATURE_PWR
 ISR(PCINT0_vect)
 {
 	power_interrupt(&module_cfg);
 }
-
+#endif
+#ifdef FEATURE_SIREN
 static void pir_interrupt_cb(void) {}
 
 ISR(PCINT1_vect)
 {
 	pir_interrupt(&module_cfg, pir_interrupt_cb);
 }
-
+#endif
 static const char *state_to_string(uint8_t state)
 {
+#ifdef CONFIG_AVR_SIMU
+#ifdef FEATURE_SIREN
+	(void)pir_interrupt;
+#endif
+#ifdef FEATURE_PWR
+	(void)power_interrupt;
+#endif
+#endif
+
 	switch (state) {
 	case MODULE_STATE_DISABLED:
 		return "DISABLED";
@@ -327,15 +339,19 @@ static void handle_rx_commands(uint8_t cmd, buf_t *args)
 
 	switch (cmd) {
 	case CMD_ARM:
+#ifdef FEATURE_SIREN
 		if (cur_mod == 0)
 			module_arm(&module_cfg, 1);
 		else
 			cfg->state = MODULE_STATE_ARMED;
+#endif
 		break;
 	case CMD_DISARM:
+#ifdef FEATURE_SIREN
 		cfg->state = MODULE_STATE_DISARMED;
 		if (cur_mod == 0)
 			module_arm(&module_cfg, 0);
+#endif
 		break;
 	case CMD_SET_HUM_TH:
 		__buf_getc(args, &cfg->sensor.humidity_threshold);
@@ -367,6 +383,7 @@ static void handle_rx_commands(uint8_t cmd, buf_t *args)
 		}
 		break;
 	case CMD_GET_SENSOR_VALUES:
+#ifdef FEATURE_TEMPERATURE
 		if (cur_mod == 0) {
 			sensor_value_t master_sensor_value;
 
@@ -375,14 +392,18 @@ static void handle_rx_commands(uint8_t cmd, buf_t *args)
 			return;
 		}
 		break;
-
+#endif
 	case CMD_SIREN_ON:
+#ifdef FEATURE_SIREN
 		if (cur_mod == 0)
 			set_siren_on(&module_cfg, 1);
+#endif
 		break;
 	case CMD_SIREN_OFF:
+#ifdef FEATURE_SIREN
 		if (cur_mod == 0)
 			gpio_siren_off();
+#endif
 		break;
 	case CMD_DISABLE:
 		if (cur_mod == 0)
