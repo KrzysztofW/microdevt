@@ -129,6 +129,7 @@ static void sensor_sampling_task(void *arg)
 
 	humidity_val = hih_4000_to_rh(adc_to_millivolt(humidity_val));
 	temp_val = TMP36GZ_TO_C_CENTI_DEGREES(adc_to_millivolt(temp_val));
+	adc_shutdown();
 }
 
 static void sensor_sample(void)
