@@ -26,8 +26,6 @@
 #define _GPIO_H_
 #include <adc.h>
 
-#define ADJ_RESISTOR_PIN 2
-
 static inline void gpio_init(void)
 {
 	/* set as output */
@@ -42,6 +40,16 @@ static inline void gpio_turn_pump_on(void)
 static inline void gpio_turn_pump_off(void)
 {
 	PORTB &= ~(1 << PB3);
+}
+
+static inline void gpio_toggle_pump(void)
+{
+	PORTB ^= 1 << PB3;
+}
+
+static inline uint8_t gpio_is_pump_on(void)
+{
+	return !!(PORTB & (1 << PB3));
 }
 
 static inline void gpio_led_toggle(void)
