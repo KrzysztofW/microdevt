@@ -30,13 +30,14 @@
 #include "timer.h"
 #include "utils.h"
 
-/* 16-bit timer */
 #ifdef ATTINY85
+/* 8-bit timer */
 ISR(TIMER0_COMPA_vect)
 {
 	timer_process();
 }
 #else
+/* 16-bit timer */
 ISR(TIMER1_COMPA_vect)
 {
 	timer_process();

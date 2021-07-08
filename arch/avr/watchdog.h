@@ -27,7 +27,7 @@
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
 
-#define WATCHDOG_TIMEOUT_15MS WDTO_15Ms
+#define WATCHDOG_TIMEOUT_15MS WDTO_15MS
 #define WATCHDOG_TIMEOUT_30MS WDTO_30MS
 #define WATCHDOG_TIMEOUT_60MS WDTO_60MS
 #define WATCHDOG_TIMEOUT_120MS WDTO_120MS
@@ -46,21 +46,16 @@ void watchdog_enable_interrupt(void (*cb)(void *arg), void *arg);
 #define WATCHDOG_CTRL_REG WDTCSR
 #endif
 
-static inline void watchdog_enable_reset(void)
-{
-	WATCHDOG_CTRL_REG |= _BV(WDE);
-}
-
-static inline void watchdog_disable_reset(void)
-{
-	WATCHDOG_CTRL_REG &= ~(_BV(WDE));
-}
-
 static inline void watchdog_shutdown(void)
 {
 	wdt_reset();
 	MCUSR = 0;
-	WATCHDOG_CTRL_REG |= _BV(WDCE);
+
+	/* write logical one to WDCE and WDE */
+	WATCHDOG_CTRL_REG |= (1 << WDCE) | (1 << WDE);
+
+	/* clear watchdog control register
+	 * (this must be done within the next 4 clock cycles) */
 	WATCHDOG_CTRL_REG = 0;
 }
 
