@@ -25,7 +25,7 @@ upload: all
 	avr-size $(EXE)
 	avr-objcopy -j .text -j .data -O ihex $(EXE) $(EXE).hex
 	avr-objcopy -O srec $(EXE) $(EXE).srec
-	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
+	avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
 
 size: all
 	avr-size -C --mcu=${CONFIG_AVR_MCU} $(EXE)
@@ -34,25 +34,25 @@ nm: all
 	avr-nm -S --size-sort -t d $(EXE)
 
 reset:
-	sudo avrdude -c usbtiny -p ${CONFIG_AVR_BMCU}
+	avrdude -c usbtiny -p ${CONFIG_AVR_BMCU}
 
 # FUSES see http://www.engbedded.com/fusecalc
 read_fuses:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h
+	avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:r:-:h
 write_fuses:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny $(FUSES)
+	avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny $(FUSES)
 
 read_eeprom:
-	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:r:$(file_name):r
+	avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:r:$(file_name):r
 
 write_eeprom:
-	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:w:$(file_name):r
+	avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:w:$(file_name):r
 
 verify_eeprom:
-	sudo avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:v:$(file_name):r
+	avrdude -V -c usbtiny -p ${CONFIG_AVR_BMCU} -U eeprom:v:$(file_name):r
 
 erase:
-	sudo avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
+	avrdude -p ${CONFIG_AVR_BMCU} -c usbtiny -e -B128
 
 run_simu: all_not_size_optimized
 	$(CONFIG_AVR_SIMU_PATH)/src/simulavr -f $(EXE) -d $(CONFIG_AVR_SIMU_MCU) -F $(CONFIG_AVR_F_CPU)
