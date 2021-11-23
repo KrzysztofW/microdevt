@@ -58,7 +58,7 @@ an interrupt handler have higher priority than tasks scheduled form other tasks.
 Also, note that the proper way of sharing data between an interruptible task
 and an interrupt handler function is to use :ref:`ring_bufs`.
 In order to handle interrupts efficiently, an interrupt handler should only fill
-a buffer ring with data and schedule a task to process that data.
+a ring buffer with data and schedule a task to process that data.
 
 The scheduler uses the power management features of the microcontroller.
 That is, if there are no tasks to execute, the microcontroller will go to
@@ -69,7 +69,7 @@ System utilities
 
 There are a lot of useful functions and macros in the "sys" directory.
 Among others pay attention to the already implemented lists, buffers and
-interrupt safe rings buffers.
+interrupt safe ring buffers.
 These data structures are supposed to be used in drivers and user applications.
 
 .. _uc-port:
@@ -77,9 +77,9 @@ These data structures are supposed to be used in drivers and user applications.
 Microdevt Port
 --------------
 
-Adding support of new microcontroller to Micodevt is relatively easy.
+Adding support of new microcontrollers to Micodevt is relatively easy.
 All needed functions should be defined in the "arch" directory along with a
-common makefile for the new target.
+common makefile for the new targets.
 
 Basically, the needed functions that should be ported are:
 
@@ -112,7 +112,7 @@ microcontrollers.
 Debugging
 ---------
 
-There are several tools that allow to simplify applications debugging.
+There are several tools that allow to simplify application debugging.
 The DEBUG_LOG() macro, allows to print text to a terminal console.
 This macro is only compiled if the global DEBUG environment variable is set to
 1 at compile time: DEBUG=1 make.
@@ -157,12 +157,12 @@ An interrupt function handler (a top half) should handle the interrupt as fast
 as possible then create a task (a bottom half) and schedule it for later
 processing.
 To pass data from the top half to the bottom half and vice versa, interrupt
-safe data structures must be used such as circular buffer rings (see sys/ring.h).
-These rings are single reader / single writer circular ring buffers.
+safe data structures must be used such as circular ring buffers (see sys/ring.h).
+These buffers are single reader / single writer circular ring buffers.
 This means that only one ring is needed for a driver in which the interrupt
-function handler produces data (inserts bytes in the ring) and the task (that
+function handler produces data (inserts bytes to the ring) and the task (that
 can be seen as a work queue with heavy stuff to do) consumes them.
-In case a there is a need for a bidirectional communication between a task and
+In case there is a need for a bidirectional communication between a task and
 an interrupt handler, two ring buffers are needed.
 
 See the example of a very simple interrupt-based UART driver implementation:
@@ -198,17 +198,18 @@ See the example of a very simple interrupt-based UART driver implementation:
         if (c == '\n') {
             c = '\0';
             schedule_task(uart_task, NULL);
+            return;
         }
 
-        /* handle excess of data */
         if (ring_addc(uart_ring, c) < 0) {
+            /* handle excess of data */
             schedule_task(uart_task, NULL);
             ring_reset(uart_ring);
         }
     }
 
 This simple driver reads bytes from the UART device and stores them in a
-circular buffer ring. When there is enough data in the ring if schedules a
+circular ring buffer. When there is enough data in the ring it schedules a
 task that copies these data in a linear buffer and parses it (here it
 only displays its content).
 
@@ -233,10 +234,10 @@ Given one interface and an interrupt based driver (which receives and sends
 packets on interrupts), a minimum of 3 buckets (network packet queues) are
 needed.
 
-Bucket (1) of free packets (packet pool) that only the driver can allocate
-packets from,
-Receive bucket (2) filled by the driver and read by a task,
-Transmit bucket (3) filled by a task and read by the driver,
+- Bucket (1) of free packets (packet pool) that only the driver can allocate packets from,
+- Receive bucket (2) filled by the driver and read by a task,
+- Transmit bucket (3) filled by a task and read by the driver
+
 Only a task or a user application is allowed to allocate and free packets from
 the main packet pool. The driver has to schedule the receive task to free
 packets it does not use anymore and the task has to refill driver's free packet
