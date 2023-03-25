@@ -298,6 +298,8 @@ static inline void __buf_skip(buf_t *buf, int len)
 	buf->skip += len;
 	buf->data += len;
 	buf->len -= len;
+	if (buf->len <= 0)
+		buf_reset(buf);
 }
 
 static inline int buf_skip(buf_t *buf, int len)
