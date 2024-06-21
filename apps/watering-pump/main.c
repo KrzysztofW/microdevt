@@ -35,10 +35,10 @@
 
 #include "gpio.h"
 
-#define PUMP_ON_DURATION  10000000
+#define PUMP_ON_DURATION  5000000UL
 #define CORRECTION_PER_HOUR_DELAY 68 /* seconds */
 #define PUMP_OFF_DURATION ((3600 - CORRECTION_PER_HOUR_DELAY) * 1000000UL)
-#define PUMP_IDLE_TIME 6 /* hours */
+#define PUMP_IDLE_TIME 24 /* hours */
 
 static int counter = 1;
 static tim_t pump_timer  = TIMER_INIT(pump_timer);
