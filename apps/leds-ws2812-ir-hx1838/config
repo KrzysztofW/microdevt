@@ -2,7 +2,7 @@
 CONFIG_ARCH=AVR
 
 # CONFIG_AVR_SIMU=y
-# CONFIG_AVR_SIMU_PATH=/home/witek/simulavr
+# CONFIG_AVR_SIMU_PATH=/home/chris/simulavr
 # CONFIG_AVR_SIMU_MCU=atmega328
 
 CONFIG_AVR_MCU=attiny85
