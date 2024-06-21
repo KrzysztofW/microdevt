@@ -140,7 +140,8 @@ int main(int argc, char *argv[])
 {
 	char dev[256];
 	char *dev_name;
-	char cmd[512];
+	#define CMD_SIZE 1024
+	char cmd[CMD_SIZE];
 
 	LOG("Tun-driver version %s\n", VERSION);
 	memset(dev, 0, sizeof(dev));
@@ -152,7 +153,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 
 	dev_name = argc ? dev : "tap0";
-	snprintf(cmd, 512, "sudo ip link set up dev %s && "
+	snprintf(cmd, CMD_SIZE, "sudo ip link set up dev %s && "
 		 "sudo ip a a 1.1.2.1/24 dev %s",  dev_name, dev_name);
 	if (system(cmd) < 0)
 		fprintf(stderr, "failed to run command: `%s'\n", cmd);
