@@ -21,9 +21,6 @@
 # the file called "LICENSE".
 #
 
-MCU          = atmega16u2
-F_CPU        = 16000000
-
 # Output file names
 TARGET       = Keyboard
 SRC = main.c Descriptors.c $(ARCH_DIR)/$(ARCH)/watchdog.c
@@ -34,7 +31,7 @@ LUFA_SRC     = $(LUFA_PATH)/LUFA/Drivers/USB
 LUFA_INC     = $(LUFA_PATH)/LUFA
 
 # Compiler and linker flags
-CFLAGS       = -DF_CPU=$(F_CPU) -DF_USB=$(F_CPU) -DUSE_LUFA_CONFIG_HEADER -I. -I$(LUFA_INC) -I$(LUFA_PATH) -Os -mmcu=$(MCU)
+CFLAGS       = -DUSE_LUFA_CONFIG_HEADER -I. -I$(LUFA_INC) -I$(LUFA_PATH) -Os
 LDFLAGS      = -Wl,--gc-sections
 
 # Include LUFA modules
@@ -63,14 +60,11 @@ include $(ROOT_PATH)/build.mk
 
 # FUSES see http://www.engbedded.com/fusecalc
 
-# 1mhz (internal clk/8)
-FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
-
 # 8mhz (internal clk)
-# FUSES = lfuse:w:0xe2:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
+FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 
 # 16mhz external crystal
-# FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
+# FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 
 all: $(SRC) $(EXE)
 all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
