@@ -40,9 +40,10 @@ LDFLAGS      = -Wl,--gc-sections
 # Include LUFA modules
 CFLAGS      += -I$(LUFA_INC)/Class -I$(LUFA_SRC)
 SRC         += $(LUFA_SRC)/Class/Common/HIDParser.c
+SRC         += $(LUFA_SRC)/Class/Device/HIDClassDevice.c
+SRC         += $(LUFA_SRC)/Class/Device/CDCClassDevice.c
 SRC         += $(LUFA_SRC)/Core/ConfigDescriptors.c
 SRC         += $(LUFA_SRC)/Core/DeviceStandardReq.c
-SRC         += $(LUFA_SRC)/Class/Device/HIDClassDevice.c
 SRC         += $(LUFA_SRC)/Core/AVR8/USBController_AVR8.c
 SRC         += $(LUFA_SRC)/Core/AVR8/Endpoint_AVR8.c
 SRC         += $(LUFA_SRC)/Core/AVR8/EndpointStream_AVR8.c
