@@ -1,0 +1,106 @@
+#
+# microdevt - Microcontroller Development Toolkit
+#
+# Copyright (c) 2020, Krzysztof Witek
+# All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms and conditions of the GNU General Public License,
+# version 3, as published by the Free Software Foundation.
+#
+# This program is distributed in the hope it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+#
+# The full GNU General Public License is included in this distribution in
+# the file called "LICENSE".
+#
+
+MCU          = atmega16u2
+F_CPU        = 16000000
+
+# Output file names
+TARGET       = Keyboard
+SRC = main.c Descriptors.c $(ARCH_DIR)/$(ARCH)/watchdog.c
+
+# LUFA library path
+LUFA_PATH    = /home/chris/Downloads/lufa
+LUFA_SRC     = $(LUFA_PATH)/LUFA/Drivers/USB
+LUFA_INC     = $(LUFA_PATH)/LUFA
+
+# Compiler and linker flags
+CFLAGS       = -DF_CPU=$(F_CPU) -DF_USB=$(F_CPU) -DUSE_LUFA_CONFIG_HEADER -I. -I$(LUFA_INC) -I$(LUFA_PATH) -Os -mmcu=$(MCU)
+LDFLAGS      = -Wl,--gc-sections
+
+# Include LUFA modules
+CFLAGS      += -I$(LUFA_INC)/Class -I$(LUFA_SRC)
+SRC         += $(LUFA_SRC)/Class/Common/HIDParser.c
+SRC         += $(LUFA_SRC)/Core/ConfigDescriptors.c
+SRC         += $(LUFA_SRC)/Core/DeviceStandardReq.c
+SRC         += $(LUFA_SRC)/Class/Device/HIDClassDevice.c
+SRC         += $(LUFA_SRC)/Core/AVR8/USBController_AVR8.c
+SRC         += $(LUFA_SRC)/Core/AVR8/Endpoint_AVR8.c
+SRC         += $(LUFA_SRC)/Core/AVR8/EndpointStream_AVR8.c
+SRC         += $(LUFA_SRC)/Core/AVR8/USBInterrupt_AVR8.c
+SRC         += $(LUFA_SRC)/Core/Events.c
+SRC         += $(LUFA_SRC)/Core/USBTask.c
+
+ROOT_PATH = ../..
+ARCH_DIR=$(ROOT_PATH)/arch
+
+EXE = kbd-usb
+#CFLAGS = -Wall -Werror -Os -g -c
+
+
+include config
+include $(ROOT_PATH)/build.mk
+
+# FUSES see http://www.engbedded.com/fusecalc
+
+# 1mhz (internal clk/8)
+FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
+
+# 8mhz (internal clk)
+# FUSES = lfuse:w:0xe2:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
+
+# 16mhz external crystal
+# FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
+
+all: $(SRC) $(EXE)
+all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
+include $(ROOT_PATH)/common.mk
+include $(ARCH_DIR)/$(ARCH)/common.mk
+
+.PHONY: all all_not_size_optimized clean
+
+
+## AVR toolchain programs
+#CC           = avr-gcc
+#OBJCOPY      = avr-objcopy
+#OBJDUMP      = avr-objdump
+#SIZE         = avr-size
+
+#$# Build target
+#$all: $(TARGET).hex
+#$
+#$# Compile and link
+#$$(TARGET).elf: $(SRC)
+#$	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+#$
+#$# Convert ELF to HEX
+#$$(TARGET).hex: $(TARGET).elf
+#$	$(OBJCOPY) -O ihex -R .eeprom $< $@
+#$	$(SIZE) $@
+#$
+#$# Clean up build files
+#$clean:
+#$	rm -f $(TARGET).hex $(TARGET).elf
+#$
+#$# Flash the target using AVRDUDE
+#$flash: $(TARGET).hex
+#$	$(AVRDUDE) -c $(AVRDUDE_PROGRAMMER) -P $(AVRDUDE_PORT) -p $(MCU) -U flash:w:$<
