@@ -32,7 +32,6 @@ include config
 include $(ROOT_PATH)/build.mk
 
 STATIC_LIBS = ../../net/libnet-avr.a
-OBJ = $(SRC:.c=.o)
 
 # 1mhz (internal clk/8)
 # FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xd1:m -U efuse:w:0xff:m

@@ -36,16 +36,9 @@ include $(ROOT_PATH)/build.mk
 # 1mhz (internal clk/8)
 FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
 
-# 8mhz (internal clk)
-# FUSES = lfuse:w:0xe2:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
-
-# 16mhz external crystal
-# FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
-
 all: $(SRC) $(EXE)
 all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
 include $(ROOT_PATH)/common.mk
 include $(ARCH_DIR)/$(ARCH)/common.mk
 
 .PHONY: all all_not_size_optimized
-

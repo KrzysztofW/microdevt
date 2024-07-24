@@ -47,5 +47,11 @@ all: $(SRC) $(EXE)
 all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
 include ../../common.mk
 include ../../arch/avr/common.mk
+upload_arduino: all
+	avr-size $(EXE)
+	avr-objcopy -j .text -j .data -O ihex $(EXE) $(EXE).hex
+	avr-objcopy -O srec $(EXE) $(EXE).srec
+	avrdude -V -c arduino -P /dev/ttyACM0 -b 115200 -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
+
 
 .PHONY: all all_not_size_optimized
