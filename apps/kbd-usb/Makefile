@@ -21,9 +21,11 @@
 # the file called "LICENSE".
 #
 
-# Output file names
+ROOT_PATH = ../..
+ARCH_DIR=$(ROOT_PATH)/arch
+
 TARGET       = Keyboard
-SRC = main.c Descriptors.c $(ARCH_DIR)/$(ARCH)/watchdog.c
+SRC = main.c $(ARCH_DIR)/$(ARCH)/watchdog.c Descriptors.c
 
 # LUFA library path
 LUFA_PATH    = /home/chris/Downloads/lufa
@@ -33,6 +35,7 @@ LUFA_INC     = $(LUFA_PATH)/LUFA
 # Compiler and linker flags
 CFLAGS       = -DUSE_LUFA_CONFIG_HEADER -I. -I$(LUFA_INC) -I$(LUFA_PATH) -Os
 LDFLAGS      = -Wl,--gc-sections
+STATIC_LIBS = $(ROOT_PATH)/net/libnet-avr.a
 
 # Include LUFA modules
 CFLAGS      += -I$(LUFA_INC)/Class -I$(LUFA_SRC)
@@ -47,9 +50,6 @@ SRC         += $(LUFA_SRC)/Core/AVR8/EndpointStream_AVR8.c
 SRC         += $(LUFA_SRC)/Core/AVR8/USBInterrupt_AVR8.c
 SRC         += $(LUFA_SRC)/Core/Events.c
 SRC         += $(LUFA_SRC)/Core/USBTask.c
-
-ROOT_PATH = ../..
-ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = kbd-usb
 #CFLAGS = -Wall -Werror -Os -g -c
@@ -66,36 +66,17 @@ FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 # 16mhz external crystal
 # FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 
-all: $(SRC) $(EXE)
-all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
+all: libnet $(SRC) $(EXE)
+all_not_size_optimized: libnet $(SRC) $(EXE)_not_size_optimized
+libnet:
+	make -C $(ROOT_PATH)/net
+
 include $(ROOT_PATH)/common.mk
 include $(ARCH_DIR)/$(ARCH)/common.mk
+upload_arduino: all
+	avr-size $(EXE)
+	avr-objcopy -j .text -j .data -O ihex $(EXE) $(EXE).hex
+	avr-objcopy -O srec $(EXE) $(EXE).srec
+	avrdude -V -c arduino -P /dev/ttyACM0 -b 115200 -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
 
 .PHONY: all all_not_size_optimized clean
-
-
-## AVR toolchain programs
-#CC           = avr-gcc
-#OBJCOPY      = avr-objcopy
-#OBJDUMP      = avr-objdump
-#SIZE         = avr-size
-
-#$# Build target
-#$all: $(TARGET).hex
-#$
-#$# Compile and link
-#$$(TARGET).elf: $(SRC)
-#$	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
-#$
-#$# Convert ELF to HEX
-#$$(TARGET).hex: $(TARGET).elf
-#$	$(OBJCOPY) -O ihex -R .eeprom $< $@
-#$	$(SIZE) $@
-#$
-#$# Clean up build files
-#$clean:
-#$	rm -f $(TARGET).hex $(TARGET).elf
-#$
-#$# Flash the target using AVRDUDE
-#$flash: $(TARGET).hex
-#$	$(AVRDUDE) -c $(AVRDUDE_PROGRAMMER) -P $(AVRDUDE_PORT) -p $(MCU) -U flash:w:$<

@@ -222,7 +222,6 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor = {
 		.PollingIntervalMS      = 0x05
 	},
 
-
 	.HID_Interface = {
 		.Header                 = {
 			.Size = sizeof(USB_Descriptor_Interface_t),

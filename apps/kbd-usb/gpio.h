@@ -25,18 +25,23 @@
 #ifndef _GPIO_H_
 #define _GPIO_H_
 
+#include "rf-cfg.h"
+
+#define LED_PIN PD2
+#define LED_PORT PORTD
+#define LED_DDR DDRD
+
 static inline void gpio_init(void)
 {
-	/* set as output */
-	DDRD |= (1 << PD2);
+	/* PORTD receiver (PD5), LED (PD2) */
+	PORTD = 0xFF & ~((1 << RF_RCV_PIN_NB) | (1 << LED_PIN));
+
+	/* LED output, PB4 input */
+	DDRD = 1 << LED_PIN;
 }
 
 static inline void gpio_led_toggle(void)
 {
-	PORTD ^= 1 << PD2;
-}
-static inline uint8_t gpio_led_is_set(void)
-{
-	return !!(PORTD & (1 << PD2));
+	LED_PORT ^= 1 << LED_PIN;
 }
 #endif

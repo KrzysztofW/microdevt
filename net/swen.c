@@ -352,7 +352,8 @@ replay_cmd_cb(uint8_t number, swen_generic_cmd_hdr_t *cmd_hdr, void *arg)
 		return LOOP_CONTINUE;
 
 	pkt = pkt_alloc();
-	if (pkt == NULL || buf_add(&pkt->buf, cmd_hdr->data, cmd_hdr->length) < 0)
+	if (pkt == NULL ||
+	    buf_add(&pkt->buf, cmd_hdr->data, cmd_hdr->length) < 0)
 		goto end;
 	if (rd->iface->send(rd->iface, pkt) < 0)
 		goto end;
