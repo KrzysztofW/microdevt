@@ -1,7 +1,7 @@
 /*
  * microdevt - Microcontroller Development Toolkit
  *
- * Copyright (c) 2020, Krzysztof Witek
+ * Copyright (c) 2024, Krzysztof Witek
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
