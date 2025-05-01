@@ -1,7 +1,7 @@
 /*
  * microdevt - Microcontroller Development Toolkit
  *
- * Copyright (c) 2024, Krzysztof Witek
+ * Copyright (c) 2017, Krzysztof Witek
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -25,18 +25,40 @@
 #ifndef _GPIO_H_
 #define _GPIO_H_
 
+/* output pins */
+#define SWITCH_PIN PB0
+
+#define SWITCH_PORT PORTB
+#define SWITCH_DDR  DDRB
+
 static inline void gpio_init(void)
 {
-	/* set as output */
-	DDRD |= (1 << PD2);
+	/* set output pins */
+	SWITCH_DDR |= 1 << SWITCH_PIN;
+
+	/* enable pull-up resistors on unconnected pins */
+	PORTB = 0xFF & ~((1 << SWITCH_PIN));
 }
 
-static inline void gpio_led_toggle(void)
+/* SWITCH */
+static inline void gpio_switch_on(void)
 {
-	PORTD ^= 1 << PD2;
+	SWITCH_PORT |= 1 << SWITCH_PIN;
 }
-static inline uint8_t gpio_led_is_set(void)
+
+static inline void gpio_switch_off(void)
 {
-	return !!(PORTD & (1 << PD2));
+	SWITCH_PORT &= ~(1 << SWITCH_PIN);
 }
+
+static inline void gpio_switch_toggle(void)
+{
+	SWITCH_PORT ^= 1 << SWITCH_PIN;
+}
+
+static inline uint8_t gpio_is_switch_on(void)
+{
+	return !!(SWITCH_PORT & (1 << SWITCH_PIN));
+}
+
 #endif

@@ -54,4 +54,6 @@ upload_arduino: all
 	avrdude -V -c arduino -P /dev/ttyACM0 -b 115200 -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
 
 
+clean: _clean
+
 .PHONY: all all_not_size_optimized

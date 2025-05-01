@@ -310,6 +310,22 @@ static inline int buf_skip(buf_t *buf, int len)
 	return 0;
 }
 
+static inline void __sbuf_skip(sbuf_t *buf, int len)
+{
+	buf->data += len;
+	buf->len -= len;
+	if (buf->len <= 0)
+		buf->len = 0;
+}
+
+static inline int sbuf_skip(sbuf_t *buf, int len)
+{
+	if (buf->len < len)
+		return -1;
+	__sbuf_skip(buf, len);
+	return 0;
+}
+
 static inline void __buf_get_u16(buf_t *buf, uint16_t *val)
 {
 	*val = *(uint16_t *)buf->data;

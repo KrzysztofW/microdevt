@@ -70,7 +70,8 @@ $(EXE)_not_size_optimized: $(OBJ) $(STATIC_LIBS) config
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
-clean: clean_common
+_clean: clean_common
 	make -C $(ROOT_PATH)/net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec
 	@rm -f $(ARCH_DIR)/$(ARCH)/*.o $(EXE).a
+.PHONY: _clean clean

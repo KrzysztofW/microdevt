@@ -22,21 +22,12 @@
  *
 */
 
-#ifndef _GPIO_H_
-#define _GPIO_H_
+#ifndef _RF_CFG_H_
+#define _RF_CFG_H_
 
-static inline void gpio_init(void)
-{
-	/* set as output */
-	DDRD |= (1 << PD2);
-}
+#define RF_RCV_PIN_NB PD5
+#define RF_RCV_PIN PIND
+//#define RF_RCV_PIN_NB PB4
+//#define RF_RCV_PIN PINB
 
-static inline void gpio_led_toggle(void)
-{
-	PORTD ^= 1 << PD2;
-}
-static inline uint8_t gpio_led_is_set(void)
-{
-	return !!(PORTD & (1 << PD2));
-}
 #endif

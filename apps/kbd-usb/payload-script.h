@@ -22,21 +22,19 @@
  *
 */
 
-#ifndef _GPIO_H_
-#define _GPIO_H_
+#ifndef _PAYLOAD_SCRIPT_H_
+#define _PAYLOAD_SCRIPT_H_
+#include "inttypes.h"
 
-static inline void gpio_init(void)
-{
-	/* set as output */
-	DDRD |= (1 << PD2);
-}
+#define PAYLOAD_MAX_ID 3
+typedef struct __attribute__((__packed__)) script {
+	uint32_t magic;
+	uint16_t size;
+	uint16_t checksum;
+	uint8_t id;
+	uint8_t data[];
+} script_t;
 
-static inline void gpio_led_toggle(void)
-{
-	PORTD ^= 1 << PD2;
-}
-static inline uint8_t gpio_led_is_set(void)
-{
-	return !!(PORTD & (1 << PD2));
-}
+#define PAYLOAD_DATA_LENGTH 161
+#define PAYLOAD_DATA_MAGIC 0x4FC2A7E3
 #endif

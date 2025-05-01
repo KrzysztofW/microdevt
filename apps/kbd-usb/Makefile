@@ -1,7 +1,7 @@
 #
 # microdevt - Microcontroller Development Toolkit
 #
-# Copyright (c) 2020, Krzysztof Witek
+# Copyright (c) 2024, Krzysztof Witek
 # All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
@@ -21,11 +21,9 @@
 # the file called "LICENSE".
 #
 
-ROOT_PATH = ../..
-ARCH_DIR=$(ROOT_PATH)/arch
-
+# Output file names
 TARGET       = Keyboard
-SRC = main.c $(ARCH_DIR)/$(ARCH)/watchdog.c Descriptors.c
+SRC = main.c Descriptors.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
 # LUFA library path
 LUFA_PATH    = /home/chris/Downloads/lufa
@@ -35,7 +33,6 @@ LUFA_INC     = $(LUFA_PATH)/LUFA
 # Compiler and linker flags
 CFLAGS       = -DUSE_LUFA_CONFIG_HEADER -I. -I$(LUFA_INC) -I$(LUFA_PATH) -Os
 LDFLAGS      = -Wl,--gc-sections
-STATIC_LIBS = $(ROOT_PATH)/net/libnet-avr.a
 
 # Include LUFA modules
 CFLAGS      += -I$(LUFA_INC)/Class -I$(LUFA_SRC)
@@ -51,9 +48,11 @@ SRC         += $(LUFA_SRC)/Core/AVR8/USBInterrupt_AVR8.c
 SRC         += $(LUFA_SRC)/Core/Events.c
 SRC         += $(LUFA_SRC)/Core/USBTask.c
 
+ROOT_PATH = ../..
+ARCH_DIR=$(ROOT_PATH)/arch
+
 EXE = kbd-usb
 #CFLAGS = -Wall -Werror -Os -g -c
-
 
 include config
 include $(ROOT_PATH)/build.mk
@@ -66,17 +65,18 @@ FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 # 16mhz external crystal
 # FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 
-all: libnet $(SRC) $(EXE)
-all_not_size_optimized: libnet $(SRC) $(EXE)_not_size_optimized
-libnet:
-	make -C $(ROOT_PATH)/net
-
+all: keyboard-layout payload-script-compiler $(SRC) $(EXE)
+all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
 include $(ROOT_PATH)/common.mk
 include $(ARCH_DIR)/$(ARCH)/common.mk
-upload_arduino: all
-	avr-size $(EXE)
-	avr-objcopy -j .text -j .data -O ihex $(EXE) $(EXE).hex
-	avr-objcopy -O srec $(EXE) $(EXE).srec
-	avrdude -V -c arduino -P /dev/ttyACM0 -b 115200 -p ${CONFIG_AVR_BMCU} -U flash:w:$(EXE).hex
+
+keyboard-layout: keyboard-layout.c lufa-key-codes.h kbd-layout-us.h
+	@gcc -Wall keyboard-layout.c -o keyboard-layout
+
+payload-script-compiler: payload-script-compiler.c kbd-layout-fr.h kbd-layout-us.h kbd-layout-us-reference.h
+	@gcc -I../.. -I../../arch/x86 payload-script-compiler.c -o payload-script-compiler -g -O0
+
+clean: _clean
+	@rm -f keyboard-layout payload-script-compiler
 
 .PHONY: all all_not_size_optimized clean
