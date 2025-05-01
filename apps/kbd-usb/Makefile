@@ -54,7 +54,6 @@ ARCH_DIR=$(ROOT_PATH)/arch
 EXE = kbd-usb
 #CFLAGS = -Wall -Werror -Os -g -c
 
-
 include config
 include $(ROOT_PATH)/build.mk
 

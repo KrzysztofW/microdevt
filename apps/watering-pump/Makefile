@@ -47,5 +47,6 @@ all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
 include $(ROOT_PATH)/common.mk
 include $(ARCH_DIR)/$(ARCH)/common.mk
 
-.PHONY: all all_not_size_optimized
+clean: _clean
 
+.PHONY: all all_not_size_optimized

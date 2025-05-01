@@ -48,4 +48,6 @@ all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
 include ../../common.mk
 include ../../arch/avr/common.mk
 
+clean: _clean
+
 .PHONY: all all_not_size_optimized
