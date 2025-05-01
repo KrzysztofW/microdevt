@@ -21,7 +21,7 @@
 # the file called "LICENSE".
 #
 
-SUBDIRS = $(shell find apps/* -type d)
+SUBDIRS = $(shell find apps/* -type d| grep -v kicad)
 SUBDIRS+= crypto docs
 
 all:
