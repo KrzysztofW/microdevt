@@ -20,22 +20,44 @@
  * The full GNU General Public License is included in this distribution in
  * the file called "LICENSE".
  *
-*/
+ */
 
 #include <LUFA/Drivers/USB/USB.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/power.h>
+#include <avr/eeprom.h>
 #include <watchdog.h>
 #include <sys/timer.h>
 #include <sys/scheduler.h>
 #include <sys/buf.h>
 #include "Descriptors.h"
 #include "gpio.h"
+#include "payload-script.h"
 
 static tim_t led_timer = TIMER_INIT(led_timer);
 static tim_t kbd_timer = TIMER_INIT(kbd_timer);
 static uint8_t kbd_tim_delay;
+
+typedef struct payload {
+	uint8_t id;
+	uint16_t size;
+	uint8_t data[];
+} payload_t;
+
+/* static payload_t EEMEM payload_one; */
+/* static payload_t EEMEM payload_two; */
+/* static payload_t EEMEM payload_three; */
+
+#define SERIAL_DATA_END_SEQ 0xFF
+#define SERIAL_DATA_OK  0x59
+#define SERIAL_DATA_NOK 0x4E
+#define SERIAL_DATA_TOO_LONG 0x4C
+#define SERIAL_DATA_INVALID 0x49
+#define SERIAL_DATA_STORAGE_ERROR 0x45
+
+static uint8_t payload_data[PAYLOAD_DATA_LENGTH];
+static buf_t payload = BUF_INIT_BIN(payload_data);
 
 static void tim_cb(void *arg)
 {
@@ -99,6 +121,65 @@ void EVENT_USB_Device_Disconnect(void)
 {
 }
 
+static int storage_write_data(buf_t *buf)
+{
+	script_t *script;
+	uint16_t cs, cs_tmp;
+	void *dst;
+
+	if (buf->len < sizeof(script_t))
+		return SERIAL_DATA_INVALID;
+	script = (script_t *)buf->data;
+	if (script->magic != PAYLOAD_DATA_MAGIC)
+		return SERIAL_DATA_INVALID;
+	if (script->size != buf->len - sizeof(script_t))
+		return SERIAL_DATA_INVALID;
+	cs_tmp = script->checksum;
+	script->checksum = 0;
+	(void)cs;
+	(void)cs_tmp;
+	/* cs = cksum(buf->data, buf->len); */
+	/* if (cs_tmp != cs) */
+	/* 	return SERIAL_DATA_INVALID; */
+	/* switch (script->id) { */
+	/* case 1: */
+	/* 	dst = &payload_one; */
+	/* 	break; */
+	/* case 2: */
+	/* 	dst = &payload_two; */
+	/* 	break */
+	/* case 3: */
+	/* 		dst = &payload_three; */
+	/* 	break; */
+	/* default: */
+	/* 	return SERIAL_DATA_INVALID; */
+	/* } */
+	/* if (eeprom_update_and_check(dst, script->data, script->size) != 0) */
+	/* 	return SERIAL_DATA_STORAGE_ERROR; */
+	__buf_skip(buf, sizeof(script_t));
+	return 0;
+}
+
+static void serial_parse_byte(uint8_t byte)
+{
+	uint8_t ret;
+
+	if (byte == SERIAL_DATA_END_SEQ) {
+		ret = storage_write_data(&payload);
+		CDC_Device_SendString(&VirtualSerial_CDC_Interface,
+				      "failed loading payload\n");
+		goto error;
+	}
+	if (buf_addc(&payload, byte) < 0) {
+		ret = SERIAL_DATA_TOO_LONG;
+		goto error;
+	}
+	return;
+ error:
+	CDC_Device_SendByte(&VirtualSerial_CDC_Interface, ret);
+	buf_reset(&payload);
+}
+
 int main(void)
 {
 	timer_subsystem_init();
@@ -118,7 +199,8 @@ int main(void)
 		 * or it will lock up while waiting for the device */
 		c = CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
 		if (c > 0 && c != 0xFF) {
-			CDC_Device_SendByte(&VirtualSerial_CDC_Interface, c);
+			//CDC_Device_SendByte(&VirtualSerial_CDC_Interface, c);
+			serial_parse_byte(c);
 		}
 
 		CDC_Device_USBTask(&VirtualSerial_CDC_Interface);
@@ -153,18 +235,7 @@ void EVENT_USB_Device_StartOfFrame(void)
 	HID_Device_MillisecondElapsed(&Keyboard_HID_Interface);
 }
 
-static uint8_t kbd_data[] = {
-	0xFE, HID_KEYBOARD_SC_LEFT_SHIFT,
-	HID_KEYBOARD_SC_H, 0xFF,
-	HID_KEYBOARD_SC_E, HID_KEYBOARD_SC_L, HID_KEYBOARD_SC_L,
-	HID_KEYBOARD_SC_O, HID_KEYBOARD_SC_SPACE,
-	0xFE, HID_KEYBOARD_SC_LEFT_SHIFT, HID_KEYBOARD_SC_W, 0xFF,
-	HID_KEYBOARD_SC_O, HID_KEYBOARD_SC_R,
-	HID_KEYBOARD_SC_L, HID_KEYBOARD_SC_D,
-	0xFE, HID_KEYBOARD_SC_LEFT_SHIFT, HID_KEYBOARD_SC_1_AND_EXCLAMATION,
-	0xFF,
-};
-static sbuf_t kbd_str = SBUF_INIT_BIN(kbd_data);
+static sbuf_t kbd_str;
 static uint8_t kbd_cnt;
 static uint8_t run;
 
@@ -246,6 +317,7 @@ CALLBACK_HID_Device_ProcessHIDReport(USB_ClassInfo_HID_Device_t
 
 	if (*LEDReport & HID_KEYBOARD_LED_NUMLOCK) {
 		run = 1;
+		kbd_str = buf2sbuf(&payload);
 	} else {
 		run = 0;
 		kbd_cnt = 0;

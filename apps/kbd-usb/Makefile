@@ -65,36 +65,18 @@ FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 # 16mhz external crystal
 # FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 
-all: $(SRC) $(EXE)
+all: keyboard-layout payload-script-compiler $(SRC) $(EXE)
 all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
 include $(ROOT_PATH)/common.mk
 include $(ARCH_DIR)/$(ARCH)/common.mk
 
+keyboard-layout: keyboard-layout.c lufa-key-codes.h kbd-layout-us.h
+	@gcc -Wall keyboard-layout.c -o keyboard-layout
+
+payload-script-compiler: payload-script-compiler.c kbd-layout-fr.h kbd-layout-us.h kbd-layout-us-reference.h
+	@gcc -I../.. -I../../arch/x86 payload-script-compiler.c -o payload-script-compiler -g -O0
+
+clean: _clean
+	@rm -f keyboard-layout payload-script-compiler
+
 .PHONY: all all_not_size_optimized clean
-
-
-## AVR toolchain programs
-#CC           = avr-gcc
-#OBJCOPY      = avr-objcopy
-#OBJDUMP      = avr-objdump
-#SIZE         = avr-size
-
-#$# Build target
-#$all: $(TARGET).hex
-#$
-#$# Compile and link
-#$$(TARGET).elf: $(SRC)
-#$	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
-#$
-#$# Convert ELF to HEX
-#$$(TARGET).hex: $(TARGET).elf
-#$	$(OBJCOPY) -O ihex -R .eeprom $< $@
-#$	$(SIZE) $@
-#$
-#$# Clean up build files
-#$clean:
-#$	rm -f $(TARGET).hex $(TARGET).elf
-#$
-#$# Flash the target using AVRDUDE
-#$flash: $(TARGET).hex
-#$	$(AVRDUDE) -c $(AVRDUDE_PROGRAMMER) -P $(AVRDUDE_PORT) -p $(MCU) -U flash:w:$<
