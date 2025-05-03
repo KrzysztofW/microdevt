@@ -26,7 +26,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/power.h>
-#include <avr/eeprom.h>
+#include <eeprom.h>
 #include <watchdog.h>
 #include <sys/timer.h>
 #include <sys/scheduler.h>
@@ -39,37 +39,9 @@ static tim_t led_timer = TIMER_INIT(led_timer);
 static tim_t kbd_timer = TIMER_INIT(kbd_timer);
 static uint8_t kbd_tim_delay;
 
-typedef struct payload {
-	uint8_t id;
-	uint16_t size;
-	uint8_t data[];
-} payload_t;
-
-/* static payload_t EEMEM payload_one; */
-/* static payload_t EEMEM payload_two; */
-/* static payload_t EEMEM payload_three; */
-
-#define SERIAL_DATA_END_SEQ 0xFF
-#define SERIAL_DATA_OK  0x59
-#define SERIAL_DATA_NOK 0x4E
-#define SERIAL_DATA_TOO_LONG 0x4C
-#define SERIAL_DATA_INVALID 0x49
-#define SERIAL_DATA_STORAGE_ERROR 0x45
-
+static uint8_t EEMEM persistent_payload_data[PAYLOAD_DATA_LENGTH];
 static uint8_t payload_data[PAYLOAD_DATA_LENGTH];
 static buf_t payload = BUF_INIT_BIN(payload_data);
-
-static void tim_cb(void *arg)
-{
-	timer_reschedule(&led_timer, 1000000);
-	gpio_led_toggle();
-}
-
-static void tim_kbd_cb(void *arg)
-{
-	timer_reschedule(&kbd_timer, 10000);
-	kbd_tim_delay = 1;
-}
 
 static uint8_t PrevKeyboardHIDReportBuffer[sizeof(USB_KeyboardReport_Data_t)];
 
@@ -121,6 +93,19 @@ void EVENT_USB_Device_Disconnect(void)
 {
 }
 
+static void tim_cb(void *arg)
+{
+	timer_reschedule(&led_timer, 2000000);
+	gpio_led_toggle();
+}
+
+static void tim_kbd_cb(void *arg)
+{
+	timer_reschedule(&kbd_timer, 10000);
+	kbd_tim_delay = 1;
+}
+
+
 static int storage_write_data(buf_t *buf)
 {
 	script_t *script;
@@ -134,41 +119,29 @@ static int storage_write_data(buf_t *buf)
 		return SERIAL_DATA_INVALID;
 	if (script->size != buf->len - sizeof(script_t))
 		return SERIAL_DATA_INVALID;
-	cs_tmp = script->checksum;
-	script->checksum = 0;
-	(void)cs;
-	(void)cs_tmp;
-	/* cs = cksum(buf->data, buf->len); */
-	/* if (cs_tmp != cs) */
-	/* 	return SERIAL_DATA_INVALID; */
-	/* switch (script->id) { */
-	/* case 1: */
-	/* 	dst = &payload_one; */
-	/* 	break; */
-	/* case 2: */
-	/* 	dst = &payload_two; */
-	/* 	break */
-	/* case 3: */
-	/* 		dst = &payload_three; */
-	/* 	break; */
-	/* default: */
-	/* 	return SERIAL_DATA_INVALID; */
-	/* } */
-	/* if (eeprom_update_and_check(dst, script->data, script->size) != 0) */
-	/* 	return SERIAL_DATA_STORAGE_ERROR; */
+
+	if (!eeprom_update_and_check(&persistent_payload_data,
+				     (uint8_t *)&script->size,
+				    script->size + sizeof(script->size)))
+		return SERIAL_DATA_STORAGE_ERROR;
 	__buf_skip(buf, sizeof(script_t));
-	return 0;
+	return SERIAL_DATA_OK;
 }
 
 static void serial_parse_byte(uint8_t byte)
 {
 	uint8_t ret;
 
+	if (byte == SERIAL_DATA_START_SEQ) {
+		buf_reset(&payload);
+		return;
+	}
+
 	if (byte == SERIAL_DATA_END_SEQ) {
 		ret = storage_write_data(&payload);
-		CDC_Device_SendString(&VirtualSerial_CDC_Interface,
-				      "failed loading payload\n");
-		goto error;
+		if (ret != SERIAL_DATA_OK)
+			goto error;
+		return;
 	}
 	if (buf_addc(&payload, byte) < 0) {
 		ret = SERIAL_DATA_TOO_LONG;
@@ -182,26 +155,36 @@ static void serial_parse_byte(uint8_t byte)
 
 int main(void)
 {
+	uint16_t payload_size;
+
 	timer_subsystem_init();
 	timer_add(&led_timer, 0, tim_cb, NULL);
 	timer_add(&kbd_timer, 0, tim_kbd_cb, NULL);
 
 	watchdog_shutdown();
 
+	eeprom_load(&payload_size, &persistent_payload_data,
+		    sizeof(payload_size));
+	if (payload_size && payload_size != 0xFFFF) {
+		payload_size += sizeof(payload_size);
+		eeprom_load(&payload_data,
+			    &persistent_payload_data,
+			    payload_size);
+		payload.len = payload_size;
+		__buf_skip(&payload, sizeof(payload_size));
+	}
 	USB_Init();
 	sei();
 	gpio_init();
 
 	while (1) {
-		uint8_t c ;
+		uint8_t c;
 
 		/* Must throw away unused bytes from the host,
 		 * or it will lock up while waiting for the device */
 		c = CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
-		if (c > 0 && c != 0xFF) {
-			//CDC_Device_SendByte(&VirtualSerial_CDC_Interface, c);
+		if (c != 0xff)
 			serial_parse_byte(c);
-		}
 
 		CDC_Device_USBTask(&VirtualSerial_CDC_Interface);
 		HID_Device_USBTask(&Keyboard_HID_Interface);
@@ -242,48 +225,34 @@ static uint8_t run;
 void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 {
 	uint8_t i = 0;
-	uint8_t cur_ks;
 	static uint8_t prev;
 
 	if (!run)
 		return;
 
-	if (!kbd_tim_delay)
+	if (!kbd_tim_delay || kbd_str.len == 0)
 		return;
 	kbd_tim_delay = 0;
 
-	if (kbd_cnt >= kbd_str.len) {
-		const char *ReportString = "keystrokes sent\r\n";
-
-		CDC_Device_SendString(&VirtualSerial_CDC_Interface,
-				      ReportString);
-		return;
-	}
-
-	if (kbd_str.data[kbd_cnt] == prev) {
+	if (kbd_str.data[0] == prev) {
 		prev = 0;
 		return;
 	}
-	prev = kbd_str.data[kbd_cnt];
-	switch (kbd_str.data[kbd_cnt]) {
-	case 0:
-		kbd_cnt++;
+	prev = kbd_str.data[0];
+	if (kbd_str.data[0] == 0) {
+		__sbuf_skip(&kbd_str, 1);
 		return;
-	case 0xFE:
-		kbd_cnt++;
-		while (kbd_str.data[kbd_cnt] != 0xFF && i < 6) {
-			ReportData->KeyCode[i++] = kbd_str.data[kbd_cnt];
-			kbd_cnt++;
-		}
-		if (kbd_str.data[kbd_cnt] == 0xFF)
-			kbd_cnt++;
-		return;
-	case 0xFF:
-		/* should never happen */
-		kbd_cnt++;
-		return;
-	default:
-		ReportData->KeyCode[0] = kbd_str.data[kbd_cnt++];
+	}
+	while (kbd_str.len &&
+	       kbd_str.data[0] >= HID_KEYBOARD_SC_LEFT_CONTROL &&
+	       kbd_str.data[0] <= HID_KEYBOARD_SC_RIGHT_GUI &&
+	       i < 6) {
+		ReportData->KeyCode[i++] = kbd_str.data[0];
+		__sbuf_skip(&kbd_str, 1);
+	}
+	if (kbd_str.len) {
+		ReportData->KeyCode[i] = kbd_str.data[0];
+		__sbuf_skip(&kbd_str, 1);
 	}
 }
 

@@ -10,6 +10,7 @@
 #include <string.h>
 #include <termios.h>
 #include <sysexits.h>
+#include <ctype.h>
 #include <sys/ioctl.h>
 #include <linux/kd.h>
 #include <linux/keyboard.h>
@@ -21,7 +22,8 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <linux/kd.h>
-#include "kbd-layout-us-reference.h"
+#include "kbd-layout-us.h"
+#include "kbd-layout-scan-codes-ref.h"
 #include "modifiers.h"
 
 typedef struct kbd_ctx {
@@ -189,12 +191,13 @@ static void get_mode(void)
 			m = "?UNKNOWN?";
 			break;
 	}
-	printf("kb mode was %s\n", m);
+	fprintf(stderr, "kb mode was %s\n", m);
 	if (oldkbmode != K_XLATE) {
-		printf("[ if you are trying this under X, it might not work\n"
-		       "since the X server is also reading /dev/console ]\n");
+		fprintf(stderr, "[ if you are trying this under X, it might "
+			"not work\nsince the X server is also reading "
+			"/dev/console ]\n");
 	}
-	printf("\n");
+	fprintf(stderr, "\n");
 }
 
 static void clean_up(void)
@@ -208,9 +211,32 @@ static void clean_up(void)
 
 static void die(int x)
 {
-	printf("caught signal %d, cleaning up...\n", x);
+	fprintf(stderr, "caught signal %d, cleaning up...\n", x);
 	clean_up();
 	exit(EXIT_FAILURE);
+}
+
+static int kdb_scan_code_lookup(int keycode)
+{
+	int i;
+
+	for (i = 0; i < sizeof(kbd_layout_scan_codes) / sizeof(key_map_t);
+	     i++) {
+		if (kbd_layout_scan_codes[i].modifier == keycode)
+			return kbd_layout_scan_codes[i].code;
+	}
+	return -1;
+}
+
+static int kdb_code_lookup(char c, key_map_t *kbd_layout, int size)
+{
+	int i;
+
+	for (i = 0; i < size; i++) {
+		if (kbd_layout[i].c == c)
+			return kbd_layout[i].code;
+	}
+	return -1;
 }
 
 static int kbd_get_modifier(int keycode)
@@ -244,6 +270,8 @@ kbd_get_layout(kbd_ctx_t *kbd_ctx, key_map_t *kbd_layout, unsigned char *buf,
 	while (i < n) {
 		int kc;
 		int bufi = buf[i];
+		int code;
+		int pressed_key;
 
 		if (bufi == kbd_ctx->prev_key) {
 			i++;
@@ -266,28 +294,63 @@ kbd_get_layout(kbd_ctx_t *kbd_ctx, key_map_t *kbd_layout, unsigned char *buf,
 			/* key pressed */
 			kbd_ctx->pressed_keys[kbd_ctx->pressed_keys_count++] = kc;
 			kbd_ctx->pressed_keys_pos++;
+			/* fprintf(stderr, " |0x%X| ", kc); */
+			fflush(stdout);
 			continue;
 		}
 		/* key released */
 		if (--kbd_ctx->pressed_keys_count)
 			continue;
 
-		if (kbd_ctx->pressed_keys_pos <= 1)
+		if (kbd_ctx->pressed_keys_pos <= 1) {
 			kbd_layout[kbd_us_pos].modifier = 0;
-		else
+			pressed_key = kbd_ctx->pressed_keys[0];
+		} else {
 			kbd_layout[kbd_us_pos].modifier =
 				kbd_get_modifier(kbd_ctx->pressed_keys[0]);
+			pressed_key = kbd_ctx->pressed_keys[1];
+		}
+		code = kdb_scan_code_lookup(pressed_key);
+		if (code < 0) {
+			fprintf(stderr, "key code lookup failed for 0x%02X\n",
+				pressed_key);
+			return -1;
+		}
+		kbd_layout[kbd_us_pos].code = code;
 		kbd_layout[kbd_us_pos].c = kbd_layout_us[kbd_us_pos].c;
-		kbd_layout[kbd_us_pos].code = kbd_layout_us[kbd_us_pos].code;
 
-		/* for (a = 0; a < kbd_ctx->pressed_keys_pos; a++) */
-		/* 	printf("%d ", kbd_ctx->pressed_keys[a]); */
-		puts("");
+
 		kbd_ctx->pressed_keys_pos = 0;
 
-		if (++kbd_us_pos > sizeof(kbd_layout_us) / sizeof(key_map_t))
-			return -1;
-		printf("\npress %c ", kbd_layout_us[kbd_us_pos].c);
+		if (++kbd_us_pos >= sizeof(kbd_layout_us) / sizeof(key_map_t))
+			return 1;
+
+		/* do not ask for upper case characters */
+		while (isupper(kbd_layout_us[kbd_us_pos].c)) {
+			int c = kbd_layout_us[kbd_us_pos].c;
+
+			kbd_layout[kbd_us_pos].c = c;
+			kbd_layout[kbd_us_pos].modifier = MODIFIER_SHIFT_RIGHT;
+			c = kdb_code_lookup(tolower(c), kbd_layout, kbd_us_pos);
+			if (c < -1) {
+				fprintf(stderr, "cannot find `%c' character\n",
+					c);
+				return -1;
+			}
+			kbd_layout[kbd_us_pos].code = c;
+			if (++kbd_us_pos >=
+			    sizeof(kbd_layout_us) / sizeof(key_map_t))
+				return 1;
+		}
+		if (kbd_layout_us[kbd_us_pos].c == '\n' ||
+		    kbd_layout_us[kbd_us_pos].c == ' ' ||
+		    kbd_layout_us[kbd_us_pos].c == '\t') {
+			if (++kbd_us_pos >=
+			    sizeof(kbd_layout_us) / sizeof(key_map_t))
+				return 1;
+			break;
+		}
+		fprintf(stderr, "\npress %c ", kbd_layout_us[kbd_us_pos].c);
 		fflush(stdout);
 	}
 	return 0;
@@ -307,6 +370,9 @@ static void kbd_print_layout(key_map_t *kbd_layout)
 		printf("%c', 0x%x, 0x%x},\n", kbd_layout[i].c,
 		       kbd_layout[i].modifier, kbd_layout[i].code);
 	}
+	printf("\t{'\\n', 0, HID_KEYBOARD_SC_ENTER},\n"
+	       "\t{'\\t', 0, HID_KEYBOARD_SC_TAB},\n"
+	       "\t{' ', 0, HID_KEYBOARD_SC_SPACE},\n");
 	printf("};\n");
 }
 static void init_signals(void)
@@ -344,8 +410,8 @@ int main(int argc, char *argv[])
 	kbd_ctx_t kbd_ctx;
 
 	if (argc != 2) {
-		printf("usage: %s [lang]\nExample: %s fr\n"
-		       "\t%s pl\n", argv[0], argv[0], argv[0]);
+		fprintf(stderr, "usage: %s [lang]\nExample: %s fr\n"
+			"\t%s pl\n", argv[0], argv[0], argv[0]);
 		return -1;
 	}
 	lang = argv[1];
@@ -373,18 +439,27 @@ int main(int argc, char *argv[])
 	if (ioctl(fd, KDSKBMODE, K_MEDIUMRAW))
 		fprintf(stderr, "ioctl KDSKBMODE\n");
 
-	printf("\npress %c ", kbd_layout_us[kbd_us_pos].c);
+	fprintf(stderr, "\npress %c ", kbd_layout_us[kbd_us_pos].c);
 	fflush(stdout);
 
 	while (1) {
 		int n = read(fd, buf, sizeof(buf));
+		int ret = kbd_get_layout(&kbd_ctx, kbd_layout, buf, n);
 
-		if (kbd_get_layout(&kbd_ctx, kbd_layout, buf, n) < 0)
-			break;
+		switch (ret) {
+		case -1:
+			goto end;
+		case 0:
+			continue;
+		case 1:
+			goto print_layout;
+		}
 	}
 
+ print_layout:
 	kbd_print_layout(kbd_layout);
 
+ end:
 	clean_up();
 	return EXIT_SUCCESS;
 }

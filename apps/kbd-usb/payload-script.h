@@ -26,15 +26,26 @@
 #define _PAYLOAD_SCRIPT_H_
 #include "inttypes.h"
 
+#define MODIFIER_KEY_START 0xFB
+#define MODIFIER_KEY_END   0xFC
+
+#define SERIAL_DATA_START_SEQ 0xFD
+#define SERIAL_DATA_END_SEQ 0xFE
+#define SERIAL_DATA_OK  0x59           /* Y */
+#define SERIAL_DATA_NOK 0x4E           /* N */
+#define SERIAL_DATA_TOO_LONG 0x4C      /* L */
+#define SERIAL_DATA_INVALID 0x49       /* I */
+#define SERIAL_DATA_STORAGE_ERROR 0x45 /* E */
+
 #define PAYLOAD_MAX_ID 3
 typedef struct __attribute__((__packed__)) script {
 	uint32_t magic;
+	//uint16_t checksum;
+	//uint8_t id;
 	uint16_t size;
-	uint16_t checksum;
-	uint8_t id;
 	uint8_t data[];
 } script_t;
 
-#define PAYLOAD_DATA_LENGTH 161
+#define PAYLOAD_DATA_LENGTH 64
 #define PAYLOAD_DATA_MAGIC 0x4FC2A7E3
 #endif

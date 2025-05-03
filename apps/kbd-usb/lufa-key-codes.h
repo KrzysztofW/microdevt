@@ -7,7 +7,6 @@ typedef struct key_map {
 	unsigned char code;
 } key_map_t;
 
-
 #define HID_KEYBOARD_SC_RESERVED                          0x00
 #define HID_KEYBOARD_SC_ERROR_ROLLOVER                    0x01
 #define HID_KEYBOARD_SC_POST_FAIL                         0x02

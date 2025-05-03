@@ -27,7 +27,7 @@
 #include <string.h>
 #include <sys/buf.h>
 #include "payload-script.h"
-#include "kbd-layout-us-reference.h"
+#include "kbd-layout-us.h"
 #include "kbd-layout-fr.h"
 
 static char *filename;
@@ -122,7 +122,7 @@ kbd_lookup(char c, int *modifier, int *scan_code, const key_map_t *kbd_layout)
 static int parse_string(sbuf_t *str)
 {
 	while (str->len && str->data[0] != '\0') {
-		char c = str->data[0];
+		unsigned char c = str->data[0];
 		int code, modifier;
 
 		__sbuf_skip(str, 1);
@@ -133,93 +133,20 @@ static int parse_string(sbuf_t *str)
 		if (buf_get_free_space(&payload) < 2)
 			return -1;
 
-		/* if (isupper(c)) { */
-		/* 	__buf_addc(&payload, HID_KEYBOARD_SC_LEFT_SHIFT); */
-		/* 	c = tolower(c); */
-		/* } */
-
-		/* Direct mapping between ASCII codes and
-		 * HID_KEYBOARD_SC codes.
-		 */
-		/* if (c >= 97 && c <= 122) */
-		/* 	__buf_addc(&payload, c - 93); */
-
 		if (kbd_lookup(c, &modifier, &code, kbd_layout) < 0) {
 			fprintf(stderr,
 				"invalid character: %c (0x%02X)\n",
 				c, c);
+			if ((c >> 4) == 0x0C) {
+				fprintf(stderr, "extended UTF8 character are "
+					"not supported. Use ASCII characters "
+					"only\n");
+			}
 			return -1;
 		}
 		if (modifier)
 			__buf_addc(&payload, modifier);
 		__buf_addc(&payload, code);
-
-	/* 	switch (c) { */
-	/* 	case '!': */
-	/* 		switch (keyboard_layout) { */
-	/* 		case KBD_ENGLISH_US: */
-	/* 			__buf_addc(&payload, */
-	/* 				   HID_KEYBOARD_SC_LEFT_SHIFT); */
-	/* 			code = HID_KEYBOARD_SC_1_AND_EXCLAMATION; */
-	/* 			break; */
-	/* 		case KBD_FRENCH_FR: */
-	/* 			code = HID_KEYBOARD_SC_SLASH_AND_QUESTION_MARK; */
-	/* 			break; */
-	/* 		} */
-	/* 		__buf_addc(&payload, code); */
-	/* 		break; */
-	/* 	case '@': */
-	/* 		switch (keyboard_layout) { */
-	/* 		case KBD_ENGLISH_US: */
-	/* 			__buf_addc(&payload, */
-	/* 				   HID_KEYBOARD_SC_LEFT_SHIFT); */
-	/* 			code = HID_KEYBOARD_SC_2_AND_AT; */
-	/* 			break; */
-	/* 		case KBD_FRENCH_FR: */
-	/* 			__buf_addc(&payload, */
-	/* 				   HID_KEYBOARD_SC_RIGHT_ALT); */
-	/* 			code = HID_KEYBOARD_SC_0_AND_CLOSING_PARENTHESIS; */
-	/* 			break; */
-	/* 		} */
-	/* 		__buf_addc(&payload, code); */
-	/* 		break; */
-	/* 	case '#': */
-	/* 		switch (keyboard_layout) { */
-	/* 		case KBD_ENGLISH_US: */
-	/* 			__buf_addc(&payload, */
-	/* 				   HID_KEYBOARD_SC_LEFT_SHIFT); */
-	/* 			code = HID_KEYBOARD_SC_2_AND_AT; */
-	/* 			break; */
-	/* 		case KBD_FRENCH_FR: */
-	/* 			__buf_addc(&payload, */
-	/* 				   HID_KEYBOARD_SC_RIGHT_ALT); */
-	/* 			code = HID_KEYBOARD_SC_0_AND_CLOSING_PARENTHESIS; */
-	/* 			break; */
-	/* 		} */
-	/* 		__buf_addc(&payload, code); */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-	/* 	case '': */
-	/* 		break; */
-
-	/* 	} */
 	}
 	return 0;
 }
@@ -228,7 +155,6 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 {
 	int cmd_start = 0;
 	buf_t cmd = BUF(128);
-	//sbuf_t end_rem = SBUF_INITS("END_REM\n");
 
 	if (strncmp(line->data, "END_REM\n", strlen("END_REM\n")) == 0) {
 		expect(block_state->rem, 1, "REM block not opened");
@@ -290,7 +216,7 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 
 		/* strip the trailing \n character */
 		if (string.data[string.len - 2] == '\n')
-			string.len--;
+			string.len -= 2;
 		return 0;
 	}
 	if (strncmp(line->data, "STRINGLN ", strlen("STRINGLN ")) == 0) {
@@ -302,7 +228,7 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 
 		/* strip the trailing \n character */
 		if (line->data[line->len - 2] == '\n')
-			line->len--;
+			line->len -= 2;
 		return parse_string(line);
 	}
 	if (strncmp(line->data, "REM ", strlen("REM ")) == 0)
@@ -334,23 +260,24 @@ static int dos2unix(sbuf_t *line, buf_t *out)
 int write_payload(void)
 {
 	FILE *file = fopen(output_filename, "w");
-	int ret;
 	script_t script = {
 		.magic = PAYLOAD_DATA_MAGIC,
 		.size = payload.len,
-		//.checksum = cksum(payload.data, payload.len);
 	};
+	unsigned char seq_start = SERIAL_DATA_START_SEQ;
+	unsigned char seq_end = SERIAL_DATA_END_SEQ;
 
 	if (file == NULL) {
 		fprintf(stderr, "cannot write to file: %s\n", output_filename);
 		return -1;
 	}
-	ret = fwrite(&script, 1, sizeof(script), file);
-	if (ret != sizeof(script))
+	if (fwrite(&seq_start, 1, sizeof(seq_start), file) != sizeof(seq_start))
 		goto error;
-
-	ret = fwrite(payload.data, 1, payload.len, file);
-	if (ret != payload.len)
+	if (fwrite(&script, 1, sizeof(script), file) != sizeof(script))
+		goto error;
+	if (fwrite(payload.data, 1, payload.len, file) != payload.len)
+		goto error;
+	if (fwrite(&seq_end, 1, sizeof(seq_end), file) != sizeof(seq_end))
 		goto error;
 	return 0;
 
@@ -377,6 +304,7 @@ int main(int argc, char **argv)
 	} else if (strcmp(keyboard_layout, "fr_fr") == 0) {
 		keyboard_layout_code = KBD_FRENCH_FR;
 		kbd_layout = kbd_layout_fr;
+		printf("setting French keyboard layout\n");
 	} else {
 		fprintf(stderr, "unsupported keyboard layout: %s\n",
 			keyboard_layout);

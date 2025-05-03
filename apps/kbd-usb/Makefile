@@ -71,10 +71,10 @@ include $(ROOT_PATH)/common.mk
 include $(ARCH_DIR)/$(ARCH)/common.mk
 
 keyboard-layout: keyboard-layout.c lufa-key-codes.h kbd-layout-us.h
-	@gcc -Wall keyboard-layout.c -o keyboard-layout
+	gcc -Wall keyboard-layout.c -o keyboard-layout
 
-payload-script-compiler: payload-script-compiler.c kbd-layout-fr.h kbd-layout-us.h kbd-layout-us-reference.h
-	@gcc -I../.. -I../../arch/x86 payload-script-compiler.c -o payload-script-compiler -g -O0
+payload-script-compiler: payload-script-compiler.c kbd-layout-fr.h kbd-layout-us.h kbd-layout-scan-codes-ref.h
+	gcc -I../.. -I../../arch/x86 payload-script-compiler.c -o payload-script-compiler -g -O0
 
 clean: _clean
 	@rm -f keyboard-layout payload-script-compiler
