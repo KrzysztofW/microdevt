@@ -38,14 +38,14 @@
 #define SERIAL_DATA_STORAGE_ERROR 0x45 /* E */
 
 #define PAYLOAD_MAX_ID 3
-typedef struct __attribute__((__packed__)) script {
+typedef struct __attribute__((__packed__)) script_hdr {
 	uint32_t magic;
 	//uint16_t checksum;
 	//uint8_t id;
 	uint16_t size;
 	uint8_t data[];
-} script_t;
+} script_hdr_t;
 
-#define PAYLOAD_DATA_LENGTH 64
+#define PAYLOAD_DATA_LENGTH CONFIG_EEPROM_SIZE
 #define PAYLOAD_DATA_MAGIC 0x4FC2A7E3
 #endif

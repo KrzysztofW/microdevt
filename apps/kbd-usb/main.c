@@ -40,8 +40,12 @@ static tim_t kbd_timer = TIMER_INIT(kbd_timer);
 static uint8_t kbd_tim_delay;
 
 static uint8_t EEMEM persistent_payload_data[PAYLOAD_DATA_LENGTH];
-static uint8_t payload_data[PAYLOAD_DATA_LENGTH];
-static buf_t payload = BUF_INIT_BIN(payload_data);
+static uint8_t serial_data_started;
+static uint16_t serial_data_written;
+#define STORAGE_DATA_OFFSET 2
+static uint16_t payload_pos = STORAGE_DATA_OFFSET;
+static script_hdr_t script_hdr;
+static int8_t magic_pos;
 
 static uint8_t PrevKeyboardHIDReportBuffer[sizeof(USB_KeyboardReport_Data_t)];
 
@@ -104,28 +108,16 @@ static void tim_kbd_cb(void *arg)
 	timer_reschedule(&kbd_timer, 10000);
 	kbd_tim_delay = 1;
 }
-
-
-static int storage_write_data(buf_t *buf)
+static int storage_check_size(void)
 {
-	script_t *script;
-	uint16_t cs, cs_tmp;
-	void *dst;
-
-	if (buf->len < sizeof(script_t))
-		return SERIAL_DATA_INVALID;
-	script = (script_t *)buf->data;
-	if (script->magic != PAYLOAD_DATA_MAGIC)
-		return SERIAL_DATA_INVALID;
-	if (script->size != buf->len - sizeof(script_t))
-		return SERIAL_DATA_INVALID;
-
-	if (!eeprom_update_and_check(&persistent_payload_data,
-				     (uint8_t *)&script->size,
-				    script->size + sizeof(script->size)))
-		return SERIAL_DATA_STORAGE_ERROR;
-	__buf_skip(buf, sizeof(script_t));
-	return SERIAL_DATA_OK;
+	eeprom_load(&script_hdr.size, &persistent_payload_data,
+		    sizeof(script_hdr.size));
+	if (script_hdr.size == 0xFFFF ||
+	    script_hdr.size > PAYLOAD_DATA_LENGTH) {
+		script_hdr.size = 0;
+		return -1;
+	}
+	return 0;
 }
 
 static void serial_parse_byte(uint8_t byte)
@@ -133,24 +125,63 @@ static void serial_parse_byte(uint8_t byte)
 	uint8_t ret;
 
 	if (byte == SERIAL_DATA_START_SEQ) {
-		buf_reset(&payload);
+		memset(&script_hdr, 0, sizeof(script_hdr_t));
+		magic_pos = 0;
+		serial_data_started = 1;
+		serial_data_written = 0;
 		return;
 	}
+	if (!serial_data_started)
+		return;
 
 	if (byte == SERIAL_DATA_END_SEQ) {
-		ret = storage_write_data(&payload);
-		if (ret != SERIAL_DATA_OK)
-			goto error;
-		return;
+		if (storage_check_size() < 0)
+			ret = SERIAL_DATA_INVALID;
+		else
+			ret = SERIAL_DATA_OK;
+		serial_data_started = 0;
+		goto end;
 	}
-	if (buf_addc(&payload, byte) < 0) {
-		ret = SERIAL_DATA_TOO_LONG;
-		goto error;
+	if (serial_data_written >= PAYLOAD_DATA_LENGTH) {
+		ret = SERIAL_DATA_STORAGE_ERROR;
+		goto end;
+	}
+	if (script_hdr.magic == PAYLOAD_DATA_MAGIC) {
+		eeprom_update(persistent_payload_data +
+			      serial_data_written, &byte, 1);
+		serial_data_written++;
+	} else if (magic_pos < sizeof(script_hdr.magic)) {
+		uint8_t *m = (uint8_t *)&script_hdr.magic;
+
+		m[magic_pos++] = byte;
+	} else {
+		ret = SERIAL_DATA_INVALID;
+		goto end;
 	}
 	return;
- error:
+ end:
 	CDC_Device_SendByte(&VirtualSerial_CDC_Interface, ret);
-	buf_reset(&payload);
+	serial_data_started = 0;
+}
+
+static void storage_get_cur_byte(uint8_t *byte)
+{
+	eeprom_load(byte, persistent_payload_data + payload_pos, 1);
+}
+
+static void storage_set_next_byte(void)
+{
+	payload_pos++;
+}
+
+static int8_t storage_has_more(void)
+{
+	return payload_pos < script_hdr.size + STORAGE_DATA_OFFSET;
+}
+
+static void storage_reset_pos(void)
+{
+	payload_pos = STORAGE_DATA_OFFSET;
 }
 
 int main(void)
@@ -163,16 +194,8 @@ int main(void)
 
 	watchdog_shutdown();
 
-	eeprom_load(&payload_size, &persistent_payload_data,
-		    sizeof(payload_size));
-	if (payload_size && payload_size != 0xFFFF) {
-		payload_size += sizeof(payload_size);
-		eeprom_load(&payload_data,
-			    &persistent_payload_data,
-			    payload_size);
-		payload.len = payload_size;
-		__buf_skip(&payload, sizeof(payload_size));
-	}
+	storage_check_size();
+
 	USB_Init();
 	sei();
 	gpio_init();
@@ -218,41 +241,47 @@ void EVENT_USB_Device_StartOfFrame(void)
 	HID_Device_MillisecondElapsed(&Keyboard_HID_Interface);
 }
 
-static sbuf_t kbd_str;
-static uint8_t kbd_cnt;
 static uint8_t run;
 
 void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 {
 	uint8_t i = 0;
+	uint8_t byte;
 	static uint8_t prev;
 
 	if (!run)
 		return;
 
-	if (!kbd_tim_delay || kbd_str.len == 0)
+	if (!kbd_tim_delay)
 		return;
+	if (!storage_has_more()) {
+		run = 0;
+		return;
+	}
+
 	kbd_tim_delay = 0;
 
-	if (kbd_str.data[0] == prev) {
+	storage_get_cur_byte(&byte);
+	if (byte == prev) {
 		prev = 0;
 		return;
 	}
-	prev = kbd_str.data[0];
-	if (kbd_str.data[0] == 0) {
-		__sbuf_skip(&kbd_str, 1);
+	prev = byte;
+	if (byte == 0) {
+		storage_set_next_byte();
 		return;
 	}
-	while (kbd_str.len &&
-	       kbd_str.data[0] >= HID_KEYBOARD_SC_LEFT_CONTROL &&
-	       kbd_str.data[0] <= HID_KEYBOARD_SC_RIGHT_GUI &&
+	while (storage_has_more() &&
+	       byte >= HID_KEYBOARD_SC_LEFT_CONTROL &&
+	       byte <= HID_KEYBOARD_SC_RIGHT_GUI &&
 	       i < 6) {
-		ReportData->KeyCode[i++] = kbd_str.data[0];
-		__sbuf_skip(&kbd_str, 1);
+		ReportData->KeyCode[i++] = byte;
+		storage_set_next_byte();
+		storage_get_cur_byte(&byte);
 	}
-	if (kbd_str.len) {
-		ReportData->KeyCode[i] = kbd_str.data[0];
-		__sbuf_skip(&kbd_str, 1);
+	if (storage_has_more()) {
+		ReportData->KeyCode[i] = byte;
+		storage_set_next_byte();
 	}
 }
 
@@ -286,10 +315,9 @@ CALLBACK_HID_Device_ProcessHIDReport(USB_ClassInfo_HID_Device_t
 
 	if (*LEDReport & HID_KEYBOARD_LED_NUMLOCK) {
 		run = 1;
-		kbd_str = buf2sbuf(&payload);
+		storage_reset_pos();
 	} else {
 		run = 0;
-		kbd_cnt = 0;
 	}
 }
 /** CDC class driver callback function the processing of changes to the virtual

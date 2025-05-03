@@ -260,7 +260,7 @@ static int dos2unix(sbuf_t *line, buf_t *out)
 int write_payload(void)
 {
 	FILE *file = fopen(output_filename, "w");
-	script_t script = {
+	script_hdr_t script = {
 		.magic = PAYLOAD_DATA_MAGIC,
 		.size = payload.len,
 	};
