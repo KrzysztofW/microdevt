@@ -259,7 +259,7 @@ static int dos2unix(sbuf_t *line, buf_t *out)
 
 int write_payload(void)
 {
-	FILE *file = fopen(output_filename, "w");
+	FILE *file;
 	script_hdr_t script = {
 		.magic = PAYLOAD_DATA_MAGIC,
 		.size = payload.len,
@@ -267,7 +267,12 @@ int write_payload(void)
 	unsigned char seq_start = SERIAL_DATA_START_SEQ;
 	unsigned char seq_end = SERIAL_DATA_END_SEQ;
 
-	if (file == NULL) {
+	if (payload.len > CONFIG_EEPROM_SIZE) {
+		fprintf(stderr, "script too long: %d bytes. Limit: %d bytes\n",
+			payload.len, CONFIG_EEPROM_SIZE);
+		return -1;
+	}
+	if ((file = fopen(output_filename, "w")) == NULL) {
 		fprintf(stderr, "cannot write to file: %s\n", output_filename);
 		return -1;
 	}

@@ -74,7 +74,7 @@ keyboard-layout: keyboard-layout.c lufa-key-codes.h kbd-layout-us.h
 	gcc -Wall keyboard-layout.c -o keyboard-layout
 
 payload-script-compiler: payload-script-compiler.c kbd-layout-fr.h kbd-layout-us.h kbd-layout-scan-codes-ref.h
-	gcc -I../.. -I../../arch/x86 payload-script-compiler.c -o payload-script-compiler -g -O0
+	gcc -I../.. -I../../arch/x86 -DCONFIG_EEPROM_SIZE=$(CONFIG_EEPROM_SIZE) payload-script-compiler.c -o payload-script-compiler -g -O0
 
 clean: _clean
 	@rm -f keyboard-layout payload-script-compiler
