@@ -23,8 +23,12 @@
 
 # Output file names
 TARGET       = Keyboard
-SRC = main.c Descriptors.c $(ARCH_DIR)/$(ARCH)/watchdog.c
+SRC = main.c rf.c $(ARCH_DIR)/$(ARCH)/watchdog.c
 
+USB=1
+KBD=1
+ifdef USB
+SRC += Descriptors.c
 # LUFA library path
 LUFA_PATH    = /home/chris/Downloads/lufa
 LUFA_SRC     = $(LUFA_PATH)/LUFA/Drivers/USB
@@ -36,8 +40,10 @@ LDFLAGS      = -Wl,--gc-sections
 
 # Include LUFA modules
 CFLAGS      += -I$(LUFA_INC)/Class -I$(LUFA_SRC)
+ifdef KBD
 SRC         += $(LUFA_SRC)/Class/Common/HIDParser.c
 SRC         += $(LUFA_SRC)/Class/Device/HIDClassDevice.c
+endif
 SRC         += $(LUFA_SRC)/Class/Device/CDCClassDevice.c
 SRC         += $(LUFA_SRC)/Core/ConfigDescriptors.c
 SRC         += $(LUFA_SRC)/Core/DeviceStandardReq.c
@@ -47,15 +53,25 @@ SRC         += $(LUFA_SRC)/Core/AVR8/EndpointStream_AVR8.c
 SRC         += $(LUFA_SRC)/Core/AVR8/USBInterrupt_AVR8.c
 SRC         += $(LUFA_SRC)/Core/Events.c
 SRC         += $(LUFA_SRC)/Core/USBTask.c
+endif
 
 ROOT_PATH = ../..
 ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = kbd-usb
-#CFLAGS = -Wall -Werror -Os -g -c
 
+ifndef USB
+CFLAGS = -Wall -Werror -Os -g -c
+else
+CFLAGS += -DUSB
+endif
+ifdef KBD
+CFLAGS += -DKBD
+endif
 include config
 include $(ROOT_PATH)/build.mk
+
+STATIC_LIBS = ../../net/libnet-avr.a
 
 # FUSES see http://www.engbedded.com/fusecalc
 
@@ -65,8 +81,8 @@ FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 # 16mhz external crystal
 # FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
 
-all: keyboard-layout payload-script-compiler $(SRC) $(EXE)
-all_not_size_optimized: $(SRC) $(EXE)_not_size_optimized
+all: libnet keyboard-layout payload-script-compiler $(SRC) $(EXE)
+all_not_size_optimized: libnet $(SRC) $(EXE)_not_size_optimized
 include $(ROOT_PATH)/common.mk
 include $(ARCH_DIR)/$(ARCH)/common.mk
 
@@ -75,6 +91,9 @@ keyboard-layout: keyboard-layout.c lufa-key-codes.h kbd-layout-us.h
 
 payload-script-compiler: payload-script-compiler.c kbd-layout-fr.h kbd-layout-us.h kbd-layout-scan-codes-ref.h
 	gcc -I../.. -I../../arch/x86 -DCONFIG_EEPROM_SIZE=$(CONFIG_EEPROM_SIZE) payload-script-compiler.c -o payload-script-compiler -g -O0
+
+libnet:
+	make -C ../../net
 
 clean: _clean
 	@rm -f keyboard-layout payload-script-compiler

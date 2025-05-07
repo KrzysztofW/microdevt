@@ -61,11 +61,12 @@ typedef struct {
 	USB_Descriptor_Interface_t               CDC_DCI_Interface;
 	USB_Descriptor_Endpoint_t                CDC_DataOutEndpoint;
 	USB_Descriptor_Endpoint_t                CDC_DataInEndpoint;
-
+#ifdef KBD
 	/* Keyboard HID Interface */
 	USB_Descriptor_Interface_t            HID_Interface;
 	USB_HID_Descriptor_HID_t              HID_KeyboardHID;
 	USB_Descriptor_Endpoint_t             HID_ReportINEndpoint;
+#endif
 } USB_Descriptor_Configuration_t;
 
 /** Enum for the device interface descriptor IDs within the device. Each interface descriptor
@@ -75,7 +76,9 @@ typedef struct {
 enum InterfaceDescriptors_t {
 	INTERFACE_ID_CDC_CCI = 0, /**< CDC CCI interface descriptor ID */
 	INTERFACE_ID_CDC_DCI = 1, /**< CDC DCI interface descriptor ID */
+#ifdef KBD
 	INTERFACE_ID_Keyboard = 2, /**< Keyboard interface descriptor ID */
+#endif
 };
 
 /** Enum for the device string descriptor IDs within the device. Each string descriptor should

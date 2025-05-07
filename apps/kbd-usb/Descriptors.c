@@ -43,13 +43,14 @@
  *  the device will send, and what it may be sent back from the host. Refer to the HID specification for
  *  more details on HID report descriptors.
  */
+#ifdef KBD
 const USB_Descriptor_HIDReport_Datatype_t PROGMEM KeyboardReport[] = {
 	/* Use the HID class driver's standard Keyboard report.
 	 *   Max simultaneous keys: 6
 	 */
 	HID_DESCRIPTOR_KEYBOARD(6)
 };
-
+#endif
 /** Device descriptor structure. This descriptor, located in FLASH memory, describes the overall
  *  device characteristics, including the supported USB version, control endpoint size and the
  *  number of device configurations. The descriptor is read out by the USB host when the enumeration
@@ -222,7 +223,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor = {
 		.PollingIntervalMS      = 0x05
 	},
 
-
+#ifdef KBD
 	.HID_Interface = {
 		.Header                 = {
 			.Size = sizeof(USB_Descriptor_Interface_t),
@@ -266,6 +267,7 @@ const USB_Descriptor_Configuration_t PROGMEM ConfigurationDescriptor = {
 		.EndpointSize           = KEYBOARD_EPSIZE,
 		.PollingIntervalMS      = 0x05
 	},
+#endif
 };
 
 /** Language descriptor structure. This descriptor, located in FLASH memory, is returned when the host requests
@@ -287,7 +289,6 @@ const USB_Descriptor_String_t PROGMEM ManufacturerString =
  */
 const USB_Descriptor_String_t PROGMEM ProductString =
 	USB_STRING_DESCRIPTOR(L"USB Keyboard");
-
 /** This function is called by the library when in device mode, and must be overridden (see library "USB Descriptors"
  *  documentation) by the application code so that the address and size of a requested descriptor can be given
  *  to the USB library. When the device receives a Get Descriptor request on the control endpoint, this function
@@ -330,6 +331,7 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
 		}
 
 		break;
+#ifdef KBD
 	case HID_DTYPE_HID:
 		Address = &ConfigurationDescriptor.HID_KeyboardHID;
 		Size    = sizeof(USB_HID_Descriptor_HID_t);
@@ -338,8 +340,8 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
 		Address = &KeyboardReport;
 		Size    = sizeof(KeyboardReport);
 		break;
+#endif
 	}
-
 	*DescriptorAddress = Address;
 	return Size;
 }

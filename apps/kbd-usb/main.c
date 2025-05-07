@@ -22,7 +22,6 @@
  *
  */
 
-#include <LUFA/Drivers/USB/USB.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/power.h>
@@ -31,14 +30,26 @@
 #include <sys/timer.h>
 #include <sys/scheduler.h>
 #include <sys/buf.h>
-#include "Descriptors.h"
 #include "gpio.h"
 #include "payload-script.h"
+#include "rf.h"
+#ifdef USB
+#include <log.h>
+#include <LUFA/Drivers/USB/USB.h>
+#include "Descriptors.h"
 
-static tim_t led_timer = TIMER_INIT(led_timer);
+#ifdef KBD
 static tim_t kbd_timer = TIMER_INIT(kbd_timer);
 static uint8_t kbd_tim_delay;
-
+static uint8_t kbd_run;
+#endif
+#endif
+static tim_t rf_timer = TIMER_INIT(rf_timer);
+static rf_ctx_t rf_ctx;
+static uint8_t rf_cmd[] = {
+	0x04, 0x70, 0x82,
+};
+#ifdef USB
 static uint8_t EEMEM persistent_payload_data[PAYLOAD_DATA_LENGTH];
 static uint8_t serial_data_started;
 static uint16_t serial_data_written;
@@ -46,12 +57,13 @@ static uint16_t serial_data_written;
 static uint16_t payload_pos = STORAGE_DATA_OFFSET;
 static script_hdr_t script_hdr;
 static int8_t magic_pos;
-
+#ifdef KBD
 static uint8_t PrevKeyboardHIDReportBuffer[sizeof(USB_KeyboardReport_Data_t)];
-
+#endif
 /* USB Class driver callback function prototypes */
 void EVENT_USB_Device_ConfigurationChanged(void);
 void EVENT_USB_Device_ControlRequest(void);
+#ifdef KBD
 void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData);
 
 /* LUFA USB Class driver structure for the HID keyboard interface */
@@ -67,7 +79,7 @@ USB_ClassInfo_HID_Device_t Keyboard_HID_Interface = {
 		.PrevReportINBufferSize   = sizeof(PrevKeyboardHIDReportBuffer),
 	},
 };
-
+#endif
 USB_ClassInfo_CDC_Device_t VirtualSerial_CDC_Interface = {
 	.Config = {
 		.ControlInterfaceNumber   = INTERFACE_ID_CDC_CCI,
@@ -96,18 +108,35 @@ void EVENT_USB_Device_Connect(void)
 void EVENT_USB_Device_Disconnect(void)
 {
 }
-
-static void tim_cb(void *arg)
+static int putchar0(char c, FILE *stream)
 {
-	timer_reschedule(&led_timer, 2000000);
-	gpio_led_toggle();
+	(void)stream;
+	if (c == '\r') {
+		CDC_Device_SendByte(&VirtualSerial_CDC_Interface, '\r');
+		CDC_Device_SendByte(&VirtualSerial_CDC_Interface, '\n');
+	}
+	CDC_Device_SendByte(&VirtualSerial_CDC_Interface, c);
+	return 0;
 }
 
+static FILE stream0 =
+	FDEV_SETUP_STREAM(putchar0, NULL, _FDEV_SETUP_RW);
+
+void init_stream0(FILE **out_fd, FILE **in_fd, uint8_t interrupt)
+{
+	*out_fd = &stream0;
+	*in_fd = &stream0;
+}
+
+#endif
+
+#if defined(USB) && defined(KBD)
 static void tim_kbd_cb(void *arg)
 {
 	timer_reschedule(&kbd_timer, 10000);
 	kbd_tim_delay = 1;
 }
+
 static int storage_check_size(void)
 {
 	eeprom_load(&script_hdr.size, &persistent_payload_data,
@@ -149,6 +178,7 @@ static void serial_parse_byte(uint8_t byte)
 	if (script_hdr.magic == PAYLOAD_DATA_MAGIC) {
 		eeprom_update(persistent_payload_data +
 			      serial_data_written, &byte, 1);
+		gpio_led_toggle();
 		serial_data_written++;
 	} else if (magic_pos < sizeof(script_hdr.magic)) {
 		uint8_t *m = (uint8_t *)&script_hdr.magic;
@@ -183,45 +213,84 @@ static void storage_reset_pos(void)
 {
 	payload_pos = STORAGE_DATA_OFFSET;
 }
+#endif
+
+static int rf_cb(buf_t *buf);
+static void rf_timer_cb(void *arg)
+{
+	rf_init(&rf_ctx, rf_cb);
+}
+#ifdef KBD
+static void kbd_start(void)
+{
+	kbd_run = 1;
+	storage_reset_pos();
+}
+#endif
+static int rf_cb(buf_t *buf)
+{
+	if (memcmp(rf_cmd, buf->data, RF_CMD_LEN) == 0) {
+		gpio_led_toggle();
+#ifdef KBD
+		kbd_start();
+#endif
+		timer_add(&rf_timer, 1000000, rf_timer_cb, NULL);
+		return -1;
+	}
+	return 0;
+}
 
 int main(void)
 {
-	uint16_t payload_size;
-
 	timer_subsystem_init();
-	timer_add(&led_timer, 0, tim_cb, NULL);
+#ifdef USB
+#ifdef KBD
 	timer_add(&kbd_timer, 0, tim_kbd_cb, NULL);
-
+#endif
+#endif
 	watchdog_shutdown();
-
+#if defined(USB) && defined(KBD)
 	storage_check_size();
-
+#endif
+	rf_init(&rf_ctx, rf_cb);
+#ifdef USB
 	USB_Init();
-	sei();
+	init_stream0(&stdout, &stdin, 1);
+#endif
+	irq_enable();
 	gpio_init();
 
 	while (1) {
+#ifdef USB
 		uint8_t c;
 
 		/* Must throw away unused bytes from the host,
 		 * or it will lock up while waiting for the device */
 		c = CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
-		if (c != 0xff)
+		if (c != 0xff) {
+#ifdef KBD
 			serial_parse_byte(c);
+#endif
+			LOG("%c", c);
 
+		}
 		CDC_Device_USBTask(&VirtualSerial_CDC_Interface);
+#ifdef KBD
 		HID_Device_USBTask(&Keyboard_HID_Interface);
+#endif
 		USB_USBTask();
+#endif
 		scheduler_run_task();
 	}
 }
-
+#ifdef USB
 /* Event handler for USB device configuration change */
 void EVENT_USB_Device_ConfigurationChanged(void)
 {
 	uint8_t ret;
-
+#ifdef KBD
 	ret = HID_Device_ConfigureEndpoints(&Keyboard_HID_Interface);
+#endif
 	ret &= CDC_Device_ConfigureEndpoints(&VirtualSerial_CDC_Interface);
 	if (ret)
 		gpio_led_toggle();
@@ -232,30 +301,32 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 void EVENT_USB_Device_ControlRequest(void)
 {
 	CDC_Device_ProcessControlRequest(&VirtualSerial_CDC_Interface);
+#ifdef KBD
 	HID_Device_ProcessControlRequest(&Keyboard_HID_Interface);
+#endif
 }
 
 /* Event handler for USB device Start Of Frame (SOF) events */
 void EVENT_USB_Device_StartOfFrame(void)
 {
+#ifdef KBD
 	HID_Device_MillisecondElapsed(&Keyboard_HID_Interface);
+#endif
 }
-
-static uint8_t run;
-
+#ifdef KBD
 void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 {
 	uint8_t i = 0;
 	uint8_t byte;
 	static uint8_t prev;
 
-	if (!run)
+	if (!kbd_run)
 		return;
 
 	if (!kbd_tim_delay)
 		return;
 	if (!storage_has_more()) {
-		run = 0;
+		kbd_run = 0;
 		return;
 	}
 
@@ -278,6 +349,7 @@ void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 		ReportData->KeyCode[i++] = byte;
 		storage_set_next_byte();
 		storage_get_cur_byte(&byte);
+		gpio_led_toggle();
 	}
 	if (storage_has_more()) {
 		ReportData->KeyCode[i] = byte;
@@ -312,14 +384,9 @@ CALLBACK_HID_Device_ProcessHIDReport(USB_ClassInfo_HID_Device_t
 				     const uint16_t ReportSize)
 {
 	uint8_t *LEDReport = (uint8_t *)ReportData;
-
-	if (*LEDReport & HID_KEYBOARD_LED_NUMLOCK) {
-		run = 1;
-		storage_reset_pos();
-	} else {
-		run = 0;
-	}
+	(void)LEDReport;
 }
+#endif
 /** CDC class driver callback function the processing of changes to the virtual
  *  control lines sent from the host..
  *
@@ -337,3 +404,4 @@ void EVENT_CDC_Device_ControLineStateChanged(USB_ClassInfo_CDC_Device_t *const C
 
 	(void)HostReady;
 }
+#endif

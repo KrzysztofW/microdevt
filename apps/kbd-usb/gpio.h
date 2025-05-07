@@ -27,8 +27,13 @@
 
 static inline void gpio_init(void)
 {
-	/* set as output */
-	DDRD |= (1 << PD2);
+	/* PD2 output
+	   PD5 input
+	*/
+	DDRD = (0xFF & ~(1 << PD5)) | (1 << PD2);
+
+	/* PORTD used by RF receiver (PD5) */
+	PORTD = 0xFF & ~(1 << PD5);
 }
 
 static inline void gpio_led_toggle(void)

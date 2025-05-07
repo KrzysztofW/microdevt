@@ -27,7 +27,5 @@
 
 #define RF_RCV_PIN_NB PD5
 #define RF_RCV_PIN PIND
-//#define RF_RCV_PIN_NB PB4
-//#define RF_RCV_PIN PINB
 
 #endif
