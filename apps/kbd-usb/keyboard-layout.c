@@ -243,9 +243,9 @@ static int kbd_get_modifier(int keycode)
 {
 	switch (keycode) {
 	case MODIFIER_ALT:
-		return HID_KEYBOARD_SC_RIGHT_ALT;
-	case MODIFIER_ALT_GT:
 		return HID_KEYBOARD_SC_LEFT_ALT;
+	case MODIFIER_ALT_GT:
+		return HID_KEYBOARD_SC_RIGHT_ALT;
 	case MODIFIER_CTL_RIGHT:
 		return HID_KEYBOARD_SC_RIGHT_CONTROL;
 	case MODIFIER_CTL_LEFT:
@@ -255,7 +255,7 @@ static int kbd_get_modifier(int keycode)
 	case MODIFIER_SHIFT_RIGHT:
 		return HID_KEYBOARD_SC_RIGHT_SHIFT;
 	case MODIFIER_WIN:
-		return HID_KEYBOARD_SC_RIGHT_GUI;
+		return HID_KEYBOARD_SC_LEFT_GUI;
 	default:
 		return -1;
 	}
