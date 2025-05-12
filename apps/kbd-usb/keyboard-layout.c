@@ -330,7 +330,8 @@ kbd_get_layout(kbd_ctx_t *kbd_ctx, key_map_t *kbd_layout, unsigned char *buf,
 			int c = kbd_layout_us[kbd_us_pos].c;
 
 			kbd_layout[kbd_us_pos].c = c;
-			kbd_layout[kbd_us_pos].modifier = MODIFIER_SHIFT_RIGHT;
+			kbd_layout[kbd_us_pos].modifier =
+				kbd_layout_us[kbd_us_pos].modifier;
 			c = kdb_code_lookup(tolower(c), kbd_layout, kbd_us_pos);
 			if (c < -1) {
 				fprintf(stderr, "cannot find `%c' character\n",

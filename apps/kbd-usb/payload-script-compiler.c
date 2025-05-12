@@ -105,13 +105,13 @@ static void expect(int val, int expect, const char *msg)
 }
 
 static int
-kbd_lookup(char c, int *modifier, int *scan_code, const key_map_t *kbd_layout)
+kbd_lookup(char c, int *modifier, int *code, const key_map_t *kbd_layout)
 {
 	int i;
 
 	for (i = 0; i < sizeof(kbd_layout_us) / sizeof(key_map_t); i++) {
 		if (kbd_layout[i].c == c) {
-			*scan_code = kbd_layout[i].code;
+			*code = kbd_layout[i].code;
 			*modifier = kbd_layout[i].modifier;
 			return 0;
 		}
@@ -123,7 +123,7 @@ static int parse_string(sbuf_t *str)
 {
 	while (str->len && str->data[0] != '\0') {
 		unsigned char c = str->data[0];
-		int code, modifier;
+		int code = 0, modifier = 0;
 
 		__sbuf_skip(str, 1);
 

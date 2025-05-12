@@ -244,4 +244,14 @@ typedef struct key_map {
 #define HID_KEYBOARD_SC_MEDIA_RELOAD                      0xFA
 #define HID_KEYBOARD_SC_MEDIA_CALCULATOR                  0xFB
 
+/* modifiers */
+#define HID_KEYBOARD_MODIFIER_LEFTCTRL                    (1 << 0)
+#define HID_KEYBOARD_MODIFIER_LEFTSHIFT                   (1 << 1)
+#define HID_KEYBOARD_MODIFIER_LEFTALT                     (1 << 2)
+#define HID_KEYBOARD_MODIFIER_LEFTGUI                     (1 << 3)
+#define HID_KEYBOARD_MODIFIER_RIGHTCTRL                   (1 << 4)
+#define HID_KEYBOARD_MODIFIER_RIGHTSHIFT                  (1 << 5)
+#define HID_KEYBOARD_MODIFIER_RIGHTALT                    (1 << 6)
+#define HID_KEYBOARD_MODIFIER_RIGHTGUI                    (1 << 7)
+
 #endif

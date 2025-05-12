@@ -64,7 +64,6 @@ static uint8_t PrevKeyboardHIDReportBuffer[sizeof(USB_KeyboardReport_Data_t)];
 void EVENT_USB_Device_ConfigurationChanged(void);
 void EVENT_USB_Device_ControlRequest(void);
 #ifdef KBD
-void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData);
 
 /* LUFA USB Class driver structure for the HID keyboard interface */
 USB_ClassInfo_HID_Device_t Keyboard_HID_Interface = {
@@ -314,7 +313,29 @@ void EVENT_USB_Device_StartOfFrame(void)
 #endif
 }
 #ifdef KBD
-void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
+static int kbd_get_modifier(uint8_t c)
+{
+	switch (c) {
+	case HID_KEYBOARD_SC_LEFT_ALT:
+		return HID_KEYBOARD_MODIFIER_LEFTALT;
+	case HID_KEYBOARD_SC_RIGHT_ALT:
+		return HID_KEYBOARD_MODIFIER_RIGHTALT;
+	case HID_KEYBOARD_SC_RIGHT_CONTROL:
+		return HID_KEYBOARD_MODIFIER_RIGHTCTRL;
+	case HID_KEYBOARD_SC_LEFT_CONTROL:
+		return HID_KEYBOARD_MODIFIER_LEFTCTRL;
+	case HID_KEYBOARD_SC_LEFT_SHIFT:
+		return HID_KEYBOARD_MODIFIER_LEFTSHIFT;
+	case HID_KEYBOARD_SC_RIGHT_SHIFT:
+		return HID_KEYBOARD_MODIFIER_RIGHTSHIFT;
+	case HID_KEYBOARD_SC_RIGHT_GUI:
+		return HID_KEYBOARD_MODIFIER_LEFTGUI;
+	default:
+		return -1;
+	}
+}
+
+static void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 {
 	uint8_t i = 0;
 	uint8_t byte;
@@ -346,15 +367,14 @@ void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 	       byte >= HID_KEYBOARD_SC_LEFT_CONTROL &&
 	       byte <= HID_KEYBOARD_SC_RIGHT_GUI &&
 	       i < 6) {
-		ReportData->KeyCode[i++] = byte;
+		ReportData->Modifier |= kbd_get_modifier(byte);
 		storage_set_next_byte();
 		storage_get_cur_byte(&byte);
-		gpio_led_toggle();
+		i++;
 	}
-	if (storage_has_more()) {
-		ReportData->KeyCode[i] = byte;
-		storage_set_next_byte();
-	}
+	ReportData->KeyCode[i] = byte;
+	storage_set_next_byte();
+	gpio_led_toggle();
 }
 
 /* HID class driver callback for creating reports */
