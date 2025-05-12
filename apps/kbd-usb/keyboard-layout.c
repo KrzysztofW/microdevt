@@ -292,8 +292,8 @@ kbd_get_layout(kbd_ctx_t *kbd_ctx, key_map_t *kbd_layout, unsigned char *buf,
 		}
 		if (!(bufi & 0x80)) {
 			/* key pressed */
-			kbd_ctx->pressed_keys[kbd_ctx->pressed_keys_count++] = kc;
-			kbd_ctx->pressed_keys_pos++;
+			kbd_ctx->pressed_keys[kbd_ctx->pressed_keys_pos++] = kc;
+			kbd_ctx->pressed_keys_count++;
 			/* fprintf(stderr, " |0x%X| ", kc); */
 			fflush(stdout);
 			continue;
