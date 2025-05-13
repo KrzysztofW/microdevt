@@ -119,6 +119,21 @@ kbd_lookup(char c, int *modifier, int *code, const key_map_t *kbd_layout)
 	return -1;
 }
 
+static int lookup_char(int *modifier, int *code, char c)
+{
+	if (kbd_lookup(c, modifier, code, kbd_layout) < 0) {
+		fprintf(stderr,
+			"invalid character: %c (0x%02X)\n",
+			c, c);
+		if ((c >> 4) == 0x0C) {
+			fprintf(stderr, "extended UTF8 character are "
+				"not supported. Use ASCII characters "
+				"only\n");
+		}
+		return -1;
+	}
+	return 0;
+}
 static int parse_string(sbuf_t *str)
 {
 	while (str->len && str->data[0] != '\0') {
@@ -133,17 +148,8 @@ static int parse_string(sbuf_t *str)
 		if (buf_get_free_space(&payload) < 2)
 			return -1;
 
-		if (kbd_lookup(c, &modifier, &code, kbd_layout) < 0) {
-			fprintf(stderr,
-				"invalid character: %c (0x%02X)\n",
-				c, c);
-			if ((c >> 4) == 0x0C) {
-				fprintf(stderr, "extended UTF8 character are "
-					"not supported. Use ASCII characters "
-					"only\n");
-			}
+		if (lookup_char(&modifier, &code, c) < 0)
 			return -1;
-		}
 		if (modifier)
 			__buf_addc(&payload, modifier);
 		__buf_addc(&payload, code);
@@ -151,21 +157,50 @@ static int parse_string(sbuf_t *str)
 	return 0;
 }
 
+static int is_modifier(unsigned char c)
+{
+	return c >= HID_KEYBOARD_SC_LEFT_CONTROL &&
+		c <= HID_KEYBOARD_SC_RIGHT_GUI;
+}
+
 static int parse_line(sbuf_t *line, block_state_t *block_state)
 {
 	int cmd_start = 0;
 	buf_t cmd = BUF(128);
 
+	if (line->len == 2 && line->data[line->len - 2] == '\n') {
+		line->len = 0;
+		return 0;
+	}
+	if (line->len == 1 && line->data[0] == '\0') {
+		line->len = 0;
+		return 0;
+	}
+	/* case: Modifier X\n\0 */
+	if (line->len == 4 && line->data[0] == ' ' &&
+	    is_modifier(payload.data[payload.len - 1])) {
+		int modifier, code;
+
+		__sbuf_skip(line, 1); /* skip space */
+		if (lookup_char(&modifier, &code, line->data[0]) < 0)
+			return -1;
+		line->len = 0;
+		return buf_addc(&payload, code);
+	}
 	if (strncmp(line->data, "END_REM\n", strlen("END_REM\n")) == 0) {
 		expect(block_state->rem, 1, "REM block not opened");
 		block_state->rem = 0;
+		line->len = 0;
 		return 0;
 	}
-	if (block_state->rem)
+	if (block_state->rem) {
+		line->len = 0;
 		return 0;
+	}
 	if (strncmp(line->data, "REM_BLOCK\n", strlen("REM_BLOCK\n")) == 0) {
 		expect(block_state->rem, 0, "REM block already opened");
 		block_state->rem = 1;
+		line->len = 0;
 		return 0;
 	}
 
@@ -178,6 +213,7 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		block_state->string = 0;
 		tmp = buf2sbuf(&string);
 		buf_reset(&string);
+		line->len = 0;
 		return parse_string(&tmp);
 	}
 
@@ -190,17 +226,20 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		block_state->stringln = 0;
 		tmp = buf2sbuf(&string);
 		buf_reset(&string);
+		line->len = 0;
 		return parse_string(&tmp);
 	}
 	if (strncmp(line->data, "STRINGLN\n", strlen("STRINGLN\n")) == 0) {
 		expect(block_state->string, 0, "STRINGLN block already opened");
 		block_state->stringln = 1;
 		buf_reset(&string);
+		line->len = 0;
 		return 0;
 	}
 
 	if (block_state->stringln) {
 		expect(buf_addsbuf(&string, line), 0, "line too long");
+		line->len = 0;
 		return 0;
 	}
 
@@ -208,6 +247,7 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		expect(block_state->string, 0, "STRING block already opened");
 		block_state->string = 1;
 		buf_reset(&string);
+		line->len = 0;
 		return 0;
 	}
 
@@ -217,11 +257,15 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		/* strip the trailing \n character */
 		if (string.data[string.len - 2] == '\n')
 			string.len -= 2;
+		line->len = 0;
 		return 0;
 	}
 	if (strncmp(line->data, "STRINGLN ", strlen("STRINGLN ")) == 0) {
 		__sbuf_skip(line, strlen("STRINGLN "));
-		return parse_string(line);
+		if (parse_string(line) < 0)
+			return -1;
+		line->len = 0;
+		return 0;
 	}
 	if (strncmp(line->data, "STRING ", strlen("STRING ")) == 0) {
 		__sbuf_skip(line, strlen("STRING "));
@@ -229,66 +273,144 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		/* strip the trailing \n character */
 		if (line->data[line->len - 2] == '\n')
 			line->len -= 2;
-		return parse_string(line);
-	}
-	if (strncmp(line->data, "REM ", strlen("REM ")) == 0)
+		if (parse_string(line) < 0)
+			return -1;
+		line->len = 0;
 		return 0;
+	}
+	if (strncmp(line->data, "REM ", strlen("REM ")) == 0) {
+		line->len = 0;
+		return 0;
+	}
 
-	if (strncmp(line->data, "UP", strlen("UP")) == 0) {
-		__sbuf_skip(line, strlen("UP"));
+	if (strncmp(line->data, "UP\n", strlen("UP\n")) == 0) {
+		__sbuf_skip(line, strlen("UP\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_UP_ARROW);
 	}
-	if (strncmp(line->data, "DOWN", strlen("DOWN")) == 0) {
-		__sbuf_skip(line, strlen("DOWN"));
+	if (strncmp(line->data, "DOWN\n", strlen("DOWN\n")) == 0) {
+		__sbuf_skip(line, strlen("DOWN\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_DOWN_ARROW);
 	}
-	if (strncmp(line->data, "LEFT", strlen("LEFT")) == 0) {
-		__sbuf_skip(line, strlen("LEFT"));
+	if (strncmp(line->data, "LEFT\n", strlen("LEFT\n")) == 0) {
+		__sbuf_skip(line, strlen("LEFT\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_ARROW);
 	}
-	if (strncmp(line->data, "RIGHT", strlen("RIGHT")) == 0) {
-		__sbuf_skip(line, strlen("RIGHT"));
+	if (strncmp(line->data, "RIGHT\n", strlen("RIGHT\n")) == 0) {
+		__sbuf_skip(line, strlen("RIGHT\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_RIGHT_ARROW);
 	}
-	if (strncmp(line->data, "PAGEUP", strlen("PAGEUP")) == 0) {
-		__sbuf_skip(line, strlen("PAGEUP"));
+	if (strncmp(line->data, "PAGEUP\n", strlen("PAGEUP\n")) == 0) {
+		__sbuf_skip(line, strlen("PAGEUP\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_PAGE_UP);
 	}
-	if (strncmp(line->data, "PAGEDOWN", strlen("PAGEDOWN")) == 0) {
-		__sbuf_skip(line, strlen("PAGEDOWN"));
+	if (strncmp(line->data, "PAGEDOWN\n", strlen("PAGEDOWN\n")) == 0) {
+		__sbuf_skip(line, strlen("PAGEDOWN\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_PAGE_DOWN);
 	}
-	if (strncmp(line->data, "HOME", strlen("HOME")) == 0) {
-		__sbuf_skip(line, strlen("HOME"));
+	if (strncmp(line->data, "HOME\n", strlen("HOME\n")) == 0) {
+		__sbuf_skip(line, strlen("HOME\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_HOME);
 	}
-	if (strncmp(line->data, "END", strlen("END")) == 0) {
-		__sbuf_skip(line, strlen("END"));
+	if (strncmp(line->data, "END\n", strlen("END\n")) == 0) {
+		__sbuf_skip(line, strlen("END\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_END);
 	}
-	if (strncmp(line->data, "INSERT", strlen("INSERT")) == 0) {
-		__sbuf_skip(line, strlen("INSERT"));
+	if (strncmp(line->data, "INSERT\n", strlen("INSERT\n")) == 0) {
+		__sbuf_skip(line, strlen("INSERT\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_INSERT);
 	}
-	if (strncmp(line->data, "DELETE", strlen("DELETE")) == 0) {
-		__sbuf_skip(line, strlen("DELETE"));
+	if (strncmp(line->data, "DELETE\n", strlen("DELETE\n")) == 0) {
+		__sbuf_skip(line, strlen("DELETE\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_DELETE);
 	}
-	if (strncmp(line->data, "ESCAPE", strlen("ESCAPE")) == 0) {
-		__sbuf_skip(line, strlen("ESCAPE"));
+	if (strncmp(line->data, "ESCAPE\n", strlen("ESCAPE\n")) == 0) {
+		__sbuf_skip(line, strlen("ESCAPE\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_ESCAPE);
 	}
-	if (strncmp(line->data, "PAUSE", strlen("PAUSE")) == 0) {
-		__sbuf_skip(line, strlen("PAUSE"));
+	if (strncmp(line->data, "PAUSE\n", strlen("PAUSE\n")) == 0) {
+		__sbuf_skip(line, strlen("PAUSE\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_PAUSE);
 	}
-	if (strncmp(line->data, "PRINTSCREEN", strlen("PRINTSCREEN")) == 0) {
-		__sbuf_skip(line, strlen("PRINTSCREEN"));
+	if (strncmp(line->data, "PRINTSCREEN\n",
+		    strlen("PRINTSCREEN\n")) == 0) {
+		__sbuf_skip(line, strlen("PRINTSCREEN\n"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_PRINT_SCREEN);
+	}
+	if (strncmp(line->data, "F1\n", strlen("F1\n")) == 0) {
+		__sbuf_skip(line, strlen("F1\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F1);
+	}
+	if (strncmp(line->data, "F2\n", strlen("F2\n")) == 0) {
+		__sbuf_skip(line, strlen("F2\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F2);
+	}
+	if (strncmp(line->data, "F3\n", strlen("F3\n")) == 0) {
+		__sbuf_skip(line, strlen("F3\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F3);
+	}
+	if (strncmp(line->data, "F4\n", strlen("F4\n")) == 0) {
+		__sbuf_skip(line, strlen("F4\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F4);
+	}
+	if (strncmp(line->data, "F5\n", strlen("F5\n")) == 0) {
+		__sbuf_skip(line, strlen("F5\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F5);
+	}
+	if (strncmp(line->data, "F6\n", strlen("F6\n")) == 0) {
+		__sbuf_skip(line, strlen("F6\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F6);
+	}
+	if (strncmp(line->data, "F7\n", strlen("F7\n")) == 0) {
+		__sbuf_skip(line, strlen("F7\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F7);
+	}
+	if (strncmp(line->data, "F8\n", strlen("F8\n")) == 0) {
+		__sbuf_skip(line, strlen("F8\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F8);
+	}
+	if (strncmp(line->data, "F9\n", strlen("F9\n")) == 0) {
+		__sbuf_skip(line, strlen("F9\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F9);
+	}
+	if (strncmp(line->data, "F10\n", strlen("F10\n")) == 0) {
+		__sbuf_skip(line, strlen("F10\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F10);
+	}
+	if (strncmp(line->data, "F11\n", strlen("F11\n")) == 0) {
+		__sbuf_skip(line, strlen("F11\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F10);
+	}
+	if (strncmp(line->data, "F12\n", strlen("F12\n")) == 0) {
+		__sbuf_skip(line, strlen("F12\n"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_F10);
 	}
 	if (strncmp(line->data, "SHIFT", strlen("SHIFT")) == 0) {
 		__sbuf_skip(line, strlen("SHIFT"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_SHIFT);
+	}
+	if (strncmp(line->data, "ALT_GR", strlen("ALT_GR")) == 0) {
+		__sbuf_skip(line, strlen("ALT_GR"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_RIGHT_ALT);
+	}
+	if (strncmp(line->data, "CTRL ALT F", strlen("CTRL ALT F")) == 0) {
+		int nb;
+
+		__sbuf_skip(line, strlen("CTRL ALT F"));
+		if (buf_addc(&payload, HID_KEYBOARD_SC_LEFT_CONTROL) < 0 ||
+		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_ALT) < 0)
+			return -1;
+		nb = atoi(line->data);
+		if (nb < 1 || nb > 12)
+			return -1;
+		line->len = 0;
+		return buf_addc(&payload, HID_KEYBOARD_SC_F1 + nb - 1);
+	}
+	if (strncmp(line->data, "CTRL ALT", strlen("CTRL ALT")) == 0) {
+		__sbuf_skip(line, strlen("CTRL ALT"));
+		if (buf_addc(&payload, HID_KEYBOARD_SC_LEFT_CONTROL) < 0 ||
+		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_ALT) < 0)
+			return -1;
+		return 0;
 	}
 	if (strncmp(line->data, "ALT", strlen("ALT")) == 0) {
 		__sbuf_skip(line, strlen("ALT"));
@@ -302,8 +424,8 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("COMMAND"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI);
 	}
-	if (strncmp(line->data, "WINDOWS", strlen("WINDOWS")) == 0) {
-		__sbuf_skip(line, strlen("WINDOWS"));
+	if (strncmp(line->data, "GUI", strlen("GUI")) == 0) {
+		__sbuf_skip(line, strlen("GUI"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI);
 	}
 	if (strncmp(line->data, "CAPSLOCK", strlen("CAPSLOCK")) == 0) {
@@ -314,60 +436,6 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("NUMLOCK"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_NUM_LOCK);
 	}
-	if (strncmp(line->data, "COMMAND CTRL\n",
-		    strlen("COMMAND CTRL\n")) == 0) {
-		__sbuf_skip(line, strlen("COMMAND CTRL\n"));
-		if (buf_addc(&payload, MODIFIER_KEY_START) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_CONTROL) < 0 ||
-		    buf_addc(&payload, MODIFIER_KEY_END) < 0)
-			return -1;
-		return 0;
-	}
-	if (strncmp(line->data, "COMMAND CTRL SHIFT\n",
-		    strlen("COMMAND CTRL SHIFT\n")) == 0) {
-		__sbuf_skip(line, strlen("COMMAND CTRL SHIFT\n"));
-		if (buf_addc(&payload, MODIFIER_KEY_START) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_SHIFT) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_CONTROL) < 0 ||
-		    buf_addc(&payload, MODIFIER_KEY_END) < 0)
-			return -1;
-		return 0;
-	}
-	if (strncmp(line->data, "COMMAND OPTION\n",
-		    strlen("COMMAND OPTION\n")) == 0) {
-		__sbuf_skip(line, strlen("COMMAND OPTIO\n"));
-		if (buf_addc(&payload, MODIFIER_KEY_START) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_ALT) < 0 ||
-		    buf_addc(&payload, MODIFIER_KEY_END) < 0)
-			return -1;
-		return 0;
-	}
-	if (strncmp(line->data, "COMMAND OPTION SHIFT\n",
-		    strlen("COMMAND OPTION SHIFT\n")) == 0) {
-		__sbuf_skip(line, strlen("COMMAND OPTION SHIFT\n"));
-		if (buf_addc(&payload, MODIFIER_KEY_START) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_ALT) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_SHIFT) < 0 ||
-		    buf_addc(&payload, MODIFIER_KEY_END) < 0)
-			return -1;
-		return 0;
-
-	}
-	if (strncmp(line->data, "CTRL ALT DELETE\n",
-		    strlen("CTRL ALT DELETE\n")) == 0) {
-		__sbuf_skip(line, strlen("CTRL ALT DELETE\n"));
-		if (buf_addc(&payload, MODIFIER_KEY_START) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_CONTROL) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_LEFT_ALT) < 0 ||
-		    buf_addc(&payload, HID_KEYBOARD_SC_DELETE) < 0 ||
-		    buf_addc(&payload, MODIFIER_KEY_END) < 0)
-			return -1;
-		return 0;
-
-	}
 	if (strncmp(line->data, "HOLD", strlen("HOLD")) == 0) {
 		__sbuf_skip(line, strlen("HOLD"));
 		return buf_addc(&payload, MODIFIER_KEY_START);
@@ -376,48 +444,6 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("RELEASE"));
 		return buf_addc(&payload, MODIFIER_KEY_END);
 	}
-	if (strncmp(line->data, "F1", strlen("F1")) == 0) {
-		__sbuf_skip(line, strlen("F1"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F1);
-	}
-	if (strncmp(line->data, "F2", strlen("F2")) == 0) {
-		__sbuf_skip(line, strlen("F2"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F2);
-	}
-	if (strncmp(line->data, "F3", strlen("F3")) == 0) {
-		__sbuf_skip(line, strlen("F3"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F3);
-	}
-	if (strncmp(line->data, "F4", strlen("F4")) == 0) {
-		__sbuf_skip(line, strlen("F4"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F4);
-	}
-	if (strncmp(line->data, "F5", strlen("F5")) == 0) {
-		__sbuf_skip(line, strlen("F5"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F5);
-	}
-	if (strncmp(line->data, "F6", strlen("F6")) == 0) {
-		__sbuf_skip(line, strlen("F6"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F6);
-	}
-	if (strncmp(line->data, "F7", strlen("F7")) == 0) {
-		__sbuf_skip(line, strlen("F7"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F7);
-	}
-	if (strncmp(line->data, "F8", strlen("F8")) == 0) {
-		__sbuf_skip(line, strlen("F8"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F8);
-	}
-	if (strncmp(line->data, "F9", strlen("F9")) == 0) {
-		__sbuf_skip(line, strlen("F9"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F9);
-	}
-	if (strncmp(line->data, "F0", strlen("F0")) == 0) {
-		__sbuf_skip(line, strlen("F0"));
-		return buf_addc(&payload, HID_KEYBOARD_SC_F10);
-	}
-	if (line->len == 2 && line->data[line->len - 2] == '\n')
-		return 0;
 
 	return -1;
 }
@@ -518,11 +544,13 @@ int main(int argc, char **argv)
 			return -1;
 		}
 		line_sbuf = buf2sbuf(&line_buf);
-		if (parse_line(&line_sbuf, &block_state) < 0) {
-			fprintf(stderr, "Cannot parse the script. "
-				"Syntax error at line %d\n", line_nb);
-			return -1;
-		}
+		do {
+			if (parse_line(&line_sbuf, &block_state) < 0) {
+				fprintf(stderr, "Cannot parse the script. "
+					"Syntax error at line %d\n", line_nb);
+				return -1;
+			}
+		} while (line_sbuf.len);
 	end:
 		buf_reset(&line_buf);
 		line_nb++;
