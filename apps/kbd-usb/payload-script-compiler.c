@@ -204,12 +204,10 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		return 0;
 	}
 
-	if (strncmp(line->data, "END_STRING\n",
-		    strlen("END_STRING\n")) == 0) {
+	if (strncmp(line->data, "END_STRING\n", strlen("END_STRING\n")) == 0) {
 		sbuf_t tmp;
 
-		expect(block_state->string, 1,
-		       "STRING block not opened");
+		expect(block_state->string, 1, "STRING block not opened");
 		block_state->string = 0;
 		tmp = buf2sbuf(&string);
 		buf_reset(&string);
@@ -221,8 +219,7 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		    strlen("END_STRINGLN\n")) == 0) {
 		sbuf_t tmp;
 
-		expect(block_state->stringln, 1,
-		       "STRINGLN block not opened");
+		expect(block_state->stringln, 1, "STRINGLN block not opened");
 		block_state->stringln = 0;
 		tmp = buf2sbuf(&string);
 		buf_reset(&string);
@@ -279,6 +276,10 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		return 0;
 	}
 	if (strncmp(line->data, "REM ", strlen("REM ")) == 0) {
+		line->len = 0;
+		return 0;
+	}
+	if (line->data[0] == '#') {
 		line->len = 0;
 		return 0;
 	}
@@ -428,6 +429,10 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("GUI"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI);
 	}
+	if (strncmp(line->data, "WINDOWS", strlen("WINDOWS")) == 0) {
+		__sbuf_skip(line, strlen("WINDOWS"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI);
+	}
 	if (strncmp(line->data, "CAPSLOCK", strlen("CAPSLOCK")) == 0) {
 		__sbuf_skip(line, strlen("CAPSLOCK"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_CAPS_LOCK);
@@ -436,13 +441,140 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("NUMLOCK"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_NUM_LOCK);
 	}
-	if (strncmp(line->data, "HOLD", strlen("HOLD")) == 0) {
-		__sbuf_skip(line, strlen("HOLD"));
-		return buf_addc(&payload, MODIFIER_KEY_START);
+
+	/* skip leading space char */
+	if (line->len >= 2 && line->data[0] == ' ')
+		__sbuf_skip(line, 1);
+
+	if (strncmp(line->data, "$_JITTER_ENABLED = TRUE",
+		    strlen("$_JITTER_ENABLED = TRUE")) == 0) {
+		__sbuf_skip(line, strlen("$_JITTER_ENABLED = TRUE"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_JITTER_ON) < 0)
+			return -1;
+		return 0;
 	}
-	if (strncmp(line->data, "RELEASE", strlen("RELEASE")) == 0) {
-		__sbuf_skip(line, strlen("RELEASE"));
-		return buf_addc(&payload, MODIFIER_KEY_END);
+	if (strncmp(line->data, "$_JITTER_ENABLED = FALSE",
+		    strlen("$_JITTER_ENABLED = FALSE")) == 0) {
+		__sbuf_skip(line, strlen("$_JITTER_ENABLED = FALSE"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_JITTER_OFF) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "JITTER_ON",
+		    strlen("JITTER_ON")) == 0) {
+		__sbuf_skip(line, strlen("JITTER_ON"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_JITTER_ON) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "JITTER_OFF",
+		    strlen("JITTER_OFF")) == 0) {
+		__sbuf_skip(line, strlen("JITTER_OFF"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_JITTER_OFF) < 0)
+			return -1;
+		return 0;
+	}
+
+	if (strncmp(line->data, "DELAY ", strlen("DELAY ")) == 0) {
+		int t;
+		uint16_t t2;
+
+		__sbuf_skip(line, strlen("DELAY "));
+		line->len = 0;
+		t = atoi(line->data);
+		if (t < 20)
+			return 0;
+		if (t > 60000) {
+			fprintf(stderr, "DELAY maximum value is 60000 milliseconds\n");
+			return -1;
+		}
+		t2 = t;
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_DELAY) < 0 ||
+		    buf_add(&payload, &t2, sizeof(uint16_t)) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "WAIT_FOR_CAPS_ON\n",
+		    strlen("WAIT_FOR_CAPS_ON\n")) == 0) {
+		__sbuf_skip(line, strlen("WAIT_FOR_CAPS_ON\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_WAIT_FOR_CAPS_ON) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "WAIT_FOR_CAPS_OFF\n",
+		    strlen("WAIT_FOR_CAPS_OFF\n")) == 0) {
+		__sbuf_skip(line, strlen("WAIT_FOR_CAPS_OFF\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_WAIT_FOR_CAPS_OFF) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "WAIT_FOR_CAPS_CHANGE\n",
+		    strlen("WAIT_FOR_CAPS_CHANGE\n")) == 0) {
+		__sbuf_skip(line, strlen("WAIT_FOR_CAPS_CHANGE\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_WAIT_FOR_CAPS_CHNG) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "WAIT_FOR_NUM_ON\n",
+		    strlen("WAIT_FOR_NUM_ON\n")) == 0) {
+		__sbuf_skip(line, strlen("WAIT_FOR_NUM_ON\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_WAIT_FOR_NUMLOCK_ON) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "WAIT_FOR_NUM_OFF\n",
+		    strlen("WAIT_FOR_NUM_OFF\n")) == 0) {
+		__sbuf_skip(line, strlen("WAIT_FOR_NUM_OFF\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_WAIT_FOR_NUMLOCK_OFF) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "WAIT_FOR_NUM_CHANGE\n",
+		    strlen("WAIT_FOR_NUM_CHANGE\n")) == 0) {
+		__sbuf_skip(line, strlen("WAIT_FOR_NUM_CHANGE\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_WAIT_FOR_NUMLOCK_CHNG) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "WAIT_FOR_BUTTON_PRESS\n",
+		    strlen("WAIT_FOR_BUTTON_PRESS\n")) == 0) {
+		__sbuf_skip(line, strlen("WAIT_FOR_BUTTON_PRESS\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_WAIT_FOR_BNT) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "LED_ON\n", strlen("LED_ON\n")) == 0) {
+		__sbuf_skip(line, strlen("LED_ON\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_LED_ON) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "LED_OFF\n", strlen("LED_OFF\n")) == 0) {
+		__sbuf_skip(line, strlen("LED_OFF\n"));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_LED_OFF) < 0)
+			return -1;
+		return 0;
+	}
+	if (strncmp(line->data, "INJECT_MODE ", strlen("INJECT_MODE ")) == 0) {
+		__sbuf_skip(line, strlen("INJECT_MODE "));
+		if (buf_addc(&payload, CUSTOM_CMD) < 0 ||
+		    buf_addc(&payload, CUSTOM_CMD_INJECT_MODE) < 0)
+			return -1;
+		return 0;
 	}
 
 	return -1;

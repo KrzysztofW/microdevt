@@ -40,6 +40,14 @@ static inline void gpio_led_toggle(void)
 {
 	PORTD ^= 1 << PD2;
 }
+static inline void gpio_led_on(void)
+{
+	PORTD |= 1 << PD2;
+}
+static inline void gpio_led_off(void)
+{
+	PORTD &= ~(1 << PD2);
+}
 static inline uint8_t gpio_led_is_set(void)
 {
 	return !!(PORTD & (1 << PD2));

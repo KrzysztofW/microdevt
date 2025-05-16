@@ -39,9 +39,16 @@
 #include "Descriptors.h"
 
 #ifdef KBD
+#define KBD_INITIAL_DELAY 10000
+static uint32_t kbd_delay = KBD_INITIAL_DELAY;
 static tim_t kbd_timer = TIMER_INIT(kbd_timer);
 static uint8_t kbd_tim_delay;
 static uint8_t kbd_run;
+static uint8_t jitter_on;
+static uint8_t led_report;
+static uint8_t wait_for;
+static uint8_t wait_for_mask;
+static uint8_t inject_mode;
 #endif
 #endif
 static tim_t rf_timer = TIMER_INIT(rf_timer);
@@ -57,6 +64,8 @@ static uint16_t serial_data_written;
 static uint16_t payload_pos = STORAGE_DATA_OFFSET;
 static script_hdr_t script_hdr;
 static int8_t magic_pos;
+unsigned int rnd_seed;
+
 #ifdef KBD
 static uint8_t PrevKeyboardHIDReportBuffer[sizeof(USB_KeyboardReport_Data_t)];
 #endif
@@ -132,8 +141,58 @@ void init_stream0(FILE **out_fd, FILE **in_fd, uint8_t interrupt)
 #if defined(USB) && defined(KBD)
 static void tim_kbd_cb(void *arg)
 {
-	timer_reschedule(&kbd_timer, 10000);
+	if (jitter_on) {
+		srand(rnd_seed);
+		kbd_delay = (uint32_t)rand() * 8 + KBD_INITIAL_DELAY;
+	} else
+		kbd_delay = KBD_INITIAL_DELAY;
+	timer_reschedule(&kbd_timer, kbd_delay);
 	kbd_tim_delay = 1;
+}
+
+static void tim_run_cb(void *arg)
+{
+	kbd_run = 1;
+	timer_add(&kbd_timer, 0, tim_kbd_cb, NULL);
+}
+
+static int8_t storage_has_more(void)
+{
+	return payload_pos < script_hdr.size + STORAGE_DATA_OFFSET;
+}
+
+static void storage_set_next_byte(void)
+{
+	payload_pos++;
+}
+
+static void storage_set_pos(uint16_t pos)
+{
+	payload_pos = pos;
+}
+
+static void storage_inc(uint16_t nb)
+{
+	payload_pos += nb;
+}
+
+static void storage_get_cur_byte(uint8_t *byte)
+{
+	eeprom_load(byte, persistent_payload_data + payload_pos, 1);
+}
+
+static int storage_get_next_byte(uint8_t *byte)
+{
+	if (!storage_has_more())
+		return -1;
+	storage_set_next_byte();
+	eeprom_load(byte, persistent_payload_data + payload_pos, 1);
+	return 0;
+}
+
+static void storage_reset_pos(void)
+{
+	payload_pos = STORAGE_DATA_OFFSET;
 }
 
 static int storage_check_size(void)
@@ -168,6 +227,7 @@ static void serial_parse_byte(uint8_t byte)
 		else
 			ret = SERIAL_DATA_OK;
 		serial_data_started = 0;
+		storage_reset_pos();
 		goto end;
 	}
 	if (serial_data_written >= PAYLOAD_DATA_LENGTH) {
@@ -177,7 +237,6 @@ static void serial_parse_byte(uint8_t byte)
 	if (script_hdr.magic == PAYLOAD_DATA_MAGIC) {
 		eeprom_update(persistent_payload_data +
 			      serial_data_written, &byte, 1);
-		gpio_led_toggle();
 		serial_data_written++;
 	} else if (magic_pos < sizeof(script_hdr.magic)) {
 		uint8_t *m = (uint8_t *)&script_hdr.magic;
@@ -192,26 +251,6 @@ static void serial_parse_byte(uint8_t byte)
 	CDC_Device_SendByte(&VirtualSerial_CDC_Interface, ret);
 	serial_data_started = 0;
 }
-
-static void storage_get_cur_byte(uint8_t *byte)
-{
-	eeprom_load(byte, persistent_payload_data + payload_pos, 1);
-}
-
-static void storage_set_next_byte(void)
-{
-	payload_pos++;
-}
-
-static int8_t storage_has_more(void)
-{
-	return payload_pos < script_hdr.size + STORAGE_DATA_OFFSET;
-}
-
-static void storage_reset_pos(void)
-{
-	payload_pos = STORAGE_DATA_OFFSET;
-}
 #endif
 
 static int rf_cb(buf_t *buf);
@@ -219,22 +258,15 @@ static void rf_timer_cb(void *arg)
 {
 	rf_init(&rf_ctx, rf_cb);
 }
-#ifdef KBD
-static void kbd_start(void)
-{
-	kbd_run = 1;
-	storage_reset_pos();
-}
-#endif
 static int rf_cb(buf_t *buf)
 {
 	if (memcmp(rf_cmd, buf->data, RF_CMD_LEN) == 0) {
-		gpio_led_toggle();
 #ifdef KBD
-		kbd_start();
+		kbd_delay = KBD_INITIAL_DELAY;
+		kbd_run = 1;
 #endif
 		timer_add(&rf_timer, 1000000, rf_timer_cb, NULL);
-		return -1;
+		return -1; /* -1 disables receiving */
 	}
 	return 0;
 }
@@ -242,11 +274,6 @@ static int rf_cb(buf_t *buf)
 int main(void)
 {
 	timer_subsystem_init();
-#ifdef USB
-#ifdef KBD
-	timer_add(&kbd_timer, 0, tim_kbd_cb, NULL);
-#endif
-#endif
 	watchdog_shutdown();
 #if defined(USB) && defined(KBD)
 	storage_check_size();
@@ -255,9 +282,13 @@ int main(void)
 #ifdef USB
 	USB_Init();
 	init_stream0(&stdout, &stdin, 1);
+#ifdef KBD
+	timer_add(&kbd_timer, 3000000, tim_run_cb, NULL);
 #endif
-	irq_enable();
+#endif
 	gpio_init();
+	gpio_led_off();
+	irq_enable();
 
 	while (1) {
 #ifdef USB
@@ -291,8 +322,7 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 	ret = HID_Device_ConfigureEndpoints(&Keyboard_HID_Interface);
 #endif
 	ret &= CDC_Device_ConfigureEndpoints(&VirtualSerial_CDC_Interface);
-	if (ret)
-		gpio_led_toggle();
+	(void)ret;
 	USB_Device_EnableSOFEvents();
 }
 
@@ -337,11 +367,81 @@ static int kbd_get_modifier(uint8_t c)
 	}
 }
 
+static int storage_handle_custom_cmd(void)
+{
+	uint8_t byte;
+
+	if (storage_get_next_byte(&byte) < 0)
+		return 0;
+
+	switch (byte) {
+	case CUSTOM_CMD_DELAY: {
+		uint16_t cmd_delay;
+
+		storage_set_next_byte();
+		if (payload_pos + sizeof(uint16_t) >
+		    script_hdr.size + STORAGE_DATA_OFFSET)
+			return 0;
+		eeprom_load(&cmd_delay, persistent_payload_data + payload_pos,
+			    sizeof(uint16_t));
+		timer_del(&kbd_timer);
+		timer_reschedule(&kbd_timer, (uint32_t)cmd_delay * 1000);
+		return 2;
+	}
+	case CUSTOM_CMD_JITTER_ON:
+		jitter_on = 1;
+		break;
+	case CUSTOM_CMD_JITTER_OFF:
+		jitter_on = 0;
+		break;
+	case CUSTOM_CMD_WAIT_FOR_CAPS_ON:
+		wait_for_mask = HID_KEYBOARD_LED_CAPSLOCK;
+		wait_for = HID_KEYBOARD_LED_CAPSLOCK;
+		break;
+	case CUSTOM_CMD_WAIT_FOR_CAPS_OFF:
+		wait_for_mask = HID_KEYBOARD_LED_CAPSLOCK;
+		wait_for = 0;
+		break;
+	case CUSTOM_CMD_WAIT_FOR_CAPS_CHNG:
+		wait_for_mask = HID_KEYBOARD_LED_CAPSLOCK;
+		wait_for = (~led_report & HID_KEYBOARD_LED_CAPSLOCK);
+		break;
+	case CUSTOM_CMD_WAIT_FOR_NUMLOCK_ON:
+		wait_for_mask = HID_KEYBOARD_LED_NUMLOCK;
+		wait_for = HID_KEYBOARD_LED_NUMLOCK;
+		break;
+	case CUSTOM_CMD_WAIT_FOR_NUMLOCK_OFF:
+		wait_for_mask = HID_KEYBOARD_LED_NUMLOCK;
+		wait_for = 0;
+		break;
+	case CUSTOM_CMD_WAIT_FOR_NUMLOCK_CHNG:
+		wait_for_mask = HID_KEYBOARD_LED_NUMLOCK;
+		wait_for = (~led_report & HID_KEYBOARD_LED_NUMLOCK);
+		break;
+	case CUSTOM_CMD_WAIT_FOR_BNT:
+		kbd_run = 0;
+		break;
+	case CUSTOM_CMD_LED_ON:
+		gpio_led_on();
+		break;
+	case CUSTOM_CMD_LED_OFF:
+		gpio_led_off();
+		break;
+	case CUSTOM_CMD_INJECT_MODE:
+		inject_mode = 1;
+		break;
+	default:
+		break;
+	}
+	return 1;
+}
+
 static void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 {
 	uint8_t i = 0;
 	uint8_t byte;
 	static uint8_t prev;
+	uint8_t cur_cmd;
 
 	if (!kbd_run)
 		return;
@@ -350,6 +450,8 @@ static void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 		return;
 	if (!storage_has_more()) {
 		kbd_run = 0;
+		jitter_on = 0;
+		storage_reset_pos();
 		return;
 	}
 
@@ -365,7 +467,20 @@ static void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 		storage_set_next_byte();
 		return;
 	}
-	while (storage_has_more() &&
+
+	if ((led_report & wait_for_mask) != wait_for)
+		return;
+	wait_for = 0;
+	wait_for_mask = 0;
+
+	cur_cmd = payload_pos;
+	if (byte == CUSTOM_CMD) {
+		uint16_t skip = storage_handle_custom_cmd();
+
+		storage_inc(skip);
+		return;
+	}
+	while (!inject_mode && storage_has_more() &&
 	       byte >= HID_KEYBOARD_SC_LEFT_CONTROL &&
 	       byte <= HID_KEYBOARD_SC_RIGHT_GUI &&
 	       i < 6) {
@@ -376,7 +491,7 @@ static void CreateKeyboardReport(USB_KeyboardReport_Data_t* ReportData)
 	}
 	ReportData->KeyCode[i] = byte;
 	storage_set_next_byte();
-	gpio_led_toggle();
+	inject_mode = 0;
 }
 
 /* HID class driver callback for creating reports */
@@ -405,8 +520,7 @@ CALLBACK_HID_Device_ProcessHIDReport(USB_ClassInfo_HID_Device_t
 				     const void* ReportData,
 				     const uint16_t ReportSize)
 {
-	uint8_t *LEDReport = (uint8_t *)ReportData;
-	(void)LEDReport;
+	led_report = *(uint8_t *)ReportData;
 }
 #endif
 /** CDC class driver callback function the processing of changes to the virtual
