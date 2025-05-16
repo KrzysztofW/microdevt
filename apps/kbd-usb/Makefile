@@ -76,7 +76,7 @@ STATIC_LIBS = ../../net/libnet-avr.a
 # FUSES see http://www.engbedded.com/fusecalc
 
 # 8mhz (internal clk)
-FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
+FUSES = -U lfuse:w:0xe2:m -U hfuse:w:0xd1:m -U efuse:w:0xf4:m
 
 # 16mhz external crystal
 # FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xf4:m
