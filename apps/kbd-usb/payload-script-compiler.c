@@ -425,6 +425,13 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("COMMAND"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI);
 	}
+	if (strncmp(line->data, "GUI SPACE", strlen("GUI SPACE")) == 0) {
+		__sbuf_skip(line, strlen("GUI SPACE"));
+		if (buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI) < 0 ||
+		    buf_addc(&payload, HID_KEYBOARD_SC_SPACE) < 0)
+			return -1;
+		return 0;
+	}
 	if (strncmp(line->data, "GUI", strlen("GUI")) == 0) {
 		__sbuf_skip(line, strlen("GUI"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_LEFT_GUI);
@@ -457,6 +464,11 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("TAB"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_TAB);
 	}
+	if (strncmp(line->data, "SPACE", strlen("SPACE")) == 0) {
+		__sbuf_skip(line, strlen("SPACE"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_SPACE);
+	}
+
 
 	/* skip leading space char */
 	if (line->len >= 2 && line->data[0] == ' ')
