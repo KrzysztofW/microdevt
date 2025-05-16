@@ -441,6 +441,22 @@ static int parse_line(sbuf_t *line, block_state_t *block_state)
 		__sbuf_skip(line, strlen("NUMLOCK"));
 		return buf_addc(&payload, HID_KEYBOARD_SC_NUM_LOCK);
 	}
+	if (strncmp(line->data, "ENTER", strlen("ENTER")) == 0) {
+		__sbuf_skip(line, strlen("ENTER"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_ENTER);
+	}
+	if (strncmp(line->data, "ESCAPE", strlen("ESCAPE")) == 0) {
+		__sbuf_skip(line, strlen("ESCAPE"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_ESCAPE);
+	}
+	if (strncmp(line->data, "BACKSPACE", strlen("BACKSPACE")) == 0) {
+		__sbuf_skip(line, strlen("BACKSPACE"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_BACKSPACE);
+	}
+	if (strncmp(line->data, "TAB", strlen("TAB")) == 0) {
+		__sbuf_skip(line, strlen("TAB"));
+		return buf_addc(&payload, HID_KEYBOARD_SC_TAB);
+	}
 
 	/* skip leading space char */
 	if (line->len >= 2 && line->data[0] == ' ')
