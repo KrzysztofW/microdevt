@@ -31,7 +31,7 @@
 #include <stdint.h>
 #include "sys/list.h"
 
-struct timer {
+typedef struct timer {
 	struct list_head list;
 	void (*cb)(void *);
 	void *arg;
@@ -40,8 +40,7 @@ struct timer {
 	unsigned line;
 #endif
 	uint32_t ticks;
-} __PACKED__;
-typedef struct timer tim_t;
+} tim_t;
 
 /** Timer tick counter
  */

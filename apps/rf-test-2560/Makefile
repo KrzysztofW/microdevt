@@ -44,4 +44,6 @@ libnet:
 	make -C ../../net
 
 include $(ARCH_DIR)/$(ARCH)/common.mk
+clean: _clean
+
 .PHONY: all all_not_size_optimized

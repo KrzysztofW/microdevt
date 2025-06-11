@@ -44,7 +44,7 @@ static int __htable_lookup(const hash_table_t *htable, uint32_t hashval,
 {
 	node_t *e;
 
-	list_for_each_entry(e, &htable->list_head[hashval], list) {
+	LIST_FOR_EACH_ENTRY(e, &htable->list_head[hashval], list) {
 		if (sbuf_cmp(key, &e->key) == 0) {
 			*val = &e->val;
 			return hashval;
@@ -126,8 +126,8 @@ int htable_del(hash_table_t *htable, const sbuf_t *key)
 	node_t *e;
 	list_t *list, *tmp;
 
-	list_for_each_safe(list, tmp, &htable->list_head[hashval]) {
-		e = list_entry(list, node_t, list);
+	LIST_FOR_EACH_SAFE(list, tmp, &htable->list_head[hashval]) {
+		e = LIST_ENTRY(list, node_t, list);
 
 		if (sbuf_cmp(key, &e->key) < 0)
 			continue;
@@ -150,8 +150,8 @@ void htable_for_each(hash_table_t *htable,
 		node_t *e;
 		list_t *list, *tmp;
 
-		list_for_each_safe(list, tmp, &htable->list_head[i]) {
-			e = list_entry(list, node_t, list);
+		LIST_FOR_EACH_SAFE(list, tmp, &htable->list_head[i]) {
+			e = LIST_ENTRY(list, node_t, list);
 			if (cb(&e->key, &e->val, arg) < 0)
 				return;
 		}

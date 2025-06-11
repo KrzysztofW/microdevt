@@ -34,7 +34,7 @@ nm: all
 	avr-nm -S --size-sort -t d $(EXE)
 
 reset:
-	avrdude -c ${CONFIG_AVR_PROG} -p ${CONFIG_AVR_BMCU}
+	avrdude -p ${CONFIG_AVR_BMCU}
 
 # FUSES see http://www.engbedded.com/fusecalc
 read_fuses:
@@ -70,7 +70,8 @@ $(EXE)_not_size_optimized: $(OBJ) $(STATIC_LIBS) config
 %.c:
 	$(CC) $(CFLAGS) $*.c
 
-clean: clean_common
+_clean: clean_common
 	make -C $(ROOT_PATH)/net clean
 	@rm -f $(EXE) *~ "#*#" $(OBJ) $(EXE).hex $(EXE).srec
 	@rm -f $(ARCH_DIR)/$(ARCH)/*.o $(EXE).a
+.PHONY: _clean clean

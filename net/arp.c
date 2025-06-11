@@ -37,14 +37,13 @@ uint8_t broadcast_mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 #define ARP_RETRY_TIMEOUT 3 /* seconds */
 #define ARP_RETRIES 2
 
-struct arp_res {
+typedef struct arp_res {
 	list_t list;
 	list_t pkt_list;
 	tim_t tim;
 	iface_t *iface;
 	uint8_t retries;
-} __PACKED__;
-typedef struct arp_res arp_res_t;
+} arp_res_t;
 
 static list_t arp_wait_list = LIST_HEAD_INIT(arp_wait_list);
 
@@ -155,22 +154,22 @@ arp_output(iface_t *iface, int op, const uint8_t *tha, const uint8_t *tpa)
 	return eth_output(out, iface, L3_PROTO_ARP, tha);
 }
 
-static uint32_t *arp_res_get_ip(arp_res_t *arp_res)
+static uint32_t arp_res_get_ip(arp_res_t *arp_res)
 {
-	pkt_t *pkt = list_first_entry(&arp_res->pkt_list, pkt_t, list);
+	pkt_t *pkt = LIST_FIRST_ENTRY(&arp_res->pkt_list, pkt_t, list);
 	ip_hdr_t *ip_hdr = btod(pkt);
 
-	return &ip_hdr->dst;
+	return ip_hdr->dst;
 }
 
 static arp_res_t *arp_res_lookup(const uint32_t *ip)
 {
 	arp_res_t *arp_res;
 
-	list_for_each_entry(arp_res, &arp_wait_list, list) {
-		uint32_t *arp_res_ip = arp_res_get_ip(arp_res);
+	LIST_FOR_EACH_ENTRY(arp_res, &arp_wait_list, list) {
+		uint32_t arp_res_ip = arp_res_get_ip(arp_res);
 
-		if (*arp_res_ip == *ip)
+		if (arp_res_ip == *ip)
 			return arp_res;
 	}
 	return NULL;
@@ -180,16 +179,16 @@ static void __arp_process_wait_list(arp_res_t *arp_res, uint8_t delete)
 {
 	pkt_t *pkt, *pkt_tmp;
 
-	list_for_each_entry_safe(pkt, pkt_tmp, &arp_res->pkt_list, list) {
+	LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp, &arp_res->pkt_list, list) {
 		list_del(&pkt->list);
-		if (delete)
-			pkt_free(pkt);
-		else {
+		if (!delete) {
 			ip_hdr_t *ip_hdr = btod(pkt);
 
 			eth_output(pkt, arp_res->iface, ETHERTYPE_IP,
 				   &ip_hdr->dst);
+			continue;
 		}
+		pkt_free(pkt);
 	}
 	timer_del(&arp_res->tim);
 	list_del(&arp_res->list);
@@ -275,7 +274,7 @@ void arp_input(pkt_t *pkt, iface_t *iface)
 void arp_retry_cb(void *arg)
 {
 	arp_res_t *arp_res = arg;
-	uint32_t *ip;
+	uint32_t ip;
 
 	arp_res->retries++;
 	if (arp_res->retries >= ARP_RETRIES) {
@@ -284,7 +283,7 @@ void arp_retry_cb(void *arg)
 	}
 	timer_reschedule(&arp_res->tim, ARP_RETRY_TIMEOUT * 1000000);
 	ip = arp_res_get_ip(arp_res);
-	arp_output(arp_res->iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)ip);
+	arp_output(arp_res->iface, ARPOP_REQUEST, broadcast_mac, (uint8_t *)&ip);
 }
 
 void arp_resolve(pkt_t *pkt, const uint32_t *ip_dst, iface_t *iface)

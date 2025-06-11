@@ -26,7 +26,7 @@ ARCH_DIR=$(ROOT_PATH)/arch
 
 EXE = tun-driver
 CFLAGS = -Wall -Werror -O0 -fno-inline -g
-SRC = tun-driver.c tun.c
+SRC = main.c tun.c
 
 include config
 include $(ROOT_PATH)/build.mk

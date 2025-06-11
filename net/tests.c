@@ -521,7 +521,7 @@ int net_udp_tests(void)
 		goto end;
 	}
 #else
-	if (__socket_put_sbuf(&sock_info, &sb, src_port, src_addr) < 0) {
+	if (__socket_put_sbuf(&sock_info, &sb, src_addr, src_port) < 0) {
 		fprintf(stderr, "%s: can't put sbuf to udp socket\n", __func__);
 		pkt_free(pkt);
 		ret = -1;

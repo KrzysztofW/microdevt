@@ -1,0 +1,22 @@
+REM This is a comment
+REM_BLOCK
+This is a comment too.
+This is another comment.
+END_REM
+
+STRING This is a string
+
+STRINGLN This is a string with a new line
+
+STRING
+Hello
+ World
+!
+END_STRING
+
+STRINGLN
+Hello World!
+END_STRINGLN
+
+STRING abcdef
+STRINGLN xyz

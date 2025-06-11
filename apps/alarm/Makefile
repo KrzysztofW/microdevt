@@ -58,4 +58,6 @@ libnet:
 	make -C ../../net
 
 include $(ARCH_DIR)/$(ARCH)/common.mk
+clean: _clean
+
 .PHONY: all

@@ -58,8 +58,12 @@
 
 #define __STR(x) #x
 
+#ifndef MIN
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
+#endif
+#ifndef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
 
 #define ROUNDUP_PWR2(x) (1 << ((sizeof(int) * 8) - __builtin_clz(x - 1)))
 

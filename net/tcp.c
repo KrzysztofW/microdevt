@@ -38,11 +38,10 @@ static list_t tcp_conns = LIST_HEAD_INIT(tcp_conns);
 #endif
 static uint8_t tcp_conn_cnt;
 
-struct syn_entries {
+typedef struct syn_entries {
 	tcp_syn_t conns[CONFIG_TCP_SYN_TABLE_SIZE];
 	uint8_t pos;
-} __PACKED__;
-typedef struct syn_entries syn_entries_t;
+} syn_entries_t;
 
 syn_entries_t syn_entries;
 
@@ -70,6 +69,7 @@ static tcp_syn_t *syn_find_entry(const tcp_uid_t *uid)
 static inline void tcp_retransmit_init(tcp_retrn_t *retrn)
 {
 	timer_init(&retrn->timer);
+	retrn->timer.cb = NULL;
 	INIT_LIST_HEAD(&retrn->retrn_pkt_list);
 }
 
@@ -78,7 +78,7 @@ static void tcp_retrn_wipe(tcp_conn_t *tcp_conn)
 	tcp_retrn_pkt_t *retrn_pkt, *retrn_pkt_tmp;
 
 	timer_del(&tcp_conn->retrn.timer);
-	list_for_each_entry_safe(retrn_pkt, retrn_pkt_tmp,
+	LIST_FOR_EACH_ENTRY_SAFE(retrn_pkt, retrn_pkt_tmp,
 				 &tcp_conn->retrn.retrn_pkt_list, list) {
 		list_del(&retrn_pkt->list);
 		pkt_free(retrn_pkt->pkt);
@@ -109,7 +109,7 @@ void __tcp_conn_delete(tcp_conn_t *tcp_conn)
 
 	if (sock_info)
 		sock_info->trq.tcp_conn = NULL;
-	list_for_each_entry_safe(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
+	LIST_FOR_EACH_ENTRY_SAFE(pkt, pkt_tmp, &tcp_conn->pkt_list_head, list) {
 		list_del(&pkt->list);
 		pkt_free(pkt);
 	}
@@ -206,7 +206,8 @@ void tcp_conn_delete(tcp_conn_t *tcp_conn)
 tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
 {
 	tcp_conn_t *tcp_conn;
-	list_for_each_entry(tcp_conn, &tcp_conns, list) {
+
+	LIST_FOR_EACH_ENTRY(tcp_conn, &tcp_conns, list) {
 		/* tcp_conn must be packed */
 		if (memcmp(uid, &tcp_conn->syn.tuid, sizeof(tcp_uid_t)) == 0)
 			return tcp_conn;
@@ -220,7 +221,7 @@ tcp_conn_t *tcp_conn_lookup(const tcp_uid_t *uid)
 static tcp_conn_t *tcp_client_conn_lookup(const tcp_uid_t *uid)
 {
 	tcp_conn_t *tcp_conn;
-	list_for_each_entry(tcp_conn, &tcp_client_conns, list) {
+	LIST_FOR_EACH_ENTRY(tcp_conn, &tcp_client_conns, list) {
 		/* tcp_conn must be packed */
 		if (memcmp(uid, &tcp_conn->syn.tuid, sizeof(tcp_uid_t)) == 0)
 			return tcp_conn;
@@ -330,7 +331,7 @@ static void tcp_retransmit(void *arg)
 		return;
 	}
 
-	list_for_each_entry(retrn_pkt, &tcp_conn->retrn.retrn_pkt_list, list) {
+	LIST_FOR_EACH_ENTRY(retrn_pkt, &tcp_conn->retrn.retrn_pkt_list, list) {
 		pkt_t *pkt = retrn_pkt->pkt;
 
 		pkt_retain(pkt);
@@ -411,7 +412,7 @@ static void tcp_retrn_ack_pkts(tcp_conn_t *tcp_conn, uint32_t remote_ack)
 {
 	tcp_retrn_pkt_t *retrn_pkt, *retrn_pkt_tmp;
 
-	list_for_each_entry_safe(retrn_pkt, retrn_pkt_tmp,
+	LIST_FOR_EACH_ENTRY_SAFE(retrn_pkt, retrn_pkt_tmp,
 				 &tcp_conn->retrn.retrn_pkt_list, list) {
 		pkt_t *pkt = retrn_pkt->pkt;
 		tcp_hdr_t *tcp_hdr;
@@ -778,9 +779,17 @@ void tcp_init(void)
 {
 	htable_init(&tcp_conns);
 }
-
+#endif
 void tcp_shutdown(void)
 {
+#ifndef CONFIG_HT_STORAGE
+	tcp_conn_t *tcp_conn;
+	tcp_conn_t *tcp_conn_tmp;
+
+	LIST_FOR_EACH_ENTRY_SAFE(tcp_conn, tcp_conn_tmp, &tcp_conns, list) {
+		tcp_conn_delete(tcp_conn);
+	}
+#else
 	htable_free(&tcp_conns);
-}
 #endif
+}
